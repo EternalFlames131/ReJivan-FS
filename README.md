@@ -4,7 +4,7 @@
 **Competition:** Hack for Social Cause 2027 (VBYLD 2027), MyBharat / MoYAS + IIT Bombay
 **Owner:** Samrat (teacher trainee, non-technical — explain plainly)
 **This folder is the SINGLE SOURCE OF TRUTH — portable to any device/drive.**
-**GitHub (PUBLIC):** github.com/EternalFlames131/ReJivan
+**GitHub (PUBLIC):** github.com/EternalFlames131/ReJivan-FS
 
 ## Idea in one line
 Affordable health monitoring + on-time medicines + automatic emergency help — at **home and in hospital "Virtual Ward" rooms** — using **wearables plus privacy-first camera zones**, so patients are watched even when no one is in the room.
@@ -49,7 +49,7 @@ Full rules: `references/hsc_guidelines_summary.md`
 5. Rebuild the PDF after editing the HTML: `pwsh -File tools\build_pdf.ps1`.
 
 ## Safety (multiple-repo guarantee)
-- Everything here is scoped to **this project only**. The auto-push hook checks, on every commit, that this folder's git `origin` is exactly `EternalFlames131/ReJivan` — if not, it does nothing. Your **other GitHub repos and global git settings are never touched**.
+- Everything here is scoped to **this project only**. The auto-push hook checks, on every commit, that this folder's git `origin` is exactly `EternalFlames131/ReJivan-FS` — if not, it does nothing. Your **other GitHub repos and global git settings are never touched**.
 - You have multiple repos on GitHub; this folder will never push to any other one, even if copied somewhere else.
 
 ## Memory (you never re-explain anything)
@@ -65,7 +65,7 @@ Full rules: `references/hsc_guidelines_summary.md`
 - Extra winning points: DPI alignment (ABHA/tele-MANAS), vernacular + offline + SMS fallback, privacy-by-design, SDG 3, climate alerting, honest disclosure of digital tools used
 
 ## Open items
-- ~~Finish the Vercel live website~~ **DONE — live at https://rejivan.vercel.app** (deployed + verified 2026-09-09; auto-deploy now updates it on every commit and re-points this domain).
+- ~~Finish the Vercel live website~~ **DONE — live at https://rejivan2.vercel.app** (deployed + verified 2026-09-12; auto-deploy now updates it on every commit and re-points this domain).
 - Final team name, up to 3 members, AISHE institution confirmation, MyBharat individual registrations
 - User review of the running prototype at http://localhost:8080 (login with a demo account); "Add patient" flow for newly registered families
 - Problem statement sheet (state-specific **Andaman & Nicobar Islands**), 6–7 slide deck, demo video, Annexure 1

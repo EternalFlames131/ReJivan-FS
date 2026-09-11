@@ -19,7 +19,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - **Working prototype in `prototype/` (built 2026-09-09, SERVERLESS-READY):** Node + Express web app that runs identically on a laptop AND on Vercel (deterministic, stateless engine — every request computes vitals/alerts/calls/camera from the wall clock; no background loop). **Login required** — each account sees only its own registered patients (real per-user data isolation; scrypt-hashed passwords; stateless HMAC-signed tokens). Live vitals dashboard, medicines (add/take/delete), real rules engine + alerts + escalations, **automatic emergency-call chain** (family → backup → 108/112; REAL trigger/priority/retry logic, SIMULATED placement), Virtual Ward nurse view, privacy-first camera-zone feed + **live camera preview** (privacy-safe simulated metadata, nothing recorded/stored), 5-language UI. Simulated parts clearly labelled (vitals data, camera events, SMS/WhatsApp, live preview).
   - Run: `cd prototype && npm start` → **http://localhost:8080** (server currently LIVE; demo anchored in **Andaman & Nicobar Islands** — homes at Junglighat, Port Blair + Hut Bay, Little Andaman; Virtual Ward at GB Pant Hospital, Port Blair; region shown on every dashboard + the PDF). Vercel entry: `prototype/api/index.js` + `prototype/vercel.json`. **Auto-deploy ENABLED** (post-commit hook deploys `prototype\` to Vercel production whenever the CLI is logged in; one-time `vercel login github` still pending — device flow: https://vercel.com/oauth/device?user_code=DHLK-VNLG).
   - Demo logins: asharma@demo.in / rprakash@demo.in / wardnurse@demo.in (password: demo123).
-- **PUBLIC GitHub repo (DONE 2026-09-09):** `github.com/EternalFlames131/ReJivan` (user `EternalFlames131`), branch `main`. ✅ HSC public-repo requirement now satisfied.
+- **PUBLIC GitHub repo:** `github.com/EternalFlames131/ReJivan-FS` (user `EternalFlames131`), branch `main`.
 - Copy of owner's opencode global config + running activity log: `opencode-config/`.
 
 ## Key decisions made (so far)
@@ -43,12 +43,12 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 ## Open items / next steps
 - [x] Build the working prototype in `prototype/` (core + dashboard done).
 - [x] Add login + per-user data isolation + privacy-first live camera view (done d6dec9b).
-- [x] Make repo PUBLIC (done 2026-09-09, github.com/EternalFlames131/ReJivan).
+- [x] Make repo PUBLIC (github.com/EternalFlames131/ReJivan-FS).
 - [x] Auto-updating concept PDF (pre-commit hook, done 4a6dd9f).
 - [x] Serverless-ready refactor for Vercel (done + verified locally 2026-09-09).
 - [x] Prototype anchored in Andaman & Nicobar Islands (homes Port Blair/Little Andaman, ward = GB Pant Hospital) — loaded in UI + API + auto-PDF (2026-09-09).
-- [x] Auto-push (git) + **AUTO-DEPLOY (Vercel)** enabled via setup.ps1 + post-commit hook (2026-09-09).
-- [x] **LIVE PUBLIC WEBSITE** → https://rejivan.vercel.app (deployed + verified end-to-end 2026-09-09; domain renamed to rejivan.vercel.app 2026-09-10, old URLs removed): both demo logins, Andaman region + addresses, GB Pant Hospital ward, alerts/escalations/calls, camera zones, /api/simulation/status. Vercel Authentication (deployment protection) was switched OFF via API (`ssoProtection: null`) so the public URL needs no login.
+- [x] Auto-push (git) + **AUTO-DEPLOY (Vercel)** enabled via setup.ps1 + post-commit hook.
+- [x] **LIVE PUBLIC WEBSITE** → https://rejivan2.vercel.app (deployed + verified 2026-09-12; independent Vercel project rejivan2): both demo logins, Andaman region + addresses, GB Pant Hospital ward, alerts/escalations/calls, camera zones, /api/simulation/status. Vercel Authentication (deployment protection) switched OFF via API (`ssoProtection: null`).
 - [x] User reviews the running prototype at http://localhost:8080 (Persistent server is LIVE now) — collect feedback.
 - [ ] Round out prototype: "Add patient" flow for newly registered families; PWA offline service-worker (low priority).
 - [ ] Wire escalation delivery to real APIs (SMS/WhatsApp/email) OR keep as clearly-labelled stubs.

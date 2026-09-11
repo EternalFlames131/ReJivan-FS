@@ -21,7 +21,7 @@ ReJivan = "A Personal Nurse for Every Family" — Hack for Social Cause 2027 (VB
 - `references/hsc_guidelines_summary.md` — competition rules/deadlines.
 - `opencode-config/` — backup of owner's global opencode config + activity log.
 - `prototype/` (to build) · `video/` (to build) · `CONTEXT.md` (full snapshot) · `README.md` (overview) · `CHANGELOG.md` (project log).
-- GitHub (**PUBLIC**, branch main): `github.com/EternalFlames131/ReJivan`.
+- GitHub (**PUBLIC**, branch main): `github.com/EternalFlames131/ReJivan-FS`.
 
 ## AUTO-SAVE CONVERSATION MEMORY (so the user never re-explains)
 - **RULE (always):** After EVERY turn where decisions, thoughts, or new info were exchanged, append a short dated entry to `CONVERSATION.md` (the project memory). When resuming later, read `CONVERSATION.md` + `CONTEXT.md` first and continue from there — never make the user repeat previously settled details.
@@ -39,13 +39,13 @@ Run: `pwsh -File tools\setup.ps1`
 It checks/installs Python + pypdf + Edge + Git (via winget, asks first), sets LOCAL git identity for this repo only, locks the remote to **this** repo's GitHub, enables auto-push, enables auto-deploy to Vercel (if CLI + login present), checks GitHub login, and tests the PDF pipeline.
 
 ## Auto-push + Auto-deploy (enabled for this project only)
-- After every `git commit`, a hook **automatically pushes** to `github.com/EternalFlames131/ReJivan` (branch main). If the Vercel CLI is installed and logged in, it **also deploys the production website** (`prototype\` → Vercel). Commits are never blocked; if offline/not-logged-in the hook prints a yellow note and moves on.
+- After every `git commit`, a hook **automatically pushes** to `github.com/EternalFlames131/ReJivan-FS` (branch main). If the Vercel CLI is installed and logged in, it **also deploys the production website** (`prototype\` → Vercel). Commits are never blocked; if offline/not-logged-in the hook prints a yellow note and moves on.
 - Disable auto-deploy on a machine: create `.git\no-deploy` or set `REJIVAN_NO_DEPLOY=1`.
-- **SAFETY (never cross-repo):** the hook only fires when this folder's git `origin` is exactly the ReJivan repo; otherwise it does nothing. The owner has OTHER GitHub repos and global git/opencode settings are never touched. Commits themselves are still deliberate (git add + git commit).
+- **SAFETY (never cross-repo):** the hook only fires when this folder's git `origin` is exactly the ReJivan-FS repo; otherwise it does nothing. The owner has OTHER GitHub repos and global git/opencode settings are never touched. Commits themselves are still deliberate (git add + git commit).
 - If offline/not logged in, the push is skipped but the commit is safe — run `git push` later.
 
 ## Auto-save (AutoSave watcher — commits+pushes+deploys by itself)
-- **`tools\autosaver.ps1`** watches the whole project. When a change-set stays stable for 40 s (and > 120 s since the last auto-commit), it runs `git add -A && git commit`. The post-commit hook then auto-pushes + auto-deploys + refreshes `rejivan.vercel.app` — the user never has to type a command.
+- **`tools\autosaver.ps1`** watches the whole project. When a change-set stays stable for 40 s (and > 120 s since the last auto-commit), it runs `git add -A && git commit`. The post-commit hook then auto-pushes + auto-deploys + refreshes `rejivan2.vercel.app` — the user never has to type a command.
 - Started automatically at Windows logon via a Startup-folder shortcut ("ReJivan AutoSave"). Pause it anytime by creating the file `.git\no-autosave`; remove it to resume. Its log is `tools\autosaver.log` (gitignored so it can never cause a loop).
 - Safety: it only ever runs `git` inside THIS folder's repo; other repos/global settings are untouched. Because the repo is PUBLIC, never add passwords/secrets to files (auto-push sends them).
 

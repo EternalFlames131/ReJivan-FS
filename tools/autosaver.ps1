@@ -3,7 +3,7 @@
 # change-set stays identical for a short quiet period, then runs:
 #   git add -A  &&  git commit
 # The .githooks/post-commit hook then AUTOMATICALLY pushes to GitHub and
-# redeploys rejivan.vercel.app — so you never have to run any command again.
+# redeploys rejivan2.vercel.app — so you never have to run any command again.
 #
 # Start (background):   pwsh -File "tools\autosaver.ps1"
 # Keep it always on:    the "ReJivan AutoSave" scheduled task starts it at

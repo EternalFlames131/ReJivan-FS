@@ -8,7 +8,7 @@ import kotlin.concurrent.thread
 /**
  * Data layer: server-first, local-engine fallback.
  *
- * When online, fetches live data from https://rejivan.vercel.app and
+ * When online, fetches live data from https://rejivan2.vercel.app and
  * merges it with the local state. When offline (or server unreachable),
  * falls back to the fully offline local engine (VitalSimulator + RulesEngine).
  *

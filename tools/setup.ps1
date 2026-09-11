@@ -112,7 +112,7 @@ if (Test-Cmd git) {
 Write-Step "5/7" "Locking remote + enabling auto-push (ReJivan repo ONLY)"
 if (Test-Cmd git) {
     if (-not (Test-Path -LiteralPath "$root\.git")) { git init -b main | Out-Null }
-    $target = "https://github.com/EternalFlames131/ReJivan.git"
+    $target = "https://github.com/EternalFlames131/ReJivan-FS.git"
     $origin = git config --get remote.origin.url
     if ($origin -ne $target -and -not [string]::IsNullOrWhiteSpace($origin)) { git remote remove origin; Write-Host "  removed wrong origin: $origin" }
     if ($origin -ne $target) {
@@ -191,7 +191,7 @@ if ($problems.Count -eq 0) {
     Write-Host "`n===== SETUP FINISHED (see reminders below) =====" -ForegroundColor Yellow
     $problems | ForEach-Object { Write-Host ("  * " + $_) -ForegroundColor Yellow }
 }
-Write-Host "Every commit is auto-pushed to github.com/EternalFlames131/ReJivan (origin-checked; other repos NEVER touched)."
+Write-Host "Every commit is auto-pushed to github.com/EternalFlames131/ReJivan-FS (origin-checked; other repos NEVER touched)."
 Write-Host "If Vercel CLI + login are present, every commit ALSO auto-deploys the production website."
 Write-Host "Your global git settings and other repositories are untouched."
 Write-Host "If a push is skipped (offline / not logged in), your commit is safe - run 'git push' later."

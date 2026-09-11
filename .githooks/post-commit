@@ -13,48 +13,48 @@
 # the file .git/no-deploy (or set the env var REJIVAN_NO_DEPLOY=1).
 
 ORIGIN=$(git config --get remote.origin.url 2>/dev/null || true)
-ALLOW="https://github.com/EternalFlames131/ReJivan.git"
-ALLOW_ALT="git@github.com:EternalFlames131/ReJivan.git"
+ALLOW="https://github.com/EternalFlames131/ReJivan-FS.git"
+ALLOW_ALT="git@github.com:EternalFlames131/ReJivan-FS.git"
 
 if [ "$ORIGIN" != "$ALLOW" ] && [ "$ORIGIN" != "$ALLOW_ALT" ]; then
-  printf '\033[33m[ReJivan] SAFETY: origin is not the ReJivan repo - auto-push/deploy SKIPPED (commit is safe, no other repo touched).\033[0m\n'
+  printf '\033[33m[ReJivan-FS] SAFETY: origin is not the ReJivan-FS repo - auto-push/deploy SKIPPED (commit is safe, no other repo touched).\033[0m\n'
   exit 0
 fi
 
 if git push --quiet 2>/dev/null; then
-  printf '\033[32m[ReJivan] pushed to GitHub automatically (ReJivan repo only).\033[0m\n'
+  printf '\033[32m[ReJivan-FS] pushed to GitHub automatically (ReJivan-FS repo only).\033[0m\n'
 else
-  printf '\033[33m[ReJivan] push skipped: offline, not logged in, or another copy pushed first. Commit is fine -> run "git pull" if needed, then "git push".\033[0m\n'
+  printf '\033[33m[ReJivan-FS] push skipped: offline, not logged in, or another copy pushed first. Commit is fine -> run "git pull" if needed, then "git push".\033[0m\n'
 fi
 
 # ---- AUTO-DEPLOY to Vercel (production) --------------------------------------
 if [ -n "$REJIVAN_NO_DEPLOY" ] || [ -f ".git/no-deploy" ]; then
-  printf '\033[33m[ReJivan] auto-deploy disabled (REJIVAN_NO_DEPLOY or .git/no-deploy).\033[0m\n'
+  printf '\033[33m[ReJivan-FS] auto-deploy disabled (REJIVAN_NO_DEPLOY or .git/no-deploy).\033[0m\n'
   exit 0
 fi
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$ROOT" ] || [ ! -d "$ROOT/prototype" ]; then
-  printf '\033[33m[ReJivan] auto-deploy skipped: prototype folder not found.\033[0m\n'
+  printf '\033[33m[ReJivan-FS] auto-deploy skipped: prototype folder not found.\033[0m\n'
   exit 0
 fi
 
 if ! command -v vercel >/dev/null 2>&1; then
-  printf '\033[33m[ReJivan] auto-deploy skipped: Vercel CLI not installed. Run: npm i -g vercel\033[0m\n'
+  printf '\033[33m[ReJivan-FS] auto-deploy skipped: Vercel CLI not installed. Run: npm i -g vercel\033[0m\n'
   exit 0
 fi
 
 if ! (command -v vercel >/dev/null 2>&1 && { [ -n "$VERCEL_TOKEN" ] || vercel whoami >/dev/null 2>&1; }); then
-  printf '\033[33m[ReJivan] auto-deploy skipped: not logged in to Vercel. Run: vercel login github   (then commits auto-deploy)\033[0m\n'
+  printf '\033[33m[ReJivan-FS] auto-deploy skipped: not logged in to Vercel. Run: vercel login github   (then commits auto-deploy)\033[0m\n'
   exit 0
 fi
 
 DEPLOYED=$(cd "$ROOT/prototype" && vercel deploy --prod --yes ${VERCEL_TOKEN:+--token "$VERCEL_TOKEN"} 2>&1)
 if echo "$DEPLOYED" | grep -q "https://"; then
   URL=$(echo "$DEPLOYED" | grep -o 'https://[^ ]*' | tail -1)
-  printf '\033[32m[ReJivan] auto-deployed (production) -> %s\033[0m\n' "$URL"
-  vercel alias set "$URL" rejivan.vercel.app >/dev/null 2>&1
-  printf '\033[32m[ReJivan] alias kept fresh -> rejivan.vercel.app\033[0m\n'
+  printf '\033[32m[ReJivan-FS] auto-deployed (production) -> %s\033[0m\n' "$URL"
+  vercel alias set "$URL" rejivan2.vercel.app >/dev/null 2>&1
+  printf '\033[32m[ReJivan-FS] alias kept fresh -> rejivan2.vercel.app\033[0m\n'
 else
-  printf '\033[33m[ReJivan] auto-deploy finished with a warning (offline? deployment quota?). Live site may be unchanged. First deploy: run "cd prototype && npm run deploy".\033[0m\n'
+  printf '\033[33m[ReJivan-FS] auto-deploy finished with a warning (offline? deployment quota?). Live site may be unchanged. First deploy: run "cd prototype && npm run deploy".\033[0m\n'
 fi

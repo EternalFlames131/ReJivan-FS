@@ -240,7 +240,7 @@ fun Dashboard(state: AppState) {
             Text("Live Vitals Dashboard", color = AppColors.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Text("Region: ${DemoData.REGION}", color = AppColors.warn, fontSize = 12.sp)
             val srcNote = if (state.dataSource == Repository.Source.SERVER)
-                "Data fetched from rejivan.vercel.app" else "OFFLINE: local engine"
+                "Data fetched from rejivan2.vercel.app" else "OFFLINE: local engine"
             Text(srcNote, color = if (state.dataSource == Repository.Source.SERVER) AppColors.ok else AppColors.muted, fontSize = 11.sp)
             Text("SIMULATED vital data • REAL monitoring logic", color = AppColors.muted, fontSize = 11.sp)
         }
@@ -354,7 +354,7 @@ fun Medicines(state: AppState) {
                 TextButton(onClick = { showAdd = true }) { Text("+ Add", color = AppColors.accent) }
             }
             val medNote = if (state.dataSource == Repository.Source.SERVER)
-                "Live from rejivan.vercel.app • changes sync two ways"
+                "Live from rejivan2.vercel.app • changes sync two ways"
             else "Offline: saved on this device only"
             Text(medNote, color = if (state.dataSource == Repository.Source.SERVER) AppColors.ok else AppColors.muted, fontSize = 11.sp)
         }
@@ -536,7 +536,7 @@ fun Camera(state: AppState) {
         }
         item {
             val note = if (state.dataSource == Repository.Source.SERVER)
-                "Live data from rejivan.vercel.app — falls back to on-device engine when offline."
+                "Live data from rejivan2.vercel.app — falls back to on-device engine when offline."
             else "OFFLINE: local on-device engine (no internet needed)."
             Text(note, color = if (state.dataSource == Repository.Source.SERVER) AppColors.ok else AppColors.warn, fontSize = 11.sp)
         }
@@ -591,7 +591,7 @@ fun Devices(state: AppState) {
         item {
             Section("Medical Devices")
             val srcNote = if (state.dataSource == Repository.Source.SERVER)
-                "Live from rejivan.vercel.app" else "OFFLINE: local catalogue (FDA/CDSCO approved)"
+                "Live from rejivan2.vercel.app" else "OFFLINE: local catalogue (FDA/CDSCO approved)"
             Text(srcNote, color = if (state.dataSource == Repository.Source.SERVER) AppColors.ok else AppColors.muted, fontSize = 11.sp)
             Text("SIMULATED connectivity • REAL device profiles & approvals", color = AppColors.muted, fontSize = 11.sp)
         }

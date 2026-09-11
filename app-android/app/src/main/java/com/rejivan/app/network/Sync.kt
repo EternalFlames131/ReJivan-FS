@@ -9,12 +9,12 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * REST client for the ReJivan server (https://rejivan.vercel.app).
+ * REST client for the ReJivan server (https://rejivan2.vercel.app).
  * All methods block — call from a background thread / coroutine.
  * Returns null on any failure (network down, server error, parse error).
  */
 object Sync {
-    private const val BASE = "https://rejivan.vercel.app"
+    private const val BASE = "https://rejivan2.vercel.app"
 
     private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
 

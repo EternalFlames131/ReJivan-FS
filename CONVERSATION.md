@@ -558,6 +558,98 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ### What was done (web v2.5 – light clinical theme)
 - Programmatic theme transform of `prototype/public/index.html` (53.8 KB). New palette: page #f4f7fb, white panels, deep-navy text #10244a, brand teal #0d9488, accent blue #2563eb, ok #16a34a, warn #d97706, danger #dc2626, soft shadows, white header + nav.
+- Offline mode uses the app's built-in engine — rule/patient changes reflect only when online.
+
+### 19:49 Session save - all 5 tasks recorded in Session_Notes_2026-09-11.txt. Open fix: /api/calls determinism bug patched server-side (server.js alertsFor + rules.js confirmedDangerLabels) - verify on live site next session.
+
+## 2026-09-11 (Day 4 — session resume: verified the /api/calls fix on the live site)
+- Loaded project memory (CONVERSATION + CONTEXT), tree is clean, autosaver marker present.
+- **Open fix VERIFIED on live site:** login on https://rejivan.vercel.app works (demo account), `/api/calls` now returns emergency calls (1 call for the demo account) and is **DETERMINISTIC** — identical JSON responses 2 seconds apart. The server-side patch (server.js alertsFor + rules.js confirmedDangerLabels) holds in production. Live health OK: {"ok":true,"service":"ReJivan"}.
+- No other pending work this session; everything is committed/autosaved.
+
+## 2026-09-11 (Day 4 — "Vercel deployment failed" emails: root cause found + FIXED)
+### What the user reported
+- "In my email it is said that the vercel deployment failed. Check it, make it fixed."
+
+### Root cause (verified via Vercel API)
+- Every git push was triggering **TWO** production deploys for the prototype project:
+  1. **CLI deploy** (from our post-commit hook, `vercel deploy --prod`) → always **READY** (good).
+  2. **GitHub-integration auto-deploy** (Vercel's own "deploy on push", `source:"git"`) → always **ERROR** with the known transient error `type_error: Cannot read properties of undefined (reading 'fsPath')`.
+- The ERROR git deploy is what Vercel e-mails the user about. It errored on EVERY single commit (43a186e, 8acb1b5, 13bbef5, 4f7a562, 0ffd327, bac714e, 70d7dcd, 8e9d492, fbf7cd2... all `fsPath`), but the parallel CLI deploy of the SAME commit always succeeded, so the live site was never actually down. Same transient seen all of Day 3.
+- Also confirmed: `rejivan.vercel.app` correctly points at the latest READY CLI deployment (prototype-gwtv39d18 → dpl_E3FXTY, sha 43a186e); live health OK, homepage title ReJivan.
+
+### The fix (applied + verified)
+- **Disabled Vercel's GitHub auto-deploy** for the prototype project via the Vercel API: `PATCH /v9/projects/prj_26QbwEMnqgU7Bur4MlF03g24ZwMF` with `{"gitProviderOptions":{"createDeployments":"disabled"}}` → confirmed `createDeployments = disabled`.
+- Result: no more duplicate failing git deploys → **no more failure emails**. Every push still gets ONE deploy — the CLI one from the post-commit hook — which reliably goes READY, and the hook already re-assigns `rejivan.vercel.app` to the fresh URL.
+- Verified after the change: rejivan.vercel.app/api/health 200 {"ok":true,"service":"ReJivan"}, homepage `<title>ReJivan</title>`, alias → READY deployment (prototype-gwtv39d18).
+
+### Notes
+- No code change needed — the site and the Android app are unaffected.
+- If Samrat ever WANTS git auto-builds again (e.g. for another team member's branch), it can be re-enabled in one API call (`{"gitProviderOptions":{"createDeployments":"enabled"}}`).
+
+## 2026-09-12 — Professional UI redesign + UX improvements
+
+### What the user asked
+- Make the project look more professional / not obviously AI-made (inspired by web search of healthcare dashboard best practices).
+- Android: make demo accounts one-tap clickable (no need to type credentials manually).
+- Android: remember previous login credentials so the app prefills them.
+
+### What was done (verified)
+- **Web UI redesign:** Full `prototype/public/index.html` rewrite (53 KB). New design-system CSS: brandmark header with SVG pulse glyph, icon nav (inline SVG mask `--ic`), LIVE/SIMULATED pills, stat cards (`statsrow`/`statcard`), device chips, animated modals (`fade`/`pop`), improved login screen with 3 one-tap demo-account buttons (`fillDemo()` onclick) + tagline. Backup at `Temp\opencode\rejivan_index_backup.html`; new head fragment at `Temp\opencode\rejivan_index_new_head.html`. Icons generated via `Temp\opencode\gen_icons.py` → `icons_css.txt`.
+- **i18n:** Added `demo_anita`/`demo_ram`/`demo_ward` keys in all 5 languages (104 keys per lang in `lang.json`).
+- **Web verification:** Ran local server + Edge headless DOM dump post-login → nav icons render (7 navitem matches), statsrow present, statcard danger present, 5 patient cards, 6 vital tiles, 14 confidence references, 6 reliability bars, login hidden, whoami filled, `clearview` animation class present, `Monitored` label translated. No JS errors.
+- **Android AppColors.kt:** brand color updated `#2FBF8F` → `#34D0AC` (accent + ok) to match web.
+- **Android App.kt — top bar:** added branded 30dp "R" box mark + tagline "A Personal Nurse for Every Family" + `LIVE · SIMULATED` amber pill; removed redundant role text.
+- **Android App.kt — Dashboard:** added stats row: Patients/Stable/Caution/Danger stat tiles (new `StatTile` composable, Row-weighted, matching web statsrow).
+- **Android App.kt — Login:** `LocalContext.current` + SharedPreferences (`rejivan_prefs`). Email/password prefilled from last successful login. `Checkbox` "Remember login" (on by default). Demo buttons (`DemoShortcut`) now call `doLogin()` directly — one tap = logged in, saving credentials to prefs if remember checked.
+- **Android build:** `versionCode` 1→2, `versionName` "1.0"→"2.3". `gradlew assembleDebug --offline` → BUILD SUCCESSFUL (35 tasks, 1m 23s). APK → `Downloads\ReJivan-Android-v2.3.apk` (17,396,362 bytes, 12-09-2026 00:03).
+
+### Key decisions
+- Web redesign uses pure CSS (no JS framework changes) — safe, no build step.
+- Android changes confined to `AppColors.kt` + `App.kt` only — no new files, no Manifest/network changes, zero risk to existing Sync/Repository.
+- APK kept as debug (no signing key) — matches competition upload expectations.
+
+### Follow-up
+- v2.2 APK still in Downloads for fallback; v2.3 is the active demo.
+- Web live at rejivan.vercel.app; Android fetches from it (Sync.kt, Repository.kt verified earlier).
+- Possible next polish: deeper web/Android parity on ward/camera/alerts visuals (cosmetic only).
+
+## 2026-09-12 (later) — "Still looks AI-made/unpolished" → v2.4 professional pass
+
+### What the user asked
+- Confirm the installed app fetches from the website and syncs (YES — verified: Sync.kt BASE = https://rejivan.vercel.app, Repository server-first + local fallback).
+- Confirm the Medical Devices panel is back (YES — Devices screen + device groups + catalogue + battery/signal rows verified in source).
+- Make the project look professional / made by professional developers, not AI-made.
+
+### What was done (Android v2.4)
+- Real Material3 **bottom NavigationBar** with icons (filled when selected) — replaced the plain top tab strip. Tabs: Dashboard/Medicines/Alerts/Devices/Ward/Camera (Home, Medication, Notifications, Devices, LocalHospital, Videocam icons).
+- Header-style top bar (slimmer): "R" brand mark, ReJivan + tagline, SERVER/OFFLINE pill, LIVE·SIM pill, Logout.
+- Dashboard patient cards + stat tiles now have subtle 1dp line borders (designed, cohesive look).
+- Ward view upgraded to match web: color-coded priority pill, ward name, metric chips (HR/SpO2/BP).
+- versionCode 3, versionName 2.4 → BUILD SUCCESSFUL → `Downloads\ReJivan-Android-v2.4.apk` (17,412,746 bytes, hash AE1CAEAB...).
+- Logs (CONVERSATION/CHANGELOG/LOG.md) updated; autosaver commits+pushes automatically.
+
+### Notes / follow-up
+- IMPORTANT for Samrat: install the LATEST APK (v2.4) — each version overwrites the previous during install; v2.4 contains everything (demo one-tap, remember-login, bottom nav, devices panel, sync).
+- Web already redesigned & deployed (rejivan.vercel.app). If still not "professional enough", next candidates: further login/branding polish on web, or a deeper Alerts/Camera card redesign.
+
+## 2026-09-12 (later) — "Still looks AI-made" → real web research + light clinical redesign (web v2.5)
+
+### What the user asked
+- "Still looks very AI made — did you research web for better website design?"
+
+### Honest answer
+- The FIRST attempt at web research actually FAILED (the Exa search service was rate-limited that moment) and the assistant improvised from general knowledge instead — the dark navy + neon teal theme was exactly the "AI default" look. This time research succeeded.
+
+### Research (real, quoted references)
+- Orbix Studio – "Healthcare Analytics Dashboard | Patient Monitoring UI": vital signals grouped in focused blocks, balanced data with breathing space, highlights changes without visual noise, clarity/rhythm/quick decisions.
+- Arounda Case – "Medical Dashboard Design for High-Pressure Workflows" (Cinex): current patient state must be the CLEAREST thing on screen; one dominant clinical anchor + subtle secondary data; one role per card; scan-friendly tables; gentle pops of color, rounded cards, soft spacing, "medical-feeling but not sterile".
+- HealthNexus case study: clean/sociable software palette, accessibility-focused contrast, calm visual language, trust-focused design, status tags (Critical/Recovered/Under Treatment), KPI cards.
+- FusionCharts real-time patient monitoring: EMR table, live monitor button, alert thresholds — dense-but-scannable, status-first.
+- CONSENSUS applied: professional medical dashboards are LIGHT/clinical — dark neon reads as AI-generated.
+
+### What was done (web v2.5 – light clinical theme)
+- Programmatic theme transform of `prototype/public/index.html` (53.8 KB). New palette: page #f4f7fb, white panels, deep-navy text #10244a, brand teal #0d9488, accent blue #2563eb, ok #16a34a, warn #d97706, danger #dc2626, soft shadows, white header + nav.
 - All components re-tuned: pills/badges/confidence/prio/device chips, banners, inputs, call ladder, camera stage, modals, login card (white + soft radial gradients + teal "R" brandmark), tabular-numeral vital/stat readouts, 14.5px body text.
 - Automated 100% token scan: zero old dark colors left. Backup of dark version at `...\Temp\opencode\rejivan_index_dark_backup.html`.
 - Verified E2E locally (edge headless DOM post-login): all structure intact (nav icons, statsrow/statcards, device chips, clearview, whoami, translations, light bg).
@@ -565,3 +657,40 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ### Status
 - Waiting for autosaver to commit+push+deploy → rejivan.vercel.app will serve the light clinical design. Next: verify live site markers, then done.
+
+---
+
+## 2026-09-12 (Day 5 — Project duplicated to "rejivan FS", separate repo EternalFlames131/ReJivan-FS & live site rejivan2.vercel.app)
+
+### What the user asked
+- Make a separate copy folder named "rejivan FS" to continue work independently and compare tasks later.
+- Set up a different GitHub repo and a different Vercel website named `rejivan2.vercel.app`.
+- Ensure the native Android application fetches from `rejivan2.vercel.app`.
+- CRITICAL SAFETY: Ensure nothing done here affects the original `SanjivanAI` folder or its production deployment.
+- Pause here and resume seamlessly tomorrow with all memory remembered.
+
+### What was done (all verified & isolated)
+1. **Directory Clone:** Created `C:\Users\samra\OneDrive\Desktop\rejivan FS` with a complete mirror of all project assets, code, docs, and configs.
+2. **GitHub Repository:** Created a new public repository `EternalFlames131/ReJivan-FS` (https://github.com/EternalFlames131/ReJivan-FS). Set remote origin and pushed full `main` branch history.
+3. **Vercel Project & Domain:**
+   - Unlinked old Vercel project and created a dedicated project `rejivan2` (ID: `prj_bMmzDNUcgKMrD3BWLzaLFhCe2vRv`).
+   - Production domain assigned: **https://rejivan2.vercel.app**.
+   - Disabled Vercel deployment protection (`ssoProtection: null`) so the site is open without login.
+   - Deployed and verified live: `/api/health` returns `{"ok": true, "service": "ReJivan"}`.
+4. **Safety Hooks Updated:**
+   - `.githooks/post-commit`: Updated `ALLOW` to `EternalFlames131/ReJivan-FS.git` only; updated alias promotion to `rejivan2.vercel.app`. Zero chance of cross-pollinating into the original repo or URL.
+   - `tools/setup.ps1`: Remote target set to `EternalFlames131/ReJivan-FS.git`.
+5. **Native Android App (`app-android/`):**
+   - Updated `Sync.kt` BASE URL to `https://rejivan2.vercel.app`.
+   - Updated `Repository.kt` and `App.kt` strings/badges to reference `rejivan2.vercel.app`.
+   - Built fresh debug APK: `assembleDebug --offline` completed successfully (35 tasks).
+   - Saved APK to: `C:\Users\samra\Downloads\ReJivan2-Android-v2.4.apk` (17.4 MB).
+6. **Documentation & Memory:**
+   - Updated `README.md`, `AGENTS.md`, `CONTEXT.md` in `rejivan FS`.
+   - Verified that the original folder (`C:\Users\samra\OneDrive\Desktop\SanjivanAI`) and its website (`rejivan.vercel.app`) remain completely untouched and healthy.
+
+### Where we left off / Next steps when resuming tomorrow:
+- Both projects are 100% isolated:
+  - Original: `SanjivanAI` -> `EternalFlames131/ReJivan` -> `rejivan.vercel.app`
+  - Sandbox/Compare: `rejivan FS` -> `EternalFlames131/ReJivan-FS` -> `rejivan2.vercel.app`
+- Ready next tasks to pick up: "Add patient" flow for newly registered families, real persistent DB, or competition presentation/video deliverables.
