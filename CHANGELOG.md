@@ -69,3 +69,17 @@
   - Tabular-numeral font feature on vital + stat readouts; slightly larger body text (14.5px/1.55); 100% token-scan: ZERO dark-theme colors left.
 - Verified end-to-end: local server + edge headless DOM post-login — login hidden, nav icons (7), statsrow, statcard (20), device chips, clearview animation, whoami, translations, light bg all present. No JS errors.
 - Android v2.4 keeps its dark theme (dark is standard on Android; consistency is by brand color #0D9488 = teal on both).
+
+### v3.0 – 2026-09-12 — ENTERPRISE CLINICAL REACT & TAILWIND DASHBOARD (Epic Systems / Teladoc design)
+- Built production-grade, enterprise medical monitoring web application dashboard using React 18, Tailwind CSS, Lucide-react icons, and modular component architecture (`prototype/public/src/`):
+  - Clean clinical light theme: neutral background (`bg-slate-50`), white surface cards (`bg-white` with `border border-slate-200/80` and subtle `shadow-xs`), tabular numbers (`font-mono` / `tabular-nums`) for all vitals and sensor telemetry to prevent layout shift.
+  - Color palette: primary healthcare slate/blue (`#0F172A`, `#2563EB`), caution/warning (`bg-amber-50 text-amber-800 border-amber-200`), danger/critical (`bg-rose-50 text-rose-700 border-rose-200`), normal/stable neutral dark typography with subtle green indicator dots (no green pill badge spam).
+  - Left Navigation Sidebar (collapsible): ReJivan brand logo, tagline "Better Care. Brighter Tomorrows.", navigation items (Dashboard, Medicines, Camera Zones, Virtual Ward, Alerts with compact badge 3, Medical Devices), simulation demo status chip.
+  - Top Application Bar: breadcrumbs, page title, live simulation mode indicator, notification bell with dropdown, language dropdown, user profile pill (Sharma Family) with demo account switcher and logout.
+  - Global Triage Metric Strip: 4-column grid (Patients Monitored: 1, Normal: 0, Caution: 1, Danger: 0).
+  - Main Content Area (2-column grid: 70% Left / 30% Right):
+    * Left Column: Patient Overview Card (Anita Sharma, 67 F, Junglighat, live pulse monitoring dot, Call Caregiver & Clinical Export action buttons); Comprehensive Vital Signs Table (HR 85 bpm, SpO2 97.7%, BP 149/97 mmHg with Amber Warning Elevated Sys >140, Temp 37.0 °C, Glucose 112 mg/dL with clean SVG trend sparklines); Hardware Diagnostics Bar (Omron BP, TempTraq, SanketLife, 98% Reliability Score).
+    * Right Column: Prioritized Recent Alerts Card, Medication Schedule Card (morning/afternoon/evening slots, checklist items, Taken/Upcoming tags, interactive check-off), and Patient Timeline Feed (micro-audit trail).
+  - Dedicated "Camera Zones" Route: multi-camera feed dashboard (Room 302 Main Overhead View, Bedside Side-Angle radar view), live recording indicators, 24ms stream latency, two-way audio intercom toggle, snapshot capture tool, full-screen preview modal, DPDP privacy badge, and interactive bed-exit simulation.
+  - Additional views: Virtual Ward (GB Pant Hospital), Medicines MAR, Alerts escalation ladder, Medical Devices fleet, and interactive Care Team call & Clinical JSON export modals.
+  - Bundler utility `tools/build_web.js` compiles modular components into `prototype/public/bundle.jsx` with local offline-first vendor scripts (`vendor/react.min.js`, `vendor/react-dom.min.js`, `vendor/babel.min.js`, `vendor/tailwindcss.js`).

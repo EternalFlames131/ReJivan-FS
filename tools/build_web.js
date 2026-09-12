@@ -1,4 +1,64 @@
-<!DOCTYPE html>
+// tools/build_web.js
+// Concatenates modular React components into prototype/public/bundle.jsx and generates index.html
+
+const fs = require("fs");
+const path = require("path");
+
+const root = path.resolve(__dirname, "..");
+const srcDir = path.join(root, "prototype", "public", "src");
+const compDir = path.join(srcDir, "components");
+const pubDir = path.join(root, "prototype", "public");
+
+const files = [
+  path.join(srcDir, "icons.jsx"),
+  path.join(compDir, "Sparkline.jsx"),
+  path.join(compDir, "Sidebar.jsx"),
+  path.join(compDir, "TopBar.jsx"),
+  path.join(compDir, "TriageMetricStrip.jsx"),
+  path.join(compDir, "PatientOverviewCard.jsx"),
+  path.join(compDir, "VitalSignsTable.jsx"),
+  path.join(compDir, "HardwareDiagnosticsBar.jsx"),
+  path.join(compDir, "RecentAlerts.jsx"),
+  path.join(compDir, "MedicationScheduleCard.jsx"),
+  path.join(compDir, "PatientTimeline.jsx"),
+  path.join(compDir, "CameraZonesView.jsx"),
+  path.join(compDir, "VirtualWardView.jsx"),
+  path.join(compDir, "MedicinesView.jsx"),
+  path.join(compDir, "AlertsView.jsx"),
+  path.join(compDir, "MedicalDevicesView.jsx"),
+  path.join(compDir, "Modals.jsx"),
+  path.join(compDir, "LoginModal.jsx"),
+  path.join(srcDir, "App.jsx"),
+];
+
+let bundleContent = "// ReJivan Clinical Suite - Enterprise Telemetry React Dashboard\n";
+bundleContent += "// Production-grade bundle generated from modular components in prototype/public/src/\n\n";
+
+files.forEach((file) => {
+  if (fs.existsSync(file)) {
+    bundleContent += `// --- START: ${path.relative(root, file)} ---\n`;
+    bundleContent += fs.readFileSync(file, "utf8");
+    bundleContent += `\n// --- END: ${path.relative(root, file)} ---\n\n`;
+  } else {
+    console.warn(`File not found: ${file}`);
+  }
+});
+
+bundleContent += `
+// Mount React application
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(<App />);
+}
+`;
+
+const bundlePath = path.join(pubDir, "bundle.jsx");
+fs.writeFileSync(bundlePath, bundleContent, "utf8");
+console.log(`Bundle generated successfully at ${bundlePath} (${bundleContent.length} bytes)`);
+
+// Generate production index.html
+const indexHtmlContent = `<!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-50">
 <head>
   <meta charset="UTF-8" />
@@ -115,3 +175,8 @@
   <script type="text/babel" src="/bundle.jsx"></script>
 </body>
 </html>
+`;
+
+const indexPath = path.join(pubDir, "index.html");
+fs.writeFileSync(indexPath, indexHtmlContent, "utf8");
+console.log(`Generated production index.html at ${indexPath}`);

@@ -657,3 +657,40 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ### Status
 - Waiting for autosaver to commit+push+deploy → rejivan.vercel.app will serve the light clinical design. Next: verify live site markers, then done.
+
+---
+
+## 2026-09-12 (Day 5 — Production-Grade Enterprise React & Tailwind Clinical Dashboard)
+
+### What the user asked
+- Build a production-grade, enterprise medical monitoring web application dashboard using React, Tailwind CSS, Lucide-react icons, and clean modular component design (Epic Systems / Teladoc style).
+- Design system: clean clinical light theme (`bg-slate-50`, `bg-white`, `border-slate-200/80`, `shadow-xs`, tabular numbers for zero layout shift during real-time data streaming).
+- Layout structure: Collapsible Left Navigation Sidebar, Top Application Bar, Global Triage Metric Strip (4 columns: Patients 1, Normal 0, Caution 1, Danger 0), 2-Column Main Content Area (70% Left / 30% Right).
+- Left Column: Patient Overview Card (Anita Sharma, 67 F, Junglighat, live pulse dot, Call Caregiver & Clinical Export), Comprehensive Vital Signs Table (HR 85 bpm, SpO2 97.7%, BP 149/97 mmHg with Amber Warning Elevated Sys >140, Temp 37.0 °C, Glucose 112 mg/dL with clean SVG trend sparklines), Hardware Diagnostics Bar (Omron BP, TempTraq, SanketLife, 98% Reliability Score).
+- Right Column: Prioritized Recent Alerts Card, Medication Schedule Card (morning/afternoon/evening slots, checklist items, Taken/Upcoming, interactive check-off), Patient Timeline Feed (micro-audit trail).
+- Dedicated Camera Zones route: Multi-camera dashboard (Room 302 Main Overhead View, Bedside Side-Angle radar view), live recording indicator, 24ms stream latency, two-way audio toggle, snapshot capture tool, full-screen preview modal, DPDP privacy badge, bed-exit simulation.
+- Answer: "why is vercel project of 'rejivan2.vercel.app' not connected to the github repo? make it connected after making all the changes i asked about. (first make all the changes and push it to github repo then connect it to the vercel)"
+
+### What was done (verified)
+- Built modular React 18 component suite in `prototype/public/src/` with Tailwind CSS and Lucide React SVG components:
+  * `src/icons.jsx`: 30+ authentic Lucide SVG icon components (stroke 1.75px, exact SVG paths).
+  * `src/components/Sparkline.jsx`: Smooth SVG cubic trend sparklines with area gradient fill and pulsating live end-dot.
+  * `src/components/Sidebar.jsx`: Collapsible navigation sidebar with ReJivan branding, "Better Care. Brighter Tomorrows.", nav items (Dashboard, Medicines, Camera Zones, Virtual Ward, Alerts with badge 3, Medical Devices), simulation demo status chip.
+  * `src/components/TopBar.jsx`: Top application bar with breadcrumb/page title, live simulation mode badge, alerts notification bell with dropdown, language dropdown, user profile pill (Sharma Family) with demo account switcher and logout.
+  * `src/components/TriageMetricStrip.jsx`: 4-column triage strip (Patients Monitored: 1, Normal: 0, Caution: 1, Danger: 0) with neutral dark typography and subtle green indicator dot.
+  * `src/components/PatientOverviewCard.jsx`: Patient overview card (Anita Sharma, 67 F, Junglighat, live pulse dot, Call Caregiver & Clinical Export action buttons).
+  * `src/components/VitalSignsTable.jsx`: Structured table with columns Vital Name, Current Value & Target Range, Status Badge, and SVG Trend Sparklines.
+  * `src/components/HardwareDiagnosticsBar.jsx`: Connected devices grid (Omron BP, TempTraq, SanketLife, 98% Reliability Score).
+  * `src/components/RecentAlerts.jsx`: Prioritized alert feed with urgency colors.
+  * `src/components/MedicationScheduleCard.jsx`: Chronological timeline with morning/afternoon/evening slots, checklist items, Taken/Upcoming tags, interactive check-off.
+  * `src/components/PatientTimeline.jsx`: Micro-audit trail of nursing logs, auto-readings, and movement detection.
+  * `src/components/CameraZonesView.jsx`: Dedicated Camera Zones view with Room 302 Main Overhead View and Bedside Side-Angle feeds, live recording indicator, 24ms stream latency, two-way audio toggle, snapshot tool, full-screen preview, alert banner for motion/bed-exit, DPDP privacy badge.
+  * `src/components/VirtualWardView.jsx`: Multi-bed clinical station for GB Pant Hospital nurses.
+  * `src/components/MedicinesView.jsx`: Full Medication Administration Record (MAR).
+  * `src/components/AlertsView.jsx`: 3-tier emergency call chain escalation ladder.
+  * `src/components/MedicalDevicesView.jsx`: CDSCO / US FDA medical hardware fleet catalogue.
+  * `src/components/Modals.jsx` & `LoginModal.jsx`: Interactive Care Team dial, Clinical JSON export, Add Medication, and One-Tap Evaluator Access modals.
+  * `src/App.jsx`: Main React application orchestrating state, polling, responsive grid breakpoints (`grid-cols-1 xl:grid-cols-12`).
+- Built `tools/build_web.js` bundler script and compiled `prototype/public/bundle.jsx` (133 KB) + updated `prototype/public/index.html`.
+- Local offline vendor dependencies: React 18, ReactDOM 18, Babel standalone, Tailwind CSS cached in `prototype/public/vendor/`.
+- Verified with Microsoft Edge headless DOM dump (520 KB rendered HTML): all components render flawlessly with zero syntax errors.
