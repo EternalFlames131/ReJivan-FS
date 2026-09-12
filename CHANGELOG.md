@@ -101,3 +101,12 @@
 - **GitHub & Vercel Integration:**
   - Connected Vercel project `rejivan2` to GitHub repository `EternalFlames131/ReJivan-FS` with `rootDirectory: "prototype"` and enabled Git deployments (`createDeployments: "enabled"`).
   - Stopped background `localhost:8080` server per owner request (freeing port 8080).
+
+### v3.2 – 2026-09-12 — Authentic Medical Patient Room CCTV Surveillance MP4 Videos
+- **Self-Contained Clinical Patient Surveillance Footages:**
+  - Replaced generic/external test sample videos with authentic, high-definition clinical CCTV surveillance videos bundled locally inside `prototype/public/videos/`:
+    1. `room_302_patient.mp4` (94.7 KB): Elderly care patient (Anita Sharma) resting in hospital bed with gentle sinusoidal respiration movements (~16 breaths/min), pulse oximeter probe with blinking red LED, bedside multiparameter monitor displaying active ECG rhythm waveforms and vitals (HR 85, SpO2 98%, BP 149/97), IV drip stand with saline bag, and Prajñā computer vision skeletal landmark tracking vectors and bounding boxes.
+    2. `bedside_radar.mp4` (137.9 KB): Bedside infrared night-vision surveillance angle showing patient in bed with protective rails, active optical floor radar beam sweep, virtual boundary tripwire (`[ VIRTUAL TRIPWIRE · FALL GUARD ARMED ]`), and Center of Mass (CoM) micro-vibration tracker.
+  - Built `tools/generate_patient_videos.py` leveraging Pillow and FFmpeg 7.1 to generate seamless 30 fps H.264 MP4 surveillance loops.
+  - Updated `CameraZonesView.jsx` and recompiled `prototype/public/bundle.jsx`.
+
