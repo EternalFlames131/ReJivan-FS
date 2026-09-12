@@ -725,4 +725,8 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   - Made Triage Metric Strip and Vital Signs Table status badges react dynamically to telemetry thresholds.
 - **Compiled Web Bundle:**
   - Executed `node tools/build_web.js` generating `prototype/public/bundle.jsx` (150 KB). Tested Babel standalone transform in Node.js VM: 100% compilation success.
+- **Vercel Deployment Resolution (Fixed):**
+  - Diagnosed failed deployment alert: Vercel project settings previously had `rootDirectory: "prototype"`. When CLI deployed from inside the `prototype` directory, Vercel looked for a nested `prototype/prototype` directory and triggered an error.
+  - Resolved via `vercel project update rejivan2 --auto-detect root-directory --yes` (clearing `rootDirectory` to null).
+  - Clean production build triggered and verified: `https://rejivan2-onyevk27b-samrat1312004-1117s-projects.vercel.app` is **● Ready** and aliased to **`https://rejivan2.vercel.app`** (`/api/health` 200 OK).
 
