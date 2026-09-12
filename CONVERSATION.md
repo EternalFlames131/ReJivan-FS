@@ -694,3 +694,35 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Built `tools/build_web.js` bundler script and compiled `prototype/public/bundle.jsx` (133 KB) + updated `prototype/public/index.html`.
 - Local offline vendor dependencies: React 18, ReactDOM 18, Babel standalone, Tailwind CSS cached in `prototype/public/vendor/`.
 - Verified with Microsoft Edge headless DOM dump (520 KB rendered HTML): all components render flawlessly with zero syntax errors.
+
+---
+
+## 2026-09-12 (Day 5 — Telemetry Dynamism, CCTV Surveillance Feeds & ReJivan FS Android App)
+
+### What the user asked
+1. Why is the Vercel project `rejivan2.vercel.app` not connected to the GitHub repo? Make it connected after making all changes.
+2. Stop `node server.js` / localhost link — it is not needed.
+3. Add demo video footages to the live camera feed.
+4. Update the native Android app name strictly to **"ReJivan FS"**, make it an independent native app that fetches live data from the website and syncs two-way with the website (including registration syncing between app and web).
+5. Make web telemetry data continuously dynamic with real-time physiological drift and sparkline animations.
+
+### What was done (verified)
+- **Localhost Terminated:** Stopped background task `task-164` (`node server.js`) and verified port 8080 is completely released.
+- **Vercel Connected to GitHub:** Linked Vercel project `rejivan2` (`prj_bMmzDNUcgKMrD3BWLzaLFhCe2vRv`) to GitHub repository `EternalFlames131/ReJivan-FS` (repoId `1366613433`) with `rootDirectory: "prototype"` and enabled Git deployments (`createDeployments: "enabled"`).
+- **Native Android App ("ReJivan FS"):**
+  - Updated app name to **"ReJivan FS"** across `strings.xml`, `App.kt`, and `MainShell`.
+  - Added two-way account registration sync via `Sync.register()` and `Repository.register()` pointing to `https://rejivan2.vercel.app/api/auth/register`.
+  - Added registration form toggle on the login screen with persistent credential remembering.
+  - Built fresh native debug APK (`assembleDebug --offline`) and exported to `C:\Users\samra\Downloads\ReJivan-FS-v3.0.apk` (17.8 MB).
+- **Camera Zones Video Surveillance Footage:**
+  - Added looping HTML5 video surveillance feeds (Room 302 Main Overhead View and Bedside Radar) with view-mode toggle (📹 Video Feed vs 🎯 Skeletal Radar vs 🔲 Combined View).
+  - Added live 1-second CCTV HUD clock ticker (`currentTime`), 24ms stream latency jitter, snapshot capture notifications with telemetry metadata, and bed-exit simulation.
+- **Dynamic Real-Time Bio-Telemetry Streaming:**
+  - Created continuous real-time physiological drift engine (1.5s sampling pulse) with natural respiratory sinus arrhythmia, blood pressure baroreflex jitter, and oxygen saturation micro-variations.
+  - Implemented dynamic FIFO historical buffers for SVG trend sparklines (`sparkHr`, `sparkSpo2`, `sparkBp`, `sparkTemp`, `sparkGlucose`) that shift on each pulse beat so graphs visibly animate in real time.
+  - Added live "Last updated: Xs ago" ticker and packet counter (`Packet #4,821 · LIVE (1.5s drift)`).
+  - Added interactive clinical scenario controls (`🟢 Baseline`, `⚠️ BP Crisis (172/106)`, `🚨 Hypoxemia (89%)`, `📉 Bradycardia (50 bpm)`, `⏸️ Pause/Resume`) allowing evaluators to test dynamic triage reactivity in real time.
+  - Made Triage Metric Strip and Vital Signs Table status badges react dynamically to telemetry thresholds.
+- **Compiled Web Bundle:**
+  - Executed `node tools/build_web.js` generating `prototype/public/bundle.jsx` (150 KB). Tested Babel standalone transform in Node.js VM: 100% compilation success.
+

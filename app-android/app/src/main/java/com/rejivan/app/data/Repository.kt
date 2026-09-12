@@ -58,6 +58,20 @@ object Repository {
     }
 
     /**
+     * Register new account on website server.
+     * Returns null on success, error string on failure.
+     */
+    fun register(name: String, email: String, password: String, role: String = "caregiver"): String? {
+        val serverResult = try { Sync.register(name, email, password, role) } catch (e: Exception) { null }
+        if (serverResult != null) {
+            token = serverResult.token
+            cachedUser = serverResult
+            return null
+        }
+        return "Failed to register on server. Please check internet connection."
+    }
+
+    /**
      * Fetch all data — runs on background thread, calls back on main thread.
      * Returns ServerState with source = SERVER or LOCAL.
      */

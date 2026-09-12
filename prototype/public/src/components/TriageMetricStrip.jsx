@@ -6,6 +6,8 @@ const TriageMetricStrip = ({
   normalCount = 0,
   cautionCount = 1,
   dangerCount = 0,
+  cautionText = "Elevated BP: 149/97 mmHg",
+  dangerText = "Emergency escalation armed",
 }) => {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
@@ -70,7 +72,7 @@ const TriageMetricStrip = ({
           <span className="text-xs font-medium text-amber-700">Needs Review</span>
         </div>
         <div className="mt-1 text-[11px] text-amber-800 truncate font-medium">
-          Elevated BP: 149/97 mmHg
+          {cautionText}
         </div>
       </div>
 
@@ -111,7 +113,7 @@ const TriageMetricStrip = ({
           <span className="text-xs text-slate-500">Critical</span>
         </div>
         <div className="mt-1 text-[11px] text-slate-500 truncate">
-          {dangerCount > 0 ? "Emergency escalation armed" : "Zero active emergencies"}
+          {dangerCount > 0 ? dangerText : "Zero active emergencies"}
         </div>
       </div>
     </div>

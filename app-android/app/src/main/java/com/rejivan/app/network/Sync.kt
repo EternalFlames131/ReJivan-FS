@@ -42,6 +42,25 @@ object Sync {
         } catch (e: Exception) { null }
     }
 
+    fun register(name: String, email: String, password: String, role: String = "caregiver"): LoginResult? {
+        val body = JSONObject()
+            .put("name", name)
+            .put("email", email)
+            .put("password", password)
+            .put("role", role)
+            .toString()
+        val resp = post("/api/auth/register", body) ?: return null
+        return try {
+            LoginResult(
+                token = resp.getString("token"),
+                userId = resp.getJSONObject("user").getString("id"),
+                name = resp.getJSONObject("user").getString("name"),
+                email = resp.getJSONObject("user").getString("email"),
+                role = resp.getJSONObject("user").getString("role")
+            )
+        } catch (e: Exception) { null }
+    }
+
     // ── Vitals ────────────────────────────────────────────────────────────
 
     data class ServerPatient(

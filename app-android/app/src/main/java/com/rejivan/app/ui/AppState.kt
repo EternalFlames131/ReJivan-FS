@@ -80,6 +80,17 @@ class AppState(private val ctx: Context) {
         return null
     }
 
+    fun register(name: String, email: String, password: String, role: String = "caregiver"): String? {
+        val err = Repository.register(name.trim(), email.trim(), password.trim(), role)
+        if (err != null) return err
+        val u = Repository.cachedUser?.let { cu ->
+            User(cu.userId, cu.name, cu.email, cu.role)
+        } ?: User("u_" + System.currentTimeMillis(), name, email, role)
+        currentUser = u
+        refreshFromServer()
+        return null
+    }
+
     fun deviceGroups(): List<Sync.PatientDevices> {
         if (serverDeviceGroups.isNotEmpty()) return serverDeviceGroups
         // Offline fallback from local data

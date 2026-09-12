@@ -82,4 +82,22 @@
     * Right Column: Prioritized Recent Alerts Card, Medication Schedule Card (morning/afternoon/evening slots, checklist items, Taken/Upcoming tags, interactive check-off), and Patient Timeline Feed (micro-audit trail).
   - Dedicated "Camera Zones" Route: multi-camera feed dashboard (Room 302 Main Overhead View, Bedside Side-Angle radar view), live recording indicators, 24ms stream latency, two-way audio intercom toggle, snapshot capture tool, full-screen preview modal, DPDP privacy badge, and interactive bed-exit simulation.
   - Additional views: Virtual Ward (GB Pant Hospital), Medicines MAR, Alerts escalation ladder, Medical Devices fleet, and interactive Care Team call & Clinical JSON export modals.
-  - Bundler utility `tools/build_web.js` compiles modular components into `prototype/public/bundle.jsx` with local offline-first vendor scripts (`vendor/react.min.js`, `vendor/react-dom.min.js`, `vendor/babel.min.js`, `vendor/tailwindcss.js`).
+### v3.1 – 2026-09-12 — Real-time Dynamic Telemetry, Surveillance Footage & ReJivan FS Android App with Two-Way Sync
+- **Native Android App ("ReJivan FS"):**
+  - Rebranded native Android package strictly to **"ReJivan FS"** across `strings.xml`, `App.kt`, and `MainShell` header.
+  - Implemented real-time two-way registration & account sync: added `Sync.register()` and `Repository.register()` pointing to `https://rejivan2.vercel.app/api/auth/register`, enabling instant registration from phone to web and vice versa.
+  - Added registration form toggle on the login screen with persistent credentials remembering.
+  - Built fresh native debug APK (`assembleDebug --offline`, 1m 29s) and exported to `C:\Users\samra\Downloads\ReJivan-FS-v3.0.apk` (17.8 MB).
+- **Camera Zones Video Surveillance Footage:**
+  - Integrated HTML5 video surveillance feeds (Room 302 Main Overhead View & Bedside Radar) with continuous looping and fallback poster graphics.
+  - Integrated live 1-second CCTV HUD clock ticker (`currentTime`), 24ms stream latency jitter, snapshot capture notifications with telemetry metadata, and interactive bed-exit alerts.
+  - Added view-mode switcher (📹 Video Feed vs 🎯 Skeletal Radar vs 🔲 Combined View).
+- **Dynamic Real-Time Bio-Telemetry Streaming:**
+  - Created continuous real-time physiological drift engine (1.5s sampling pulse) with natural respiratory sinus arrhythmia, blood pressure baroreflex jitter, and oxygen saturation micro-variations.
+  - Implemented dynamic FIFO historical buffers for SVG trend sparklines (`sparkHr`, `sparkSpo2`, `sparkBp`, `sparkTemp`, `sparkGlucose`) that shift on each pulse beat so graphs visibly animate in real time.
+  - Added live "Last updated: Xs ago" ticker and packet counter (`Packet #4,821 · LIVE (1.5s drift)`).
+  - Added interactive clinical scenario controls (`🟢 Baseline`, `⚠️ BP Crisis (172/106)`, `🚨 Hypoxemia (89%)`, `📉 Bradycardia (50 bpm)`, `⏸️ Pause/Resume`) allowing evaluators to test dynamic triage reactivity in real time.
+  - Made Triage Metric Strip and Vital Signs Table status badges react dynamically to telemetry thresholds.
+- **GitHub & Vercel Integration:**
+  - Connected Vercel project `rejivan2` to GitHub repository `EternalFlames131/ReJivan-FS` with `rootDirectory: "prototype"` and enabled Git deployments (`createDeployments: "enabled"`).
+  - Stopped background `localhost:8080` server per owner request (freeing port 8080).

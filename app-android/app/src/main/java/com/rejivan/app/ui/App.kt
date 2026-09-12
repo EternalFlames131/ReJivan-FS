@@ -52,6 +52,8 @@ fun App(state: AppState) {
 private fun LoginScreen(state: AppState) {
     val ctx = LocalContext.current
     val prefs = ctx.getSharedPreferences("rejivan_prefs", Context.MODE_PRIVATE)
+    var isRegistering by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf(prefs.getString("last_email", "") ?: "") }
     var password by remember { mutableStateOf(prefs.getString("last_pass", "") ?: "") }
     var rememberLogin by remember { mutableStateOf(true) }
@@ -65,14 +67,32 @@ private fun LoginScreen(state: AppState) {
             .putString("last_email", em.trim()).putString("last_pass", pw).apply()
     }
 
+    fun doRegister(nm: String, em: String, pw: String) {
+        if (nm.isBlank() || em.isBlank() || pw.length < 6) {
+            err = "Name, email & 6+ character password required"
+            return
+        }
+        val e = state.register(nm.trim(), em.trim(), pw, "caregiver")
+        if (e != null) { err = e; return }
+        err = ""
+        if (rememberLogin) prefs.edit()
+            .putString("last_email", em.trim()).putString("last_pass", pw).apply()
+    }
+
     Box(Modifier.fillMaxSize().background(AppColors.bg), contentAlignment = Alignment.Center) {
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.panel),
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier.padding(20.dp).widthIn(max = 400.dp)) {
             Column(Modifier.padding(26.dp)) {
-                Text("ReJivan", color = AppColors.accent, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text("ReJivan FS", color = AppColors.accent, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Text("A Personal Nurse for Every Family", color = AppColors.muted, fontSize = 13.sp)
                 Spacer(Modifier.height(14.dp))
+                if (isRegistering) {
+                    OutlinedTextField(value = name, onValueChange = { name = it },
+                        label = { Text("Full Name") }, singleLine = true,
+                        colors = fieldColors(), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                }
                 OutlinedTextField(value = email, onValueChange = { email = it },
                     label = { Text("Email") }, singleLine = true, isError = err.isNotEmpty(),
                     colors = fieldColors(), modifier = Modifier.fillMaxWidth())
@@ -89,19 +109,28 @@ private fun LoginScreen(state: AppState) {
                     Text("Remember login", color = AppColors.muted, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(2.dp))
-                Button(onClick = { doLogin(email, password) },
+                Button(onClick = {
+                    if (isRegistering) doRegister(name, email, password)
+                    else doLogin(email, password)
+                },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.accent),
                     modifier = Modifier.fillMaxWidth()) {
-                    Text("Login", color = AppColors.bg, fontWeight = FontWeight.Bold)
+                    Text(if (isRegistering) "Register & Sync to Web" else "Login", color = AppColors.bg, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.height(14.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = AppColors.panel2),
-                    shape = RoundedCornerShape(10.dp)) {
-                    Column(Modifier.padding(10.dp)) {
-                        Text("Tap an account to log in instantly (password: demo123)", color = AppColors.txt, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        DemoShortcut("asharma@demo.in", "home patient", AppColors.ok) { doLogin("asharma@demo.in", "demo123") }
-                        DemoShortcut("rprakash@demo.in", "home patient", AppColors.ok) { doLogin("rprakash@demo.in", "demo123") }
-                        DemoShortcut("wardnurse@demo.in", "Virtual Ward", AppColors.accent2) { doLogin("wardnurse@demo.in", "demo123") }
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { isRegistering = !isRegistering; err = "" }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (isRegistering) "Already registered? Switch to Login" else "Need an account? Register on Server", color = AppColors.accent2, fontSize = 12.sp)
+                }
+                if (!isRegistering) {
+                    Spacer(Modifier.height(10.dp))
+                    Card(colors = CardDefaults.cardColors(containerColor = AppColors.panel2),
+                        shape = RoundedCornerShape(10.dp)) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text("Tap an account to log in instantly (password: demo123)", color = AppColors.txt, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            DemoShortcut("asharma@demo.in", "home patient", AppColors.ok) { doLogin("asharma@demo.in", "demo123") }
+                            DemoShortcut("rprakash@demo.in", "home patient", AppColors.ok) { doLogin("rprakash@demo.in", "demo123") }
+                            DemoShortcut("wardnurse@demo.in", "Virtual Ward", AppColors.accent2) { doLogin("wardnurse@demo.in", "demo123") }
+                        }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -159,7 +188,7 @@ fun MainShell(state: AppState) {
                 }
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("ReJivan", color = AppColors.txt, fontSize = 19.sp, fontWeight = FontWeight.Bold, lineHeight = 20.sp)
+                    Text("ReJivan FS", color = AppColors.txt, fontSize = 19.sp, fontWeight = FontWeight.Bold, lineHeight = 20.sp)
                     Text("A Personal Nurse for Every Family", color = AppColors.muted, fontSize = 9.5.sp, lineHeight = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
