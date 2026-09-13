@@ -54,7 +54,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Build Dual Vision Engine Adapter (Auto-detects local YOLO edge sentinel via GTX 1650; falls back to browser MediaPipe Pose Wasm).
 - [x] Build Incident Reconstruction & 30s Chronological Timeline Panel on Web Dashboard with Counterfactuals.
 - [x] Build 5 Evaluator Interactive Scenarios (Sitting, Lying, Phone Drop, Fall, Unresponsive Immobility).
-- [x] Build Resident Verification Modal with 30s audio countdown and auto-cancellation.
+- [x] Strictly isolate Phone Accelerometer Fall Detection to native Android only (`app-android/`); scrub and remove phone accelerometer references from website codebase and web dashboard (`IncidentReconstructionPanel.jsx`, `ResidentCheckinModal.jsx`, `movement-engine.js`), replacing it with clinical camera/tripwire scenarios.
 
 ## Open items / next steps
 - [x] Build the working prototype in `prototype/` (core + dashboard done).

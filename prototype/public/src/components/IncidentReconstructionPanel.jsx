@@ -43,15 +43,15 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           wristOscillationHz: 0.4,
           deviceLiftedUpright: false
         };
-      case "phone_drop":
+      case "bed_exit":
         return {
-          downwardVelocity: -0.22,
-          torsoAngle: 12,
-          impactShockG: 3.82,
-          postStillnessSeconds: 3,
-          chairBedProximity: false,
-          wristOscillationHz: 0.6,
-          deviceLiftedUpright: true
+          downwardVelocity: -0.35,
+          torsoAngle: 28,
+          impactShockG: 1.12,
+          postStillnessSeconds: 5,
+          chairBedProximity: true,
+          wristOscillationHz: 0.5,
+          deviceLiftedUpright: false
         };
       case "tremor":
         return {
@@ -94,16 +94,16 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
     ? ReJivanMovementEngine.evaluateHypotheses(evidence)
     : {
         winningHypothesis: {
-          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "phone_drop" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
-          label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "phone_drop" ? "Smartphone Dropped / Handling Shock" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
+          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
+          label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "bed_exit" ? "Out-of-Bed Transfer / Tripwire Crossing" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
           mechanism: "Loss of balance followed by floor impact shock",
           confidence: 96,
-          severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "phone_drop" ? "INFO" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
+          severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "bed_exit" ? "CAUTION" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
         },
         counterfactualExplanation: activeScenario === "sitting"
           ? "Accidental fall ruled out because descent velocity was controlled (-0.42 m/s), zero impact shock was recorded (1.08g), and resident retained upright torso stability."
-          : activeScenario === "phone_drop"
-          ? "Human fall ruled out because device re-oriented upright within 5s and resident skeletal posture remained vertical."
+          : activeScenario === "bed_exit"
+          ? "Accidental fall ruled out because resident maintained upright postural balance during transfer with zero floor impact shock."
           : "Intentional sitting (H2) ruled out because vertical descent velocity (-1.92 m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration reached 3.42g.",
         allHypotheses: []
       };
@@ -226,17 +226,17 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           </button>
 
           <button
-            onClick={() => setActiveScenario("phone_drop")}
+            onClick={() => setActiveScenario("bed_exit")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
-              activeScenario === "phone_drop"
+              activeScenario === "bed_exit"
                 ? "bg-amber-50 border-amber-300 text-amber-900 shadow-xs ring-1 ring-amber-400"
                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>📱 2. Dropped Phone</span>
+              <span>🛏️ 2. Out-of-Bed Transfer</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">3.8g shock · Auto-canceled</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Tripwire crossed · Safe stance</p>
           </button>
 
           <button

@@ -877,7 +877,26 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Created `app-android/app/src/main/java/com/rejivan/app/core/MovementEngine.kt` mirroring all kinematics, hypotheses, and timeline generation.
    - Verified compilation via `./gradlew.bat compileDebugKotlin --offline` (BUILD SUCCESSFUL in 29s).
 6. **Web Bundle Compiled:**
-   - Bundled via `node tools/build_web.js` (193 KB). Tested and verified.
+---
+
+## 2026-09-13 (Day 6 — Phone Accelerometer Fall Detection Isolated to Native Android Only)
+
+### What the user asked
+- Fall detection through the phone's accelerometer must strictly reside in the native Android app (`app-android/`).
+- No need for it to be mentioned in the website or website codebase at all.
+- Keep the website codebase purely focused on clinical camera zones (YOLO/MediaPipe), bed tripwires, and medical wearables.
+
+### What was done (verified):
+1. **Scrubbed Phone Accelerometer from Web Codebase:**
+   - Modified `prototype/movement-engine.js`: Replaced $H_4$ "Smartphone Dropped" with clinical hypothesis $H_4$ "Out-of-Bed Transfer / Virtual Tripwire Crossing".
+   - Modified `IncidentReconstructionPanel.jsx`: Replaced Scenario 2 button `📱 Dropped Phone` with `🛏️ 2. Out-of-Bed Transfer` (`bed_exit`).
+   - Modified `ResidentCheckinModal.jsx`: Removed all mentions of phone drops or gyroscopes; replaced with vision-based posture restoration check ("Simulate resident stood back up / recovered upright posture").
+   - Verified via ripgrep: Zero matches for "dropped phone" and zero matches for "accelerometer" in `prototype/public/`.
+2. **Re-compiled Production Web Bundle:**
+   - Run `node tools/build_web.js` generating fresh `prototype/public/bundle.jsx` (193.5 KB) and `prototype/public/index.html`.
+3. **Android Native App Parity Maintained:**
+   - Accelerometer and gyroscope fall detection remain dedicated exclusively to `app-android/` where hardware IMU sensors are physically available.
+
 
 
 

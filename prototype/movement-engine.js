@@ -132,17 +132,17 @@
       severity: "NORMAL"
     });
 
-    // H4: Smartphone Dropped / Device Inversion (False Alarm)
+    // H4: Out-of-Bed Transfer / Virtual Tripwire Crossing
     let h4Score = 0;
-    if (impactShockG > 2.6) h4Score += 0.40;
-    if (deviceLiftedUpright || torsoAngle < 35) h4Score += 0.45;
-    if (downwardVelocity > -0.5) h4Score += 0.15;
+    if (chairBedProximity && torsoAngle < 40) h4Score += 0.45;
+    if (downwardVelocity > -0.6 && downwardVelocity < 0) h4Score += 0.35;
+    if (impactShockG < 1.4) h4Score += 0.20;
     hypotheses.push({
       id: "H4",
-      label: "Smartphone Dropped / Handling Shock",
-      mechanism: "Phone impacted surface while resident remained upright or picked device up",
+      label: "Out-of-Bed Transfer / Tripwire Crossing",
+      mechanism: "Patient exited bed perimeter onto bedside floor while maintaining vertical postural stability",
       confidence: Math.min(Math.round(h4Score * 100), 99),
-      severity: "INFO"
+      severity: "CAUTION"
     });
 
     // H5: Abnormal Tremor / Shivering Episode
@@ -184,7 +184,7 @@
     } else if (winningHypothesis.id === "H3") {
       counterfactualExplanation = `Fall (H1) ruled out because transition occurred within recognized bed perimeter with smooth deceleration and sustained rhythmic respiration.`;
     } else if (winningHypothesis.id === "H4") {
-      counterfactualExplanation = `Human fall (H1) ruled out because device re-oriented upright within 5s and resident skeletal posture remained vertical without floor descent.`;
+      counterfactualExplanation = `Fall (H1) ruled out because resident maintained upright postural equilibrium (Torso angle: ${torsoAngle}°) during bed transfer with zero ground impact shock (${impactShockG}g).`;
     } else if (winningHypothesis.id === "H5") {
       counterfactualExplanation = `Fall (H1) ruled out; posture remains upright while isolated wrist keypoints display repetitive 3-8 Hz oscillation.`;
     }
@@ -230,14 +230,13 @@
         { time: formatTime(8), event: "Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright (22°)" },
         { time: formatTime(0), event: "Intentional Rest Confirmed", detail: "Hypothesis H2 confirmed (98% conf) · Fall alarm suppressed" }
       ];
-    } else if (scenarioType === "phone_drop") {
+    } else if (scenarioType === "bed_exit") {
       return [
-        { time: formatTime(20), event: "Device in Active Use", detail: "Smartphone held upright · Normal handling micro-jitter" },
-        { time: formatTime(14), event: "Freefall Drop Phase", detail: "Gravity vector drops to 0.12g (Device dropped from hand)" },
-        { time: formatTime(13), event: "Hard Surface Deceleration", detail: "Surface impact shock spike: 3.8g on table/floor" },
-        { time: formatTime(9), event: "Camera Posture Check", detail: "CCTV confirms resident remains standing upright (Angle: 12°)" },
-        { time: formatTime(4), event: "Device Picked Back Up", detail: "Gyroscope registers vertical tilt & handling restoration" },
-        { time: formatTime(0), event: "False Alarm Automatically Resolved", detail: "Hypothesis H4 confirmed · Emergency escalation prevented" }
+        { time: formatTime(24), event: "Resting in Care Bed", detail: "Supine resting posture behind raised safety rails" },
+        { time: formatTime(18), event: "Leg Swing & Lateral Shift", detail: "Patient swings legs over bed edge into bedside zone" },
+        { time: formatTime(14), event: "Bed-Exit Tripwire Crossed", detail: "Optical floor radar detects perimeter crossing" },
+        { time: formatTime(8), event: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground impact shock (1.08g)" },
+        { time: formatTime(0), event: "Controlled Bed Transfer", detail: "Hypothesis H4 confirmed · Fall alarm safely suppressed" }
       ];
     } else if (scenarioType === "tremor") {
       return [

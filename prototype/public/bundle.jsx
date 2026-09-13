@@ -136,17 +136,17 @@
       severity: "NORMAL"
     });
 
-    // H4: Smartphone Dropped / Device Inversion (False Alarm)
+    // H4: Out-of-Bed Transfer / Virtual Tripwire Crossing
     let h4Score = 0;
-    if (impactShockG > 2.6) h4Score += 0.40;
-    if (deviceLiftedUpright || torsoAngle < 35) h4Score += 0.45;
-    if (downwardVelocity > -0.5) h4Score += 0.15;
+    if (chairBedProximity && torsoAngle < 40) h4Score += 0.45;
+    if (downwardVelocity > -0.6 && downwardVelocity < 0) h4Score += 0.35;
+    if (impactShockG < 1.4) h4Score += 0.20;
     hypotheses.push({
       id: "H4",
-      label: "Smartphone Dropped / Handling Shock",
-      mechanism: "Phone impacted surface while resident remained upright or picked device up",
+      label: "Out-of-Bed Transfer / Tripwire Crossing",
+      mechanism: "Patient exited bed perimeter onto bedside floor while maintaining vertical postural stability",
       confidence: Math.min(Math.round(h4Score * 100), 99),
-      severity: "INFO"
+      severity: "CAUTION"
     });
 
     // H5: Abnormal Tremor / Shivering Episode
@@ -188,7 +188,7 @@
     } else if (winningHypothesis.id === "H3") {
       counterfactualExplanation = `Fall (H1) ruled out because transition occurred within recognized bed perimeter with smooth deceleration and sustained rhythmic respiration.`;
     } else if (winningHypothesis.id === "H4") {
-      counterfactualExplanation = `Human fall (H1) ruled out because device re-oriented upright within 5s and resident skeletal posture remained vertical without floor descent.`;
+      counterfactualExplanation = `Fall (H1) ruled out because resident maintained upright postural equilibrium (Torso angle: ${torsoAngle}°) during bed transfer with zero ground impact shock (${impactShockG}g).`;
     } else if (winningHypothesis.id === "H5") {
       counterfactualExplanation = `Fall (H1) ruled out; posture remains upright while isolated wrist keypoints display repetitive 3-8 Hz oscillation.`;
     }
@@ -234,14 +234,13 @@
         { time: formatTime(8), event: "Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright (22°)" },
         { time: formatTime(0), event: "Intentional Rest Confirmed", detail: "Hypothesis H2 confirmed (98% conf) · Fall alarm suppressed" }
       ];
-    } else if (scenarioType === "phone_drop") {
+    } else if (scenarioType === "bed_exit") {
       return [
-        { time: formatTime(20), event: "Device in Active Use", detail: "Smartphone held upright · Normal handling micro-jitter" },
-        { time: formatTime(14), event: "Freefall Drop Phase", detail: "Gravity vector drops to 0.12g (Device dropped from hand)" },
-        { time: formatTime(13), event: "Hard Surface Deceleration", detail: "Surface impact shock spike: 3.8g on table/floor" },
-        { time: formatTime(9), event: "Camera Posture Check", detail: "CCTV confirms resident remains standing upright (Angle: 12°)" },
-        { time: formatTime(4), event: "Device Picked Back Up", detail: "Gyroscope registers vertical tilt & handling restoration" },
-        { time: formatTime(0), event: "False Alarm Automatically Resolved", detail: "Hypothesis H4 confirmed · Emergency escalation prevented" }
+        { time: formatTime(24), event: "Resting in Care Bed", detail: "Supine resting posture behind raised safety rails" },
+        { time: formatTime(18), event: "Leg Swing & Lateral Shift", detail: "Patient swings legs over bed edge into bedside zone" },
+        { time: formatTime(14), event: "Bed-Exit Tripwire Crossed", detail: "Optical floor radar detects perimeter crossing" },
+        { time: formatTime(8), event: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground impact shock (1.08g)" },
+        { time: formatTime(0), event: "Controlled Bed Transfer", detail: "Hypothesis H4 confirmed · Fall alarm safely suppressed" }
       ];
     } else if (scenarioType === "tremor") {
       return [
@@ -2303,15 +2302,15 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           wristOscillationHz: 0.4,
           deviceLiftedUpright: false
         };
-      case "phone_drop":
+      case "bed_exit":
         return {
-          downwardVelocity: -0.22,
-          torsoAngle: 12,
-          impactShockG: 3.82,
-          postStillnessSeconds: 3,
-          chairBedProximity: false,
-          wristOscillationHz: 0.6,
-          deviceLiftedUpright: true
+          downwardVelocity: -0.35,
+          torsoAngle: 28,
+          impactShockG: 1.12,
+          postStillnessSeconds: 5,
+          chairBedProximity: true,
+          wristOscillationHz: 0.5,
+          deviceLiftedUpright: false
         };
       case "tremor":
         return {
@@ -2354,16 +2353,16 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
     ? ReJivanMovementEngine.evaluateHypotheses(evidence)
     : {
         winningHypothesis: {
-          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "phone_drop" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
-          label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "phone_drop" ? "Smartphone Dropped / Handling Shock" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
+          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
+          label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "bed_exit" ? "Out-of-Bed Transfer / Tripwire Crossing" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
           mechanism: "Loss of balance followed by floor impact shock",
           confidence: 96,
-          severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "phone_drop" ? "INFO" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
+          severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "bed_exit" ? "CAUTION" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
         },
         counterfactualExplanation: activeScenario === "sitting"
           ? "Accidental fall ruled out because descent velocity was controlled (-0.42 m/s), zero impact shock was recorded (1.08g), and resident retained upright torso stability."
-          : activeScenario === "phone_drop"
-          ? "Human fall ruled out because device re-oriented upright within 5s and resident skeletal posture remained vertical."
+          : activeScenario === "bed_exit"
+          ? "Accidental fall ruled out because resident maintained upright postural balance during transfer with zero floor impact shock."
           : "Intentional sitting (H2) ruled out because vertical descent velocity (-1.92 m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration reached 3.42g.",
         allHypotheses: []
       };
@@ -2486,17 +2485,17 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           </button>
 
           <button
-            onClick={() => setActiveScenario("phone_drop")}
+            onClick={() => setActiveScenario("bed_exit")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
-              activeScenario === "phone_drop"
+              activeScenario === "bed_exit"
                 ? "bg-amber-50 border-amber-300 text-amber-900 shadow-xs ring-1 ring-amber-400"
                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>📱 2. Dropped Phone</span>
+              <span>🛏️ 2. Out-of-Bed Transfer</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">3.8g shock · Auto-canceled</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Tripwire crossed · Safe stance</p>
           </button>
 
           <button
@@ -2771,12 +2770,10 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               </div>
 
               <h3 className="text-lg font-bold text-slate-900 mt-3">
-                Did you fall or drop your device?
+                Did you slip or experience an accidental fall?
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                {scenario === "phone_drop" 
-                  ? "An impact shock was recorded by your smartphone motion sensors. Please verify your status to prevent false alarm escalation."
-                  : "A sudden downward displacement with high-impact deceleration was observed. Emergency escalation will trigger if not answered."}
+                A sudden downward displacement with high-impact deceleration was observed by room monitoring. Please verify your status to prevent emergency escalation.
               </p>
 
               {/* Action Buttons */}
@@ -2798,16 +2795,16 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
                 </button>
               </div>
 
-              {/* Mobile Gyroscope Simulation Option */}
+              {/* Posture Recovery Option */}
               <div className="mt-5 pt-4 border-t border-slate-100 text-center">
                 <button
                   onClick={handleSimulatePickup}
                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1.5 transition-colors"
                 >
-                  <span>📱 Simulate picking up phone / vertical re-orientation</span>
+                  <span>🔄 Simulate resident stood back up / recovered upright posture</span>
                 </button>
                 <span className="block text-[10px] text-slate-400 mt-0.5">
-                  Gyroscope auto-cancels false alarms when device is lifted within 5s
+                  Vision sentinel auto-cancels false alarms when upright equilibrium is restored within 5s
                 </span>
               </div>
             </>
@@ -2826,9 +2823,9 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3">
                 <ShieldCheck className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-900">Device Picked Up & Re-Oriented</h4>
+              <h4 className="text-base font-bold text-slate-900">Upright Posture Restored</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Gyroscope confirmed vertical restoration. Human fall ruled out automatically.
+                Vision tracking confirmed vertical recovery. Fall alarm resolved automatically.
               </p>
             </div>
           ) : (

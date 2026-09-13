@@ -124,16 +124,18 @@
   - Created `tools/yolo_edge_sentinel.py` for physical PC hardware deployment.
 - **Multimodal Incident Reconstruction Panel (`IncidentReconstructionPanel.jsx`):**
   - Integrated into the primary dashboard with real-time vision source priority status badge and manual toggle.
-  - Interactive 5-Scenario Evaluator Switcher: Seated Rest, Dropped Phone, Tremor/Shiver, Trip & Fall, and Acute Collapse.
+  - Interactive 5-Scenario Evaluator Switcher: Seated Rest, Out-of-Bed Transfer, Tremor/Shiver, Trip & Fall, and Acute Collapse.
   - Generates a second-by-second 30-second pre-event chronological reconstruction timeline with cryptographic audit signatures.
 - **Interactive Resident Safety Verification Dialog (`ResidentCheckinModal.jsx`):**
   - High-contrast emergency modal with 30-second circular countdown timer, audio alert chime, and accessible action buttons ("I'm Okay" vs "I Need Emergency Help").
-  - Includes mobile gyroscope re-orientation simulation (auto-canceling false alarms when device is lifted within 5s).
+  - Includes vision posture recovery check (auto-canceling false alarms when upright equilibrium is restored within 5s).
+- **Phone Accelerometer Isolation to Native Android Only:**
+  - Strictly isolated smartphone hardware accelerometer & gyroscope fall detection to `app-android/` only; completely scrubbed all phone accelerometer references from the website codebase and web dashboard.
 - **Android Native Parity & Compilation:**
   - Mirrored core logic into `app-android/app/src/main/java/com/rejivan/app/core/MovementEngine.kt`.
   - Successfully compiled native Android debug classes (`compileDebugKotlin`, BUILD SUCCESSFUL in 29s).
 - **Web Compilation:**
-  - Re-compiled production React web bundle via `node tools/build_web.js` (193.7 KB).
+  - Re-compiled production React web bundle via `node tools/build_web.js` (193.5 KB).
 
 
 

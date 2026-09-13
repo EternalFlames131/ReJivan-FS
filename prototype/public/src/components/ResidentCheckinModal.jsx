@@ -89,12 +89,10 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               </div>
 
               <h3 className="text-lg font-bold text-slate-900 mt-3">
-                Did you fall or drop your device?
+                Did you slip or experience an accidental fall?
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                {scenario === "phone_drop" 
-                  ? "An impact shock was recorded by your smartphone motion sensors. Please verify your status to prevent false alarm escalation."
-                  : "A sudden downward displacement with high-impact deceleration was observed. Emergency escalation will trigger if not answered."}
+                A sudden downward displacement with high-impact deceleration was observed by room monitoring. Please verify your status to prevent emergency escalation.
               </p>
 
               {/* Action Buttons */}
@@ -116,16 +114,16 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
                 </button>
               </div>
 
-              {/* Mobile Gyroscope Simulation Option */}
+              {/* Posture Recovery Option */}
               <div className="mt-5 pt-4 border-t border-slate-100 text-center">
                 <button
                   onClick={handleSimulatePickup}
                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1.5 transition-colors"
                 >
-                  <span>📱 Simulate picking up phone / vertical re-orientation</span>
+                  <span>🔄 Simulate resident stood back up / recovered upright posture</span>
                 </button>
                 <span className="block text-[10px] text-slate-400 mt-0.5">
-                  Gyroscope auto-cancels false alarms when device is lifted within 5s
+                  Vision sentinel auto-cancels false alarms when upright equilibrium is restored within 5s
                 </span>
               </div>
             </>
@@ -144,9 +142,9 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3">
                 <ShieldCheck className="w-8 h-8" />
               </div>
-              <h4 className="text-base font-bold text-slate-900">Device Picked Up & Re-Oriented</h4>
+              <h4 className="text-base font-bold text-slate-900">Upright Posture Restored</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Gyroscope confirmed vertical restoration. Human fall ruled out automatically.
+                Vision tracking confirmed vertical recovery. Fall alarm resolved automatically.
               </p>
             </div>
           ) : (
