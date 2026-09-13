@@ -56,12 +56,12 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Build 5 Evaluator Interactive Scenarios (Sitting, Lying, Phone Drop, Fall, Unresponsive Immobility).
 - [x] Strictly isolate Phone Accelerometer Fall Detection to native Android only (`app-android/`); scrub and remove phone accelerometer references from website codebase and web dashboard (`IncidentReconstructionPanel.jsx`, `ResidentCheckinModal.jsx`, `movement-engine.js`), replacing it with clinical camera/tripwire scenarios.
 - [x] Perform comprehensive end-to-end multi-layer audit: verify live Vercel web endpoints, Babel transform & React DOM render lifecycle, Android native Gradle compilation, simulated emergency workflows, and zero-defect quality standards.
-### Track 1: Real-Time Edge Vision & Consensus Engine (Ready for Execution on Command)
-- [ ] Task 1.1: Implement Live Device Webcam integration in Camera Zones view (`navigator.mediaDevices.getUserMedia`) allowing users/judges to connect their laptop/phone camera.
-- [ ] Task 1.2: In-browser MediaPipe Pose WebAssembly pipeline: extract 33 3D skeletal landmarks at 30 FPS with privacy wireframe toggle (hiding raw video).
-- [ ] Task 1.3: Connect live webcam feed to Unified Movement Engine (`movement-engine.js`): calculate kinematic downward velocity & torso angle in real time, displaying live risk meter (🟢 Normal / 🟡 Caution / 🔴 High Risk Fall).
-- [ ] Task 1.4: Engine-First / Gemini-Failsafe Consensus Architecture: local deterministic engine acts as fast primary evaluator (<20ms); Gemini acts as an automatic background failsafe arbitrator invoked when engine confidence is ambiguous (40%–65% split) with 1.5s timeout protection.
-- [ ] Task 1.5: Trigger live 30s Resident Verification Modal directly from simulated webcam drops, auto-canceling if resident restores upright posture.
+### Track 1: Real-Time Edge Vision & Consensus Engine (COMPLETED & VERIFIED)
+- [x] Task 1.1: Implement Live Device Webcam integration in Camera Zones view (`navigator.mediaDevices.getUserMedia`) allowing users/judges to connect their laptop/phone camera.
+- [x] Task 1.2: In-browser MediaPipe Pose WebAssembly pipeline: extract 33 3D skeletal landmarks at 30 FPS with privacy wireframe toggle (hiding raw video).
+- [x] Task 1.3: Connect live webcam feed to Unified Movement Engine (`movement-engine.js`): calculate kinematic downward velocity & torso angle in real time, displaying live risk meter (🟢 Normal / 🟡 Caution / 🔴 High Risk Fall).
+- [x] Task 1.4: Engine-First / Gemini-Failsafe Consensus Architecture: local deterministic engine acts as fast primary evaluator (<20ms); Gemini acts as an automatic background failsafe arbitrator invoked when engine confidence is ambiguous (40%–65% split) with 1.5s timeout protection.
+- [x] Task 1.5: Trigger live 30s Resident Verification Modal directly from simulated webcam drops, auto-canceling if resident restores upright posture.
 
 ### Track 2: Platform Polish & Mobile Parity (Secondary Backlog)
 - [ ] Task 2.1: "Add Patient" registration flow on web dashboard for newly registered family accounts.

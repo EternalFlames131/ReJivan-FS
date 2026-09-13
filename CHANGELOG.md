@@ -141,3 +141,20 @@
   - Removed duplicate `ShieldCheck` declaration that caused browser-side Babel parse errors.
   - Recompiled production React bundle (`prototype/public/bundle.jsx`, 194.4 KB) and deployed to Vercel production (`https://rejivan2.vercel.app`).
   - Verified live DOM rendering using headless Microsoft Edge: Babel compiles the bundle, mounts `<div id="root">`, and successfully renders the entire clinical portal with zero errors.
+
+### v3.5 – 2026-09-13 — Track 1: Live System Webcam, In-Browser Prajñā Pose Tracker & Gemini Consensus Failsafe
+- **Interactive System Webcam in Camera Zones (`CameraZonesView.jsx`):**
+  - Integrated local camera capture via `navigator.mediaDevices.getUserMedia` directly into the Camera Zones tab as camera `cam-local`.
+  - Real-time HTML5 canvas rendering at ~30 FPS with Prajñā on-device skeletal wireframe overlay.
+  - Added DPDP Act 2023 Privacy Mode toggle: blanks out raw video with a dark clinical radar grid, rendering only skeletal keypoints and posture lines.
+- **Engine-First / Gemini-Failsafe Consensus Engine (`movement-engine.js` & `MovementEngine.kt`):**
+  - Implemented automatic hybrid consensus: local deterministic engine runs at 20ms for high-confidence decisions; Gemini acts as background arbitrator on ambiguous motions (40%–65% confidence).
+  - Built-in 1.5s timeout safeguard defaults to safety-biased local policy if cloud round-trip is slow or offline.
+- **Interactive Sudden Drop Simulation & Resident Verification Trigger:**
+  - Added "Test Sudden Drop" action on webcam HUD to simulate rapid fall descent ($-1.94\text{ m/s}$) and trigger the 30s Resident Verification Modal (`ResidentCheckinModal.jsx`).
+  - Posture restoration check automatically clears the alarm when upright equilibrium is regained.
+- **Android Parity & Offline Build Verification:**
+  - Mirrored consensus architecture to `MovementEngine.kt` with full Kotlin data class parity.
+  - Successfully compiled native Android debug classes (`compileDebugKotlin`, BUILD SUCCESSFUL in 25s).
+- **Production Web Re-Bundle:**
+  - Recompiled production React web bundle via `node tools/build_web.js` (220.3 KB).

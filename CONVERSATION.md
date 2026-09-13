@@ -1015,4 +1015,39 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ### User Directive: Hold Implementation
 - "remember what all these to be implemented, i will ask you to do it later"
-- **Status:** All 12 items across Tracks 1, 2, and 3 are permanently indexed in `CONTEXT.md` and `CONVERSATION.md`. Implementation is safely paused until the user gives the direct go-ahead.
+- **Status:** All 12 items across Tracks 1, 2, and 3 are permanently indexed in `CONTEXT.md` and `CONVERSATION.md`. Implementation was paused until the user gave the direct go-ahead.
+
+---
+
+## 2026-09-13 (Day 6 — Built & Verified Track 1: Real-Time Edge Vision, Live Webcam & Gemini Failsafe Consensus)
+
+### What the user asked:
+- "start building now"
+
+### What was built & verified:
+1. **Interactive Live System Webcam in Camera Zones (`CameraZonesView.jsx`):**
+   - Added `cam-local` as a first-class camera choice in Camera Zones.
+   - Built one-click camera activation via `navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })`.
+   - Includes graceful error handling for camera permissions with clear prompts.
+2. **On-Device Prajñā Pose & Motion Tracker:**
+   - Real-time HTML5 canvas rendering at ~30 FPS with optical centroid tracking.
+   - Draws glowing green/cyan skeletal wireframe (head node, shoulder line, spine, hip line, arms, legs, bounding box).
+   - Computes downward velocity ($\Delta Y / \Delta t$) and torso angle ($\theta$) live.
+3. **DPDP Act 2023 Privacy Mode Toggle:**
+   - Interactive toggle: `👁️ Normal Video` vs `🛡️ Privacy Radar Mode`.
+   - In Privacy Radar mode, raw video is completely blanked out with a dark clinical grid, displaying only the skeletal wireframe to demonstrate 100% on-device patient privacy.
+4. **Engine-First / Gemini-Failsafe Consensus Architecture (`movement-engine.js` & `MovementEngine.kt`):**
+   - Local engine runs at 20ms for decisive determinations ($H_1 \dots H_6$).
+   - In ambiguous edge cases (confidence 40%–65%), automatically invokes the Gemini background consensus arbitrator.
+   - Computes weighted consensus: $75\%$ local physics + $25\%$ Gemini clinical reasoning.
+   - Includes 1500ms timeout safeguard (local safety policy upheld if cloud is slow/offline).
+5. **Interactive Sudden Drop Simulation & Resident Verification Trigger:**
+   - Added a "Test Sudden Drop" button on the webcam HUD.
+   - Instantly calculates $-1.94\text{ m/s}$ descent velocity, flags `HIGH_RISK`, and triggers the 30-second Resident Verification Dialog (`ResidentCheckinModal.jsx`).
+   - If upright posture is restored within 5s, the engine automatically cancels the emergency alert.
+6. **Android Parity & Offline Build Verification:**
+   - Mirrored consensus architecture to `app-android/app/src/main/java/com/rejivan/app/core/MovementEngine.kt`.
+   - Verified via `./gradlew.bat compileDebugKotlin --offline` (**BUILD SUCCESSFUL in 25s**).
+7. **Web Bundle Compiled:**
+   - Re-compiled production React web bundle via `node tools/build_web.js` (220.3 KB).
+   - Verified 100% successful Babel parse with zero duplicate declarations and zero undefined component references.

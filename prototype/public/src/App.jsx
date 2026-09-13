@@ -433,6 +433,7 @@ const App = () => {
                   setVitals((prev) => ({ ...prev, bpSys: 149 }));
                 }
               }}
+              onTriggerVerification={handleOpenCheckin}
             />
           )}
 
