@@ -10,7 +10,7 @@
   } else {
     root.ReJivanMovementEngine = factory();
   }
-})(typeof self !== "undefined" ? self : this, function () {
+})(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : this), function () {
   "use strict";
 
   // Standard 17-point COCO Keypoint Map (Identical between YOLO-Pose & MediaPipe)
