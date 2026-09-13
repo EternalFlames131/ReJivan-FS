@@ -55,6 +55,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Build Incident Reconstruction & 30s Chronological Timeline Panel on Web Dashboard with Counterfactuals.
 - [x] Build 5 Evaluator Interactive Scenarios (Sitting, Lying, Phone Drop, Fall, Unresponsive Immobility).
 - [x] Strictly isolate Phone Accelerometer Fall Detection to native Android only (`app-android/`); scrub and remove phone accelerometer references from website codebase and web dashboard (`IncidentReconstructionPanel.jsx`, `ResidentCheckinModal.jsx`, `movement-engine.js`), replacing it with clinical camera/tripwire scenarios.
+- [x] Resolved React white screen error: Defined missing SVG icon components (`ShieldAlert`, `PhoneCall`, `ShieldCheck`, `Shield`) in `icons.jsx`, re-bundled via `build_web.js`, and deployed to Vercel production.
 
 ## Open items / next steps
 - [x] Build the working prototype in `prototype/` (core + dashboard done).
