@@ -10,6 +10,7 @@ const compDir = path.join(srcDir, "components");
 const pubDir = path.join(root, "prototype", "public");
 
 const files = [
+  path.join(root, "prototype", "movement-engine.js"),
   path.join(srcDir, "icons.jsx"),
   path.join(compDir, "Sparkline.jsx"),
   path.join(compDir, "Sidebar.jsx"),
@@ -21,6 +22,8 @@ const files = [
   path.join(compDir, "RecentAlerts.jsx"),
   path.join(compDir, "MedicationScheduleCard.jsx"),
   path.join(compDir, "PatientTimeline.jsx"),
+  path.join(compDir, "IncidentReconstructionPanel.jsx"),
+  path.join(compDir, "ResidentCheckinModal.jsx"),
   path.join(compDir, "CameraZonesView.jsx"),
   path.join(compDir, "VirtualWardView.jsx"),
   path.join(compDir, "MedicinesView.jsx"),

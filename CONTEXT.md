@@ -47,8 +47,14 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Record user hardware correction: NVIDIA GeForce GTX 1650 4GB VRAM.
 - [x] Address false-alarm phone drop protection (15-30s verification prompt loop) and portability solution (in-browser client-side vision).
 - [x] Build and export comprehensive ReJivan Project & Architecture Briefing PDF for ChatGPT analysis (`docs/ReJivan_Comprehensive_Project_Briefing.pdf`).
-- [ ] Await user review & approval of specific plan items (Step 1, 2, 3, 4).
-- [ ] Implement approved items one-by-one with testing and user confirmation.
+- [x] Synthesize Unified "All-in-One" Architecture: Integrate computer vision (single YOLO/MediaPipe pipeline extracting pose + movement) with Remote Patient Monitoring (vitals, drift, medications, emergency) into one coherent system without overwhelming judges.
+- [x] Detail Mobile In-Hand Fall Detection vs Phone Drop Logic (Kinematic impact, tilt, stillness, verification loop).
+- [x] Detail MediaPipe (Vercel client-side) vs YOLO (Edge GPU) Hybrid Architecture Decision: Hardware-detected YOLO primary with MediaPipe in-browser fallback.
+- [x] Build Unified Movement & Hypothesis Engine (`movement-engine.js` / `movement-engine.kt`) covering Fall/Trip, Immobility, and Tremor/Shivering.
+- [x] Build Dual Vision Engine Adapter (Auto-detects local YOLO edge sentinel via GTX 1650; falls back to browser MediaPipe Pose Wasm).
+- [x] Build Incident Reconstruction & 30s Chronological Timeline Panel on Web Dashboard with Counterfactuals.
+- [x] Build 5 Evaluator Interactive Scenarios (Sitting, Lying, Phone Drop, Fall, Unresponsive Immobility).
+- [x] Build Resident Verification Modal with 30s audio countdown and auto-cancellation.
 
 ## Open items / next steps
 - [x] Build the working prototype in `prototype/` (core + dashboard done).

@@ -18,6 +18,13 @@ const App = () => {
   const [exportModalOpen, setExportModalOpen] = React.useState(false);
   const [addMedModalOpen, setAddMedModalOpen] = React.useState(false);
   const [loginModalOpen, setLoginModalOpen] = React.useState(false);
+  const [checkinModalOpen, setCheckinModalOpen] = React.useState(false);
+  const [checkinScenario, setCheckinScenario] = React.useState("trip_fall");
+
+  const handleOpenCheckin = (scenario) => {
+    setCheckinScenario(scenario || "trip_fall");
+    setCheckinModalOpen(true);
+  };
 
   // Physiological Drift & Clinical Simulation Engine
   const [simMode, setSimMode] = React.useState("baseline"); // "baseline" | "bp_crisis" | "hypoxemia" | "bradycardia"
@@ -405,6 +412,14 @@ const App = () => {
                   <PatientTimeline />
                 </div>
               </div>
+
+              {/* 5. Multimodal Incident Reconstruction & Kinematics Panel */}
+              <div className="mt-6">
+                <IncidentReconstructionPanel
+                  onTriggerVerification={handleOpenCheckin}
+                  currentVitals={vitals}
+                />
+              </div>
             </div>
           )}
 
@@ -454,6 +469,14 @@ const App = () => {
           isOpen={loginModalOpen}
           onClose={() => setLoginModalOpen(false)}
           onLogin={handleLogin}
+        />
+        <ResidentCheckinModal
+          isOpen={checkinModalOpen}
+          onClose={() => setCheckinModalOpen(false)}
+          scenario={checkinScenario}
+          onEmergencyConfirmed={() => {
+            setVitals((prev) => ({ ...prev, bpSys: 178, hr: 124 }));
+          }}
         />
 
         {/* Clinical Software Compliance Footer */}

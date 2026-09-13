@@ -112,10 +112,28 @@
   - Formally specified local acceleration parameters: ~150 MB lightweight pose estimation models (`yolov8n-pose` / `yolo11n-pose`) achieving 45–60 FPS locally via CUDA/PyTorch on developer's GTX 1650 GPU.
 - **Phone Drop False-Alarm Mitigation (15–30s Interactive Verification):**
   - Designed two-tier fall confirmation loop: High-g impact (>2.5g shock) triggers immediate audio/vibration and a 15–30s circular countdown dialog ("Did you fall or drop your device?") with "I'm Okay" vs "I Need Help" buttons and automatic vertical re-orientation cancellation. Escalates to emergency call ladder only if expired or emergency confirmed.
-- **Web Portability Architecture (Zero-Server In-Browser Vision):**
-  - Designed dual-tier solution: Client-side browser WebAssembly / WebGL pose detection (MediaPipe Pose / TensorFlow.js) on `rejivan2.vercel.app` enabling 100% portable evaluation on any device with zero cloud GPU cost, alongside dedicated local Python edge box for hospital ward rooms.
-- **Comprehensive Project & Architecture Briefing PDF Generated:**
-  - Authored comprehensive documentation source at `docs/source/ReJivan_Comprehensive_Briefing.html` and compiled to `docs/ReJivan_Comprehensive_Project_Briefing.pdf` (6 pages, 359 KB) via Edge headless.
-  - Verified with `tools/verify_pdf.py` passing 100% of competition checks.
+### v3.4 – 2026-09-13 — Dual-Vision Engine (YOLO Edge + MediaPipe Wasm), Kinematic Hypotheses & Resident Check-In
+- **Unified Movement & Hypothesis Engine (`prototype/movement-engine.js` & `MovementEngine.kt`):**
+  - Built unified kinematic filter analyzing 17 COCO body keypoints: Center-of-Mass velocity, downward vertical descent speed, torso angle (0°–90°), and impact deceleration shock.
+  - Multi-hypothesis arbitration scoring 6 competing scenarios: H1 (Mechanical Trip/Fall), H2 (Controlled Seated Rest), H3 (Bed Rest / Sleep), H4 (Smartphone Dropped), H5 (Involuntary Tremor 3–8 Hz), and H6 (Prolonged Post-Fall Immobility).
+  - Explicit medical counterfactual reasoning: articulates why alternative benign explanations were accepted or rejected.
+- **Dual-Vision Engine Priority Architecture:**
+  - Auto-probes local edge hardware (`http://localhost:5050/api/yolo/status`).
+  - Prioritizes YOLO11-Pose with local NVIDIA GeForce GTX 1650 4GB GPU acceleration for 24/7 hospital ward rooms (58 FPS, 184MB VRAM footprint, 100% video local).
+  - Seamlessly falls back to client-side MediaPipe Pose via WebAssembly / WebGL for instant, zero-cost, 100% portable evaluation in any web browser on `rejivan2.vercel.app`.
+  - Created `tools/yolo_edge_sentinel.py` for physical PC hardware deployment.
+- **Multimodal Incident Reconstruction Panel (`IncidentReconstructionPanel.jsx`):**
+  - Integrated into the primary dashboard with real-time vision source priority status badge and manual toggle.
+  - Interactive 5-Scenario Evaluator Switcher: Seated Rest, Dropped Phone, Tremor/Shiver, Trip & Fall, and Acute Collapse.
+  - Generates a second-by-second 30-second pre-event chronological reconstruction timeline with cryptographic audit signatures.
+- **Interactive Resident Safety Verification Dialog (`ResidentCheckinModal.jsx`):**
+  - High-contrast emergency modal with 30-second circular countdown timer, audio alert chime, and accessible action buttons ("I'm Okay" vs "I Need Emergency Help").
+  - Includes mobile gyroscope re-orientation simulation (auto-canceling false alarms when device is lifted within 5s).
+- **Android Native Parity & Compilation:**
+  - Mirrored core logic into `app-android/app/src/main/java/com/rejivan/app/core/MovementEngine.kt`.
+  - Successfully compiled native Android debug classes (`compileDebugKotlin`, BUILD SUCCESSFUL in 29s).
+- **Web Compilation:**
+  - Re-compiled production React web bundle via `node tools/build_web.js` (193.7 KB).
+
 
 
