@@ -44,6 +44,9 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Receive and analyze user's ChatGPT conversation (extracted 41 messages from https://chatgpt.com/share/6aa67ed9-f0e8-83e8-8c1b-66d55e423d8c).
 - [x] Create and present structured master plan (comparing ChatGPT ideas with current ReJivan implementation).
 - [x] Cleanse project repository of any references to AI coding assistants in tracked code, docs, and configs.
+- [x] Record user hardware correction: NVIDIA GeForce GTX 1650 4GB VRAM.
+- [x] Address false-alarm phone drop protection (15-30s verification prompt loop) and portability solution (in-browser client-side vision).
+- [x] Build and export comprehensive ReJivan Project & Architecture Briefing PDF for ChatGPT analysis (`docs/ReJivan_Comprehensive_Project_Briefing.pdf`).
 - [ ] Await user review & approval of specific plan items (Step 1, 2, 3, 4).
 - [ ] Implement approved items one-by-one with testing and user confirmation.
 

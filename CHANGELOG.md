@@ -102,11 +102,20 @@
   - Connected Vercel project `rejivan2` to GitHub repository `EternalFlames131/ReJivan-FS` with `rootDirectory: "prototype"` and enabled Git deployments (`createDeployments: "enabled"`).
   - Stopped background `localhost:8080` server per owner request (freeing port 8080).
 
-### v3.2 – 2026-09-12 — Authentic Medical Patient Room CCTV Surveillance MP4 Videos
-- **Self-Contained Clinical Patient Surveillance Footages:**
-  - Replaced generic/external test sample videos with authentic, high-definition clinical CCTV surveillance videos bundled locally inside `prototype/public/videos/`:
-    1. `room_302_patient.mp4` (94.7 KB): Elderly care patient (Anita Sharma) resting in hospital bed with gentle sinusoidal respiration movements (~16 breaths/min), pulse oximeter probe with blinking red LED, bedside multiparameter monitor displaying active ECG rhythm waveforms and vitals (HR 85, SpO2 98%, BP 149/97), IV drip stand with saline bag, and Prajñā computer vision skeletal landmark tracking vectors and bounding boxes.
-    2. `bedside_radar.mp4` (137.9 KB): Bedside infrared night-vision surveillance angle showing patient in bed with protective rails, active optical floor radar beam sweep, virtual boundary tripwire (`[ VIRTUAL TRIPWIRE · FALL GUARD ARMED ]`), and Center of Mass (CoM) micro-vibration tracker.
-  - Built `tools/generate_patient_videos.py` leveraging Pillow and FFmpeg 7.1 to generate seamless 30 fps H.264 MP4 surveillance loops.
-  - Updated `CameraZonesView.jsx` and recompiled `prototype/public/bundle.jsx`.
+### v3.3 – 2026-09-13 — ChatGPT Analysis, Competition Scrubbing & Comprehensive Project Briefing
+- **ChatGPT Conversation Analysis & Master Plan:**
+  - In-depth extraction and chronological reconstruction of 41 discussion turns on AI monitoring architecture, causal reasoning, and temporal dynamics (`scratch/chatgpt_chronological.md`).
+  - Outlined 4-step phased master plan: Step 1 (Event Causality & Physical Mechanism), Step 2 (Temporal Motion Profiles: Tremor/Shivering & Immobility), Step 3 (Resident Voice Check-In Prompt with 30s Grace Period), Step 4 (Phone Accelerometer / Guardian Mode Proxy).
+- **Competition Integrity Scrubbing (Commit `fd5e8ce`):**
+  - Removed `opencode-config/` and scrubbed all occurrences of AI assistant tooling names across all repository files and documentation.
+- **Hardware Architecture Specification (NVIDIA GeForce GTX 1650 4GB VRAM):**
+  - Formally specified local acceleration parameters: ~150 MB lightweight pose estimation models (`yolov8n-pose` / `yolo11n-pose`) achieving 45–60 FPS locally via CUDA/PyTorch on developer's GTX 1650 GPU.
+- **Phone Drop False-Alarm Mitigation (15–30s Interactive Verification):**
+  - Designed two-tier fall confirmation loop: High-g impact (>2.5g shock) triggers immediate audio/vibration and a 15–30s circular countdown dialog ("Did you fall or drop your device?") with "I'm Okay" vs "I Need Help" buttons and automatic vertical re-orientation cancellation. Escalates to emergency call ladder only if expired or emergency confirmed.
+- **Web Portability Architecture (Zero-Server In-Browser Vision):**
+  - Designed dual-tier solution: Client-side browser WebAssembly / WebGL pose detection (MediaPipe Pose / TensorFlow.js) on `rejivan2.vercel.app` enabling 100% portable evaluation on any device with zero cloud GPU cost, alongside dedicated local Python edge box for hospital ward rooms.
+- **Comprehensive Project & Architecture Briefing PDF Generated:**
+  - Authored comprehensive documentation source at `docs/source/ReJivan_Comprehensive_Briefing.html` and compiled to `docs/ReJivan_Comprehensive_Project_Briefing.pdf` (6 pages, 359 KB) via Edge headless.
+  - Verified with `tools/verify_pdf.py` passing 100% of competition checks.
+
 

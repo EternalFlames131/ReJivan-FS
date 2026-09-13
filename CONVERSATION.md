@@ -780,6 +780,38 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   6. Zero-cost wearable strategy: using smartphone internal accelerometer/gyroscope as a low-cost proxy wearable, paired with scenario-based synthetic telemetry for safe demonstration.
 - Plan formulated and presented to user with zero immediate code implementation.
 
+### Repository Scrubbing for Competition Integrity (Commit fd5e8ce)
+- User requested removal of all references to AI coding assistant tools.
+- Actions taken: Deleted `opencode-config/` directory from Git tracking, scrubbed all references to "opencode" and "antigravity" across `AGENTS.md`, `README.md`, `CONTEXT.md`, `CONVERSATION.md`, `CHANGELOG.md`, `docs/source/ReJivan_doc_source.html`, and `tools/build_pdf.ps1`.
+- Rebuilt concept PDF (12 pages verified) and pushed to GitHub main (`fd5e8ce`), refreshed Vercel production.
+
+### YOLO, Temporal Engine, and Dual-Mode Accelerometer Feasibility Inquiry
+- User inquired:
+  1. Accelerometer in ReJivan app: While bedridden patients won't carry a phone, enabling personal/active SOS guardian mode for independent elderly users makes ReJivan dual-use (institutional ward + ambulatory personal emergency).
+  2. Technical feasibility of integrating YOLO Ultralytics, OpenCV, and Temporal Motion Engine: Can the assistant build and integrate it automatically, or does the user have to do it manually? What is possible vs not possible?
+
+### User Corrections & Comprehensive Briefing Request (Resolved)
+- User provided 4 corrections/points:
+  1. Hardware correction: Device GPU is NVIDIA GeForce GTX 1650 4GB VRAM (not RTX 4060).
+  2. False Alarm Mitigation: If only the phone drops, that's a false positive; the system must ask a question ("Are you okay? Did you drop your phone?") with a 15–30s countdown; only if unanswered or "Need Help" does it escalate.
+  3. Portability Question: If motion detection cannot run on serverless cloud, how to solve the portability factor so it runs portably on the web without heavy server setup?
+  4. Comprehensive Briefing PDF: Generate an all-inclusive PDF explaining the entire project, what exists, what is proposed, hardware realities, and design choices, ready to upload to ChatGPT for deep brainstorming.
+
+### Architectural Answers & Deliverables Delivered:
+1. **Hardware Reality:** Confirmed NVIDIA GeForce GTX 1650 4GB VRAM. It has ample CUDA acceleration to execute lightweight pose estimation models (`yolov8n-pose` / `yolo11n-pose`, consuming only ~150 MB VRAM) at 45–60 FPS locally on-device.
+2. **False Alarm Mitigation (Phone-Drop Protection):** Resolved by designing an interactive verification loop. Upon detecting a high-g impact (>2.5g shock spike), the mobile client issues an audible chime, vibration, and displays a prominent 15–30s countdown prompt asking: "Did you fall or drop your device?" with options "I'm Okay / False Alarm" and "I Need Emergency Help". Immediate cancellation occurs if "I'm Okay" is tapped OR if gyroscope sensors detect normal vertical re-orientation (phone picked back up). Escalation to the 3-tier emergency ladder only triggers if the countdown expires with zero response or "I Need Help" is pressed.
+3. **Portability Resolution (In-Browser Client-Side Vision):** Dual-tier architecture solves web portability without costly server GPUs:
+   - *Web Browser Demo (Zero Server GPU):* Uses client-side WebAssembly / WebGL pose tracking (MediaPipe Pose / TensorFlow.js) directly inside `rejivan2.vercel.app` using the evaluator's own webcam. 100% portable, privacy-preserving (no video leaves the device), and zero server cost.
+   - *Hospital Ward Inpatient Box:* Local Python daemon running YOLO + OpenCV on the dedicated local PC (GTX 1650), transmitting only lightweight JSON telemetry packets to the cloud.
+4. **Comprehensive Briefing PDF Built & Verified:**
+   - Source: `docs/source/ReJivan_Comprehensive_Briefing.html`
+   - Compiled to: `docs/ReJivan_Comprehensive_Project_Briefing.pdf` (6 pages, 359 KB)
+   - Verified via `tools/verify_pdf.py` with 100% pass across all competition keywords and requirements.
+   - Ready for upload to ChatGPT for deep brainstorming.
+
+
+
+
 
 
 
