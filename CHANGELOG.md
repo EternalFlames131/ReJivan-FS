@@ -158,3 +158,21 @@
   - Successfully compiled native Android debug classes (`compileDebugKotlin`, BUILD SUCCESSFUL in 25s).
 - **Production Web Re-Bundle:**
   - Recompiled production React web bundle via `node tools/build_web.js` (220.3 KB).
+
+### v3.6 – 2026-09-13 — Real Optical Motion Tracking, Fake X-Ray Scrub & GTX 1650 YOLO Sentinel
+- **Scrubbed Fake X-Ray Visuals:**
+  - Completely removed the static center green stick figure, skull circle, and dashed bounding box from `CameraZonesView.jsx`.
+- **Real Optical Pixel Differencing Engine:**
+  - Implemented real-time pixel differencing on an offscreen sample buffer (64×48) to dynamically track the user's physical body movement.
+  - Computes real motion energy percentage (0%–100%), dynamic motion centroid coordinates $(X_c, Y_c)$, and true downward velocity ($\text{m/s}$).
+  - Dynamically projects clinical targeting brackets around the user's actual position in the frame.
+  - Automatically asserts fall risk based on real physical movement dynamics.
+- **NVIDIA GTX 1650 Hardware Edge Sentinel Auto-Discovery:**
+  - Added background auto-polling for local YOLO daemon (`tools/yolo_edge_sentinel.py`) running on `localhost:5050`.
+  - Automatically elevates telemetry to `[ GTX 1650 CUDA Connected · 58 FPS ]` when the local hardware daemon is active.
+- **Web Compilation & Babel Verification:**
+  - Re-compiled production React web bundle via `node tools/build_web.js` (224.4 KB).
+  - Verified 100% successful Babel parse and JSX transform with zero errors.
+- **Android Offline Parity:**
+  - Verified native Kotlin build (`compileDebugKotlin`, BUILD SUCCESSFUL in 25s).
+

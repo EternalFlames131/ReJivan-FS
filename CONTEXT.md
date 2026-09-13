@@ -62,6 +62,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Task 1.3: Connect live webcam feed to Unified Movement Engine (`movement-engine.js`): calculate kinematic downward velocity & torso angle in real time, displaying live risk meter (🟢 Normal / 🟡 Caution / 🔴 High Risk Fall).
 - [x] Task 1.4: Engine-First / Gemini-Failsafe Consensus Architecture: local deterministic engine acts as fast primary evaluator (<20ms); Gemini acts as an automatic background failsafe arbitrator invoked when engine confidence is ambiguous (40%–65% split) with 1.5s timeout protection.
 - [x] Task 1.5: Trigger live 30s Resident Verification Modal directly from simulated webcam drops, auto-canceling if resident restores upright posture.
+- [x] Upgrade Camera Vision to Real Motion Tracking & Remove Fake X-Ray Overlay: (1) Scrubbed out the static/fake x-ray box and stick figure overlay completely; (2) Integrated real optical motion differencing engine in-browser tracking physical movement energy %, dynamic centroid brackets, and downward velocity; (3) Added local YOLO daemon auto-discovery for NVIDIA GeForce GTX 1650 hardware acceleration on port 5050.
 
 ### Track 2: Platform Polish & Mobile Parity (Secondary Backlog)
 - [ ] Task 2.1: "Add Patient" registration flow on web dashboard for newly registered family accounts.
