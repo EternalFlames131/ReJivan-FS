@@ -18,7 +18,7 @@ $src    = Join-Path $root "docs\source\ReJivan_doc_source.html"
 $out    = Join-Path $root "docs\ReJivan_Concept_Document_v1.1.pdf"
 $feat   = Join-Path $root "docs\features.json"
 $server = Join-Path $root "prototype\server.js"
-$tmp    = "C:\Users\samra\AppData\Local\Temp\opencode\rejivan_doc_gen.html"
+$tmp    = "C:\Users\samra\AppData\Local\Temp\rejivan\rejivan_doc_gen.html"
 
 $edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 if (-not (Test-Path -LiteralPath $edge)) {

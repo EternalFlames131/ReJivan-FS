@@ -1,7 +1,7 @@
 # ReJivan — Project CONTEXT (full snapshot)
 
 > This is the "brain" of the project. Update it whenever things change.
-> Companion files: `README.md` (overview) and `AGENTS.md` (auto-loaded by opencode in this folder).
+> Companion files: `README.md` (overview) and `AGENTS.md` (workspace configuration).
 
 ## One-line idea
 A personal Prajñā nurse for every family — affordable health monitoring with on-time medicines and automatic emergency help, working **at home and in hospital "Virtual Ward" rooms** using **wearables PLUS privacy-first camera zones**.
@@ -20,7 +20,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
   - Run: `cd prototype && npm start` → **http://localhost:8080** (server currently LIVE; demo anchored in **Andaman & Nicobar Islands** — homes at Junglighat, Port Blair + Hut Bay, Little Andaman; Virtual Ward at GB Pant Hospital, Port Blair; region shown on every dashboard + the PDF). Vercel entry: `prototype/api/index.js` + `prototype/vercel.json`. **Auto-deploy ENABLED** (post-commit hook deploys `prototype\` to Vercel production whenever the CLI is logged in; one-time `vercel login github` still pending — device flow: https://vercel.com/oauth/device?user_code=DHLK-VNLG).
   - Demo logins: asharma@demo.in / rprakash@demo.in / wardnurse@demo.in (password: demo123).
 - **PUBLIC GitHub repo:** `github.com/EternalFlames131/ReJivan-FS` (user `EternalFlames131`), branch `main`.
-- Copy of owner's opencode global config + running activity log: `opencode-config/`.
+
 
 ## Key decisions made (so far)
 1. **Theme:** Healthcare, Wellbeing & Service Delivery + Elderly Care & Healthy Ageing.
@@ -35,10 +35,17 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 
 ## How to continue from any device (drive-only workflow)
 1. Carry this folder (USB drive or a synced cloud folder like OneDrive/Dropbox).
-2. On the device: opencode is already installed (per user). Open THIS folder with opencode — `AGENTS.md` inside loads the context automatically.
-3. **Setup is automatic - nothing to type:** at the start of every session opencode checks for the per-computer marker `tools\.setup-done-<PC>.txt`; if missing it runs `pwsh -ExecutionPolicy Bypass -File tools\setup.ps1` on its own (installs Python/pypdf/Edge/Git via winget, sets repo-local identity, locks remote to ReJivan ONLY, enables auto-push, checks GitHub login). The user just sees "Auto-setup completed on this device."
+2. On the device: Open THIS folder in your workspace — `AGENTS.md` inside loads the project context automatically.
+3. **Setup is automatic - nothing to type:** at the start of every session the system checks for the per-computer marker `tools\.setup-done-<PC>.txt`; if missing it runs `pwsh -ExecutionPolicy Bypass -File tools\setup.ps1` on its own (installs Python/pypdf/Edge/Git via winget, sets repo-local identity, locks remote to ReJivan ONLY, enables auto-push, checks GitHub login). The user just sees "Auto-setup completed on this device."
 4. The folder is the single source of truth. Commit normally (`git add -A`, `git commit -m "..."`) — **push to GitHub is automatic** via `.githooks/post-commit` (this project only). If offline, the commit stays safe; run `git push` later. On a second device, `git pull` first if you want its latest state.
 5. To rebuild the PDF after editing `docs/source/ReJivan_doc_source.html`, run `pwsh -File tools\build_pdf.ps1`.
+
+## Active Immediate Tasks (Live Tracking — crash-resilient)
+- [x] Receive and analyze user's ChatGPT conversation (extracted 41 messages from https://chatgpt.com/share/6aa67ed9-f0e8-83e8-8c1b-66d55e423d8c).
+- [x] Create and present structured master plan (comparing ChatGPT ideas with current ReJivan implementation).
+- [x] Cleanse project repository of any references to AI coding assistants in tracked code, docs, and configs.
+- [ ] Await user review & approval of specific plan items (Step 1, 2, 3, 4).
+- [ ] Implement approved items one-by-one with testing and user confirmation.
 
 ## Open items / next steps
 - [x] Build the working prototype in `prototype/` (core + dashboard done).
@@ -57,7 +64,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [ ] Write problem statement sheet (state-specific, **Andaman & Nicobar Islands — Samrat is based in A&N**, a Union Territory) in `docs/`.
 - [ ] 6–7 slide deck with digital-tools disclosure; 3–5 min demo video (720p); Annexure 1 + student IDs.
 
-## Standing rules (per owner's global AGENTS.md)
-- After any change: append a timestamped line to `CHANGELOG.md` here AND to the master activity log `C:\Users\samra\OneDrive\Desktop\Opencode task\LOG.md` (snapshot kept in `opencode-config\LOG.md`).
+## Standing rules (per workspace guidelines)
+- After any change: append a timestamped line to `CHANGELOG.md` here and commit (auto-push takes care of GitHub).
 - Owner is non-technical — explain plainly, avoid jargon.
-- Full owner context (other projects, permissions) lives in global `~/.config/opencode/AGENTS.md`.
+- Full owner context lives in global developer configuration.

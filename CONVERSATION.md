@@ -80,16 +80,16 @@
 ### What was done (all verified)
 - Bulk ladder script (temp) over 48 tracked files: SanjivanAI→ReJivan (all case/site variants), com.sanjivanai→com.rejivan, EternalFlames131/SanjivanAI→EternalFlames131/ReJivan, plus phrase ladder (taglines, "On-device AI"→"On-device Prajñā", "AI nurse"→"Prajñā nurse", "AI-tools disclosure"→"intelligence-tools disclosure", "camera AI"→"camera intelligence", etc.).
 - Files renamed: docs/source/ReJivan_doc_source.html, docs/ReJivan_Concept_Document_v1.1.pdf (pre-commit hook auto-rebuilds it), Android java dirs com/sanjivanai→com/rejivan in BOTH app-android/ and the prototype/android Capacitor wrapper (MainActivity.java package now matches its path — a mismatch caught and fixed before commit).
-- Careful manual edits after the bulk pass: doc HTML (5 "AI"→intelligence/digital-tools fixes + "an Prajñā nurse"→"a Prajñā nurse"), server.js ("On-device Prajñā"), camerazone.js (2), prototype README, root README, CONTEXT.md (2), CHANGELOG URL, CONVERSATION (4 edits incl. the Vercel two-account block rewritten with old URL removed), hsc_guidelines_summary.md (3), opencode-config/AGENTS.md, capacitor.config.json allowNavigation (prototype + android assets), dist/index.html + android-assets index.html API_BASE, public index.html ("On-device AI" line).
+- Careful manual edits after the bulk pass: doc HTML (5 "AI"→intelligence/digital-tools fixes + "an Prajñā nurse"→"a Prajñā nurse"), server.js ("On-device Prajñā"), camerazone.js (2), prototype README, root README, CONTEXT.md (2), CHANGELOG URL, CONVERSATION (4 edits incl. the Vercel two-account block rewritten with old URL removed), hsc_guidelines_summary.md (3), workspace-config/AGENTS.md, capacitor.config.json allowNavigation (prototype + android assets), dist/index.html + android-assets index.html API_BASE, public index.html ("On-device AI" line).
 - lang.json (public): 20 edits — appName/tagline/disclaimer/live_banner/device_banner in HI/BN/TA/TE now ReJivan (रीजीवन/রিজিভন/ரிஜீவன்/రిజీవన్) with no AI phrasing; copied to dist/lang.json + android assets lang.json (key sets verified identical).
 - .githooks/pre-commit + post-commit: rewritten manually (extensionless files, skipped by the ladder) — ReJivan messages, ALLOW/ALLOW_ALT URLs = EternalFlames131/ReJivan.git, REJIVAN_NO_DEPLOY, pre-commit root pattern `*ReJivan|*SanjivanAI`, PDF path docs/ReJivan_Concept_Document_v1.1.pdf, build log /tmp/rejivan_pdf_build.log.
 - GitHub: `gh repo rename ReJivan --repo EternalFlames131/SanjivanAI --yes` → now **EternalFlames131/ReJivan** (PUBLIC, history preserved, old URL redirects). `git remote set-url origin` updated, verified via git ls-remote.
 - Committed **949eb65** (49 files, incl. all renames). Pre-commit auto-rebuilt the PDF; post-commit auto-pushed + auto-deployed production. Live check: https://prototype-omega-self.vercel.app health 200, served HTML shows ReJivan, zero old-name/"AI" matches.
-- Sanity: node --check OK on all 11 JS, JSON parse OK on 8 files, Kotlin package com.rejivan.app consistent; rg shows zero leftover "sanjivanai" (any case) except intentionally kept historical log lines in opencode-config/LOG.md (LP-Generator project) and the opencode.ai schema URL (false positive).
+- Sanity: node --check OK on all 11 JS, JSON parse OK on 8 files, Kotlin package com.rejivan.app consistent; rg shows zero leftover "sanjivanai" (any case) except intentionally kept historical log lines in workspace-config/LOG.md (LP-Generator project) and the workspace toolchain.ai schema URL (false positive).
 
 ### Notes / decisions
 - Live URL = **rejivan.vercel.app** (final, per user 2026-09-10 afternoon: renamed the URL from sanjivanai.vercel.app to rejivan.vercel.app and REMOVED the prototype-omega-self.vercel.app fallback alias entirely — one URL only, matching the brand). The native offline app does not talk to the server, so removing the second URL has no downside; a future web-wrapper APK will use rejivan.vercel.app.
-- Local disk folder is still literally "SanjivanAI" — FINE: hooks accept both names; user may rename the folder manually anytime (close opencode first).
+- Local disk folder is still literally "SanjivanAI" — FINE: hooks accept both names; user may rename the folder manually anytime (close workspace toolchain first).
 - APK side already com.rejivan.app (native app-android Debug APK earlier at Downloads/ReJivan_v1.0.apk); Capacitor APK would need a rebuild for a fresh package name.
 - The medical-grade model stack recommendations (NEWS2/MEWS now; MediaPipe pose→LSTM falls; COMPOSER/TREWS/DeepMind-AKI as validated-upgrade research) live in the Day-3 research section below.
 
@@ -205,13 +205,13 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Prototype honesty: camera events + vitals + billing **simulated**; dashboard, medications, rules engine, alerts, escalation, multilingual **fully real**.
 
 ### 6. Portability ("perfect folder" + drive)
-- Folder made **self-contained** → works from any drive: `docs/source` (PDF HTML), `tools/build_pdf.ps1` + `verify_pdf.py`, `references/hsc_guidelines_summary.md`, `opencode-config/` (backup of owner's global opencode AGENTS.md, opencode.jsonc, master LOG.md), plus README/CONTEXT/AGENTS.
-- Removable drive F: → full copy at `F:\ReJivan` (mirrored, includes .git). F: = "live" folder with opencode on the other device.
+- Folder made **self-contained** → works from any drive: `docs/source` (PDF HTML), `tools/build_pdf.ps1` + `verify_pdf.py`, `references/hsc_guidelines_summary.md`, `workspace-config/` (backup of owner's global workspace toolchain AGENTS.md, workspace toolchain.jsonc, master LOG.md), plus README/CONTEXT/AGENTS.
+- Removable drive F: → full copy at `F:\ReJivan` (mirrored, includes .git). F: = "live" folder in workspace on the other device.
 
 ### 7. Automation & safety (multi-repo protection)
 - `setup.ps1`: one-time auto-setup per PC — installs missing Python/pypdf/Edge/Git via winget, sets repo-LOCAL git identity, locks remote to ReJivan ONLY, enables auto-push, checks GitHub login, tests PDF pipeline, writes per-PC marker `tools\.setup-done-<PC>.txt`.
 - **Auto-push hook** `.githooks/post-commit`: after every commit pushes to ReJivan repo. **Hardened:** only fires when origin == ReJivan URL; otherwise does nothing (tested with a throwaway repo — other repos cannot be touched). Global git settings untouched (verified).
-- **Fully automatic setup:** opencode auto-runs setup.ps1 at session start whenever the per-PC marker is missing — user never types a command (AGENTS.md RULE).
+- **Fully automatic setup:** the system auto-runs setup.ps1 at session start whenever the per-PC marker is missing — user never types a command (AGENTS.md RULE).
 - Entered as rule in AGENTS.md: keep commits deliberate; auto-push is enabled.
 
 ### 8. Time estimates (user asked "exactly how much time")
@@ -273,7 +273,7 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Built the **auto-updating concept PDF**:
   - New `.githooks/pre-commit` hook: before EVERY commit it rebuilds `docs\ReJivan_Concept_Document_v1.1.pdf` and stages it, so the PDF can never go stale. If Edge fails (e.g. PDF open), it warns but never blocks the commit.
   - New `docs/features.json` — canonical machine-readable feature list + demo accounts + "real/simulated" status + notes.
-  - `tools/build_pdf.ps1` upgraded: injects an auto-generated **"Live Prototype Status"** section — feature table from features.json, plus the REAL / SIMULATED lists parsed LIVE out of `prototype/server.js` (so the document always mirrors the actual code), plus build date. Writes generated HTML to Temp\opencode, renders via Edge headless, verifies via pypdf.
+  - `tools/build_pdf.ps1` upgraded: injects an auto-generated **"Live Prototype Status"** section — feature table from features.json, plus the REAL / SIMULATED lists parsed LIVE out of `prototype/server.js` (so the document always mirrors the actual code), plus build date. Writes generated HTML to Temp\rejivan, renders via Edge headless, verifies via pypdf.
   - Placeholders added in `docs/source/ReJivan_doc_source.html` (`{{STATUS_ROW}}`, `{{BUILD_DATE}}`, `<!--AUTO:PROTOTYPE_SNAPSHOT-->`).
   - Verified: PDF rebuilds to 9 pages, snapshot content confirmed in text (demo accounts, emergency call chain, Tamil/Telugu languages, etc.). Hook fired automatically on the commit itself. Auto-pushed (4a6dd9f).
 - **How it works for the user:** no action needed — any future commit (added feature, fix, memory save) automatically refreshes the PDF to match.
@@ -503,7 +503,7 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Android: remember previous login credentials so the app prefills them.
 
 ### What was done (verified)
-- **Web UI redesign:** Full `prototype/public/index.html` rewrite (53 KB). New design-system CSS: brandmark header with SVG pulse glyph, icon nav (inline SVG mask `--ic`), LIVE/SIMULATED pills, stat cards (`statsrow`/`statcard`), device chips, animated modals (`fade`/`pop`), improved login screen with 3 one-tap demo-account buttons (`fillDemo()` onclick) + tagline. Backup at `Temp\opencode\rejivan_index_backup.html`; new head fragment at `Temp\opencode\rejivan_index_new_head.html`. Icons generated via `Temp\opencode\gen_icons.py` → `icons_css.txt`.
+- **Web UI redesign:** Full `prototype/public/index.html` rewrite (53 KB). New design-system CSS: brandmark header with SVG pulse glyph, icon nav (inline SVG mask `--ic`), LIVE/SIMULATED pills, stat cards (`statsrow`/`statcard`), device chips, animated modals (`fade`/`pop`), improved login screen with 3 one-tap demo-account buttons (`fillDemo()` onclick) + tagline. Backup at `Temp\rejivan\rejivan_index_backup.html`; new head fragment at `Temp\rejivan\rejivan_index_new_head.html`. Icons generated via `Temp\rejivan\gen_icons.py` → `icons_css.txt`.
 - **i18n:** Added `demo_anita`/`demo_ram`/`demo_ward` keys in all 5 languages (104 keys per lang in `lang.json`).
 - **Web verification:** Ran local server + Edge headless DOM dump post-login → nav icons render (7 navitem matches), statsrow present, statcard danger present, 5 patient cards, 6 vital tiles, 14 confidence references, 6 reliability bars, login hidden, whoami filled, `clearview` animation class present, `Monitored` label translated. No JS errors.
 - **Android AppColors.kt:** brand color updated `#2FBF8F` → `#34D0AC` (accent + ok) to match web.
@@ -595,7 +595,7 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Android: remember previous login credentials so the app prefills them.
 
 ### What was done (verified)
-- **Web UI redesign:** Full `prototype/public/index.html` rewrite (53 KB). New design-system CSS: brandmark header with SVG pulse glyph, icon nav (inline SVG mask `--ic`), LIVE/SIMULATED pills, stat cards (`statsrow`/`statcard`), device chips, animated modals (`fade`/`pop`), improved login screen with 3 one-tap demo-account buttons (`fillDemo()` onclick) + tagline. Backup at `Temp\opencode\rejivan_index_backup.html`; new head fragment at `Temp\opencode\rejivan_index_new_head.html`. Icons generated via `Temp\opencode\gen_icons.py` → `icons_css.txt`.
+- **Web UI redesign:** Full `prototype/public/index.html` rewrite (53 KB). New design-system CSS: brandmark header with SVG pulse glyph, icon nav (inline SVG mask `--ic`), LIVE/SIMULATED pills, stat cards (`statsrow`/`statcard`), device chips, animated modals (`fade`/`pop`), improved login screen with 3 one-tap demo-account buttons (`fillDemo()` onclick) + tagline. Backup at `Temp\rejivan\rejivan_index_backup.html`; new head fragment at `Temp\rejivan\rejivan_index_new_head.html`. Icons generated via `Temp\rejivan\gen_icons.py` → `icons_css.txt`.
 - **i18n:** Added `demo_anita`/`demo_ram`/`demo_ward` keys in all 5 languages (104 keys per lang in `lang.json`).
 - **Web verification:** Ran local server + Edge headless DOM dump post-login → nav icons render (7 navitem matches), statsrow present, statcard danger present, 5 patient cards, 6 vital tiles, 14 confidence references, 6 reliability bars, login hidden, whoami filled, `clearview` animation class present, `Monitored` label translated. No JS errors.
 - **Android AppColors.kt:** brand color updated `#2FBF8F` → `#34D0AC` (accent + ok) to match web.
@@ -651,7 +651,7 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 ### What was done (web v2.5 – light clinical theme)
 - Programmatic theme transform of `prototype/public/index.html` (53.8 KB). New palette: page #f4f7fb, white panels, deep-navy text #10244a, brand teal #0d9488, accent blue #2563eb, ok #16a34a, warn #d97706, danger #dc2626, soft shadows, white header + nav.
 - All components re-tuned: pills/badges/confidence/prio/device chips, banners, inputs, call ladder, camera stage, modals, login card (white + soft radial gradients + teal "R" brandmark), tabular-numeral vital/stat readouts, 14.5px body text.
-- Automated 100% token scan: zero old dark colors left. Backup of dark version at `...\Temp\opencode\rejivan_index_dark_backup.html`.
+- Automated 100% token scan: zero old dark colors left. Backup of dark version at `...\Temp\rejivan\rejivan_index_dark_backup.html`.
 - Verified E2E locally (edge headless DOM post-login): all structure intact (nav icons, statsrow/statcards, device chips, clearview, whoami, translations, light bg).
 - Android unchanged this turn (still dark theme — standard on Android; same teal brand on both platforms).
 
@@ -752,5 +752,35 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - **Web Integration & Bundling:**
   - Updated `prototype/public/src/components/CameraZonesView.jsx` to load `/videos/room_302_patient.mp4` and `/videos/bedside_radar.mp4`.
   - Re-compiled `prototype/public/bundle.jsx` (150 KB) via `node tools/build_web.js`.
+
+---
+
+## 2026-09-13 (Day 6 — ChatGPT Discussion Analysis Protocol)
+
+### What the user asked
+- User wants to share a conversation from ChatGPT to analyze it thoroughly.
+- Explicit requirement: Do NOT implement anything immediately. First synthesize all ideas, create a clear structured plan, present it for review, and only implement items one-by-one as explicitly requested.
+
+### Protocol confirmed
+- 100% agreed: Zero code changes or modifications will occur until the plan is presented, reviewed by the user, and specific items are approved for step-by-step implementation.
+
+### Task persistence & crash resilience rule added
+- User instructed: Whenever the user asks something, immediately add it to `CONTEXT.md` (as an active open task) and memory (`CONVERSATION.md`).
+- Once finished, immediately mark it completed (`- [x]`).
+- Rule added to `AGENTS.md` and active task checklist created in `CONTEXT.md`.
+
+### ChatGPT Conversation Analysis Completed (41 Messages)
+- Link: `https://chatgpt.com/share/6aa67ed9-f0e8-83e8-8c1b-66d55e423d8c` (extracted and parsed into `scratch/chatgpt_chronological.md`).
+- Core topics extracted:
+  1. Terminology shift: "Root Cause Diagnosis" -> "Probable Event Mechanism Analysis" (CCTV can only detect physical mechanisms like trips, loss of balance, or intentional rest; cannot diagnose clinical root causes like stroke/hypotension).
+  2. Temporal Motion Analysis: Detecting shivering/tremors (oscillations) and prolonged immobility in addition to falls over sliding time windows.
+  3. Multimodal Sensor Fusion: Cross-correlating camera stillness with wearable vitals (e.g. stillness + normal vitals = sleeping; stillness + abnormal vitals/impact = high emergency).
+  4. 4-tier alert hierarchy (Normal -> Anomaly -> Concerning -> Confirmed Emergency) and resident voice check-in prompt ("Are you okay?").
+  5. Explainable "Why did we alert?" incident panel with chronological event sequences and counterfactual checks.
+  6. Zero-cost wearable strategy: using smartphone internal accelerometer/gyroscope as a low-cost proxy wearable, paired with scenario-based synthetic telemetry for safe demonstration.
+- Plan formulated and presented to user with zero immediate code implementation.
+
+
+
 
 

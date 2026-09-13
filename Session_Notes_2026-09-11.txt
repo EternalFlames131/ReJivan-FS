@@ -39,7 +39,7 @@ DONE: APK saved as  C:\Users\samra\Downloads\ReJivan-Android-v2.2.apk
 TASK 4 - "logs updated?"
 You asked if the log files were updated.
 DONE: Yes - updated CHANGELOG.md, CONVERSATION.md and the master log
-  (C:\Users\samra\OneDrive\Desktop\Opencode task\LOG.md). Committed+published.
+  (C:\Users\samra\OneDrive\Desktop\Project task\LOG.md). Committed+published.
 
 ============================================================
 TASK 5 - Is the Android app properly linked? (STILL OPEN)
@@ -70,4 +70,4 @@ QUICK RECAP FOR NEXT TIME
 - Demo login: asharma@demo.in / demo123 (family)  -  wardnurse@demo.in / demo123 (ward)
 - Rule: a change you ask for = do it BOTH on the website AND in the Android app.
 - Log files: CHANGELOG.md + CONVERSATION.md (project) and
-  C:\Users\samra\OneDrive\Desktop\Opencode task\LOG.md (master log).
+  C:\Users\samra\OneDrive\Desktop\Project task\LOG.md (master log).

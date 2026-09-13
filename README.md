@@ -27,8 +27,8 @@ Full rules: `references/hsc_guidelines_summary.md`
 - `video/` — demo video + script (to build)
 - `references/` — HSC rules summary, notes
 - `tools/` — `build_pdf.ps1` + `verify_pdf.py` (rebuild/check the PDF anywhere)
-- `opencode-config/` — backup of global opencode config + master activity log
-- `AGENTS.md` — auto-loaded context (see `CONTEXT.md` for the full snapshot)
+- `AGENTS.md` — workspace configuration guidelines
+- `CONTEXT.md` — living snapshot and project memory
 - `CHANGELOG.md` — running log for this project
 
 ## The PDF auto-updates itself (no remembering needed)
@@ -43,8 +43,8 @@ Full rules: `references/hsc_guidelines_summary.md`
 
 ## How to continue from any device (drive-only workflow)
 1. Carry this folder (USB stick or a synced cloud folder like OneDrive/Dropbox).
-2. On the other PC (opencode already installed): boot opencode and open THIS folder — `AGENTS.md` loads the project context automatically.
-3. **No setup command to remember:** the first time opencode opens this folder on any PC, it **automatically runs** `tools\setup.ps1` (installs Python/pypdf/Edge/Git if missing, locks this repo to ReJivan's GitHub, enables auto-push, checks GitHub login). You'll just see one line: "Auto-setup completed on this device."
+2. On the other PC: open THIS folder in your workspace environment.
+3. **No setup command to remember:** the first time setup runs in this folder on any PC, it **automatically runs** `tools\setup.ps1` (installs Python/pypdf/Edge/Git if missing, locks this repo to ReJivan's GitHub, enables auto-push, checks GitHub login). You'll just see one line: "Auto-setup completed on this device."
 4. Work on files, then **commit** (`git add -A`, `git commit -m "message"`) — **push to GitHub happens automatically** (auto-push hook, this project only). If offline, the commit is safe; run `git push` later.
 5. Rebuild the PDF after editing the HTML: `pwsh -File tools\build_pdf.ps1`.
 
@@ -53,7 +53,7 @@ Full rules: `references/hsc_guidelines_summary.md`
 - You have multiple repos on GitHub; this folder will never push to any other one, even if copied somewhere else.
 
 ## Memory (you never re-explain anything)
-- `CONVERSATION.md` auto-records every decision/thought/update. `CONTEXT.md` is the living snapshot; `CHANGELOG.md` the change log. Opening this folder with opencode loads it all automatically.
+- `CONVERSATION.md` auto-records every decision/thought/update. `CONTEXT.md` is the living snapshot; `CHANGELOG.md` the change log. Opening this folder loads it all automatically.
 
 ## Key decisions made
 - Theme: Healthcare, Wellbeing & Service Delivery + Elderly Care & Healthy Ageing
