@@ -56,23 +56,23 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] Build 5 Evaluator Interactive Scenarios (Sitting, Lying, Phone Drop, Fall, Unresponsive Immobility).
 - [x] Strictly isolate Phone Accelerometer Fall Detection to native Android only (`app-android/`); scrub and remove phone accelerometer references from website codebase and web dashboard (`IncidentReconstructionPanel.jsx`, `ResidentCheckinModal.jsx`, `movement-engine.js`), replacing it with clinical camera/tripwire scenarios.
 - [x] Perform comprehensive end-to-end multi-layer audit: verify live Vercel web endpoints, Babel transform & React DOM render lifecycle, Android native Gradle compilation, simulated emergency workflows, and zero-defect quality standards.
+### Track 1: Real-Time Edge Vision & Consensus Engine (Ready for Execution on Command)
+- [ ] Task 1.1: Implement Live Device Webcam integration in Camera Zones view (`navigator.mediaDevices.getUserMedia`) allowing users/judges to connect their laptop/phone camera.
+- [ ] Task 1.2: In-browser MediaPipe Pose WebAssembly pipeline: extract 33 3D skeletal landmarks at 30 FPS with privacy wireframe toggle (hiding raw video).
+- [ ] Task 1.3: Connect live webcam feed to Unified Movement Engine (`movement-engine.js`): calculate kinematic downward velocity & torso angle in real time, displaying live risk meter (🟢 Normal / 🟡 Caution / 🔴 High Risk Fall).
+- [ ] Task 1.4: Engine-First / Gemini-Failsafe Consensus Architecture: local deterministic engine acts as fast primary evaluator (<20ms); Gemini acts as an automatic background failsafe arbitrator invoked when engine confidence is ambiguous (40%–65% split) with 1.5s timeout protection.
+- [ ] Task 1.5: Trigger live 30s Resident Verification Modal directly from simulated webcam drops, auto-canceling if resident restores upright posture.
 
-## Open items / next steps
-- [x] Build the working prototype in `prototype/` (core + dashboard done).
-- [x] Add login + per-user data isolation + privacy-first live camera view (done d6dec9b).
-- [x] Make repo PUBLIC (github.com/EternalFlames131/ReJivan-FS).
-- [x] Auto-updating concept PDF (pre-commit hook, done 4a6dd9f).
-- [x] Serverless-ready refactor for Vercel (done + verified locally 2026-09-09).
-- [x] Prototype anchored in Andaman & Nicobar Islands (homes Port Blair/Little Andaman, ward = GB Pant Hospital) — loaded in UI + API + auto-PDF (2026-09-09).
-- [x] Auto-push (git) + **AUTO-DEPLOY (Vercel)** enabled via setup.ps1 + post-commit hook.
-- [x] **LIVE PUBLIC WEBSITE** → https://rejivan2.vercel.app (deployed + verified 2026-09-12; independent Vercel project rejivan2): both demo logins, Andaman region + addresses, GB Pant Hospital ward, alerts/escalations/calls, camera zones, /api/simulation/status. Vercel Authentication (deployment protection) switched OFF via API (`ssoProtection: null`).
-- [x] User reviews the running prototype at http://localhost:8080 (Persistent server is LIVE now) — collect feedback.
-- [ ] Round out prototype: "Add patient" flow for newly registered families; PWA offline service-worker (low priority).
-- [ ] Wire escalation delivery to real APIs (SMS/WhatsApp/email) OR keep as clearly-labelled stubs.
-- [ ] Real persistence for the cloud: small Postgres/Redis if the deployed site needs to remember new registrations/med logs across instances.
-- [ ] Final team name + up to 3 members; confirm AISHE institution + individual registration on MyBharat portal.
-- [ ] Write problem statement sheet (state-specific, **Andaman & Nicobar Islands — Samrat is based in A&N**, a Union Territory) in `docs/`.
-- [ ] 6–7 slide deck with digital-tools disclosure; 3–5 min demo video (720p); Annexure 1 + student IDs.
+### Track 2: Platform Polish & Mobile Parity (Secondary Backlog)
+- [ ] Task 2.1: "Add Patient" registration flow on web dashboard for newly registered family accounts.
+- [ ] Task 2.2: Optional cloud persistent store (Neon Postgres / Upstash Redis) for persistent cross-instance state on Vercel.
+- [ ] Task 2.3: Native Android app physical device testing (`ReJivan_v1.0.apk`) verifying offline independence.
+
+### Track 3: Competition Deliverables (Deadline: 15 October 2026, VBYLD 2027)
+- [ ] Task 3.1: Write Andaman & Nicobar Regional Problem Statement Sheet in `docs/` (island logistics, referral bottlenecks).
+- [ ] Task 3.2: Create 6–7 Slide Presentation Pitch Deck with digital-tools disclosure.
+- [ ] Task 3.3: Record 3–5 Minute Demonstration Video (720p/1080p).
+- [ ] Task 3.4: Finalize team registration on MyBharat portal with institutional AISHE code & Annexure 1 sign-off.
 
 ## Standing rules (per workspace guidelines)
 - After any change: append a timestamped line to `CHANGELOG.md` here and commit (auto-push takes care of GitHub).

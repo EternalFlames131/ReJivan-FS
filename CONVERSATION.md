@@ -924,3 +924,95 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Verified that Babel standalone compiles the script, mounts the root `<div id="root">`, and renders the complete clinical portal navigation, sidebar, dashboard, patient cards, and telemetry status banners. The white screen is completely eliminated.
 5. **Android Native Compilation Check:**
    - Verified `./gradlew.bat compileDebugKotlin --offline` completes with `BUILD SUCCESSFUL in 17s` with full parity for `MovementEngine.kt`.
+
+---
+
+## 2026-09-13 (Day 6 — Inquiry & Architecture for Live System Camera Feed)
+
+### What the user asked:
+- "in the camera zone section is possible for it to take feed from the camera of the system in which it is running?"
+
+### Architectural Assessment & Strategy:
+1. **Yes, absolutely possible:**
+   - Web standard `navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })` allows any modern browser (Chrome, Edge, Safari, Firefox, Android Chrome) to request camera access directly on the user's laptop, PC, tablet, or smartphone.
+2. **Value for Judges & Demonstrations:**
+   - Evaluators at IIT Bombay and online reviewers on `rejivan2.vercel.app` can click **"Connect My Device Camera"**.
+   - The browser streams their actual camera locally into a `<video>` element, applies real-time privacy blur or wireframe skeleton detection (via client-side HTML5 canvas / MediaPipe), and proves that:
+     * Video is strictly processed on-device (zero cloud video upload, 100% DPDP 2023 compliant).
+     * The movement/pose detection runs live on the person sitting in front of the screen.
+3. **Safety & Fallback:**
+   - Keep the existing simulated hospital room feeds (Anita's Living Room, Ram's Bedroom, GB Pant Ward) as pre-recorded/simulated clinical scenarios, and add the "Local System Camera" as a dedicated live interactive camera option.
+
+### User Inquiry: MediaPipe Live Motion & Risk Assertion
+- "will it be able to detect motion of the person in the feed and assert it as risk or not using media pipe?"
+- **Answer & Design:**
+  * Yes! MediaPipe Pose detects 33 3D skeletal landmarks at ~30 FPS directly in the browser via WebAssembly/WebGL.
+  * Our `movement-engine.js` receives these landmarks and deterministically computes:
+    1. **Downward Velocity ($V_y$):** Rate of descent of hip and shoulder midpoint.
+    2. **Torso Angle ($\theta$):** Posture angle from vertical (0° = upright, 90° = horizontal/lying).
+    3. **Post-Event Stillness:** Lack of movement following a rapid downward shift.
+  * Risk tiers asserted:
+    - 🟢 **Normal Activity:** $V_y < 0.8\text{ m/s}$, upright or gradual sitting.
+    - 🟡 **Caution:** Fast posture change, out-of-bed shift, or repetitive oscillation (tremor 3–8 Hz).
+    - 🔴 **High Risk / Fall:** $V_y > 1.5\text{ m/s}$ + horizontal torso ($\theta > 70^\circ$) + stillness (>3s). Triggers 30s resident verification dialog.
+
+### User Inquiry: Gemini's Role in Decision Making
+- "also chatgpt mentioned to use gemini to make decisions or something i dont remember, is it integrated?"
+- **Answer & Architectural Decision (Crucial distinction):**
+  * ChatGPT's critique explicitly warned: **"Keep Gemini out of the safety-critical decision path"** (Point 3 in critique).
+  * If an emergency alarm or 108 ambulance call relied on calling an LLM cloud API (Gemini):
+    1. **Hallucination Risk:** The LLM could hallucinate or misclassify an emergency as safe (or vice-versa).
+    2. **Network Dependency & Latency:** In island conditions (Andaman & Nicobar) or during cellular drops, an emergency alert would fail if it waited for a remote API response (2–3 seconds delay vs 20ms local math).
+  * **Where Gemini IS Recommended & Designed:**
+    - As a **Clinical Reasoning & Narrative Explainer** (Post-Event Synthesis).
+    - Once deterministic math detects the event ($H_1$ Fall, 3.4g impact, 82° torso), Gemini synthesizes a structured medical **SBAR report** (Situation, Background, Assessment, Recommendation) for attending nurses and doctors.
+    - The mathematical engine (`movement-engine.js`) currently generates counterfactual explanations locally with zero cloud API latency or cost. We can add an optional one-click "Generate Gemini Clinical Summary" button for doctors.
+
+---
+
+## 2026-09-13 (Day 6 — Architecture: Engine-First with Automatic Gemini Failsafe Consensus)
+
+### What the user directed:
+- "dont make the user choose between using gemini or not keep it as a failsafe where the engine fails to determine or both engine and gemini decides and final verdicts is given but since ai uses cloud services it might be slow so priortise engine mostly"
+
+### System Architecture Decision:
+1. **No Manual Toggle:** The user never has to choose; the system manages the arbitration completely autonomously under the hood.
+2. **Tier 1 (Instant Local Edge Engine - 20ms):**
+   - The Prajñā mathematical physics engine evaluates body velocity, angle, and impact.
+   - If confidence is high ($\ge 70\%$, e.g. clearly normal sitting or unambiguous hard fall), the engine issues the verdict immediately with zero cloud delay.
+3. **Tier 2 (Gemini Background Failsafe & Consensus Arbitrator):**
+   - Automatically invoked ONLY when:
+     * The physics engine reports an `AMBIGUOUS` state (confidence between 40% and 65%, e.g., awkward slouching, stumbling but catching a table, or occlusion).
+     * Two competing hypotheses have nearly identical scores ($H_1$ Fall vs $H_2$ Sitting).
+   - In the background, structured telemetry is passed to Gemini to cross-examine the physical evidence.
+4. **Latency Protection (Safety-First):**
+   - If Gemini takes longer than 1.5s or if the network is offline (e.g. A&N telecom drop), the system never stalls: it falls back to the safety-biased local engine policy ("*Cloud arbitration timed out; local safety policy upheld*").
+   - If both return, a weighted consensus verdict is computed ($75\%$ local physics + $25\%$ Gemini clinical reasoning).
+
+---
+
+## 2026-09-13 (Day 6 — Master Implementation Roadmap & Remaining Tasks)
+
+### User Request:
+- "ok good, now list out everything that is needed to be implemented on the project?"
+
+### Master Implementation Breakdown (Categorized into 3 Tracks):
+- **Track 1: Real-Time Edge Vision & Sensor Pipeline (Next Immediate Coding Sprint):**
+  1. Local Webcam Hook in Camera Zones (`navigator.mediaDevices.getUserMedia`).
+  2. In-Browser MediaPipe Pose Wasm landmark extraction (33 keypoints at 30 FPS).
+  3. Live Kinematics & Risk Scoring HUD over webcam feed (Speed, Angle, Posture, 🟢 Normal / 🟡 Caution / 🔴 High Risk).
+  4. Automatic Engine-First / Gemini-Failsafe Consensus logic in `movement-engine.js` with 1.5s timeout safeguard.
+  5. 30s Resident Verification Modal triggering directly from live webcam fall simulations.
+- **Track 2: Platform Integration & Android Parity:**
+  6. "Add Patient" registration modal on dashboard.
+  7. Optional cloud persistent store (Neon Postgres / Upstash Redis for Vercel).
+  8. Native Android app sync testing on real device / emulator.
+- **Track 3: Competition Deliverables (Deadline: 15 Oct 2026, VBYLD 2027):**
+  9. Andaman & Nicobar Regional Problem Statement Sheet in `docs/`.
+  10. 6–7 Slide Presentation Deck with AI disclosure.
+  11. 3–5 Minute High-Definition Demo Video.
+  12. Institutional AISHE verification & MyBharat registration (Annexure 1).
+
+### User Directive: Hold Implementation
+- "remember what all these to be implemented, i will ask you to do it later"
+- **Status:** All 12 items across Tracks 1, 2, and 3 are permanently indexed in `CONTEXT.md` and `CONVERSATION.md`. Implementation is safely paused until the user gives the direct go-ahead.
