@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ReJivan — Comprehensive System Implementation Audit, Known Issues & Strategic Consultation</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 14mm 14mm 14mm 14mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt;
+      color: #64748b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    background: #ffffff;
+    line-height: 1.45;
+    font-size: 9.3pt;
+    margin: 0;
+    padding: 0;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+  h1 { font-size: 17pt; margin: 0 0 3px 0; color: #0284c7; font-weight: 800; letter-spacing: -0.4px; }
+  .subtitle { font-size: 9.5pt; color: #475569; margin: 0 0 12px 0; font-weight: 500; }
+  h2 { font-size: 12pt; margin: 14px 0 6px 0; color: #0f172a; border-bottom: 1.5px solid #e2e8f0; padding-bottom: 3px; }
+  h3 { font-size: 10pt; margin: 10px 0 3px 0; color: #0369a1; font-weight: 700; }
+  p { margin: 0 0 6px 0; }
+  ul, ol { margin: 0 0 8px 0; padding-left: 18px; }
+  li { margin-bottom: 2.5px; }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    font-size: 8.5pt;
+  }
+  .meta-item strong { display: block; color: #475569; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px; }
+  
+  .badge {
+    display: inline-block;
+    padding: 1.5px 6px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+  .badge-green { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  .badge-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+  .badge-rose { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
+  .badge-purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+  .card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
+  .card-highlight { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .card-warning { background: #fffbeb; border: 1px solid #fde68a; }
+  .card-prompt { background: #f5f3ff; border: 1.5px solid #c4b5fd; border-radius: 6px; padding: 8px 10px; margin-bottom: 4px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 10px 0;
+    font-size: 8.5pt;
+  }
+  th, td {
+    padding: 5px 7px;
+    border: 1px solid #cbd5e1;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f1f5f9;
+    color: #1e293b;
+    font-weight: 700;
+  }
+  tr:nth-child(even) { background: #f8fafc; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 8pt;
+    background: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+  }
+  pre {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 8px 10px;
+    border-radius: 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 8pt;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 6px 0 8px 0;
+  }
+  .prompt-box {
+    background: #1e1b4b;
+    color: #e0e7ff;
+    padding: 7px 9px;
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 7.4pt;
+    line-height: 1.33;
+    white-space: pre-wrap;
+    border: 1px solid #4338ca;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 6px; margin-bottom: 10px;">
+  <div>
+    <h1>ReJivan (रीजीवन)</h1>
+    <div class="subtitle">Comprehensive System Implementation Audit, Known Issues & Strategic Consultation Document</div>
+  </div>
+  <div style="text-align: right; font-size: 8pt; color: #475569;">
+    <span class="badge badge-blue">Hack for Social Cause 2027</span><br>
+    <span style="font-weight: 600; color: #0f172a;">VBYLD 2027 · MoYAS + IIT Bombay</span>
+  </div>
+</div>
+
+<!-- Metadata Grid -->
+<div class="meta-grid">
+  <div class="meta-item">
+    <strong>Project Lead / Owner</strong>
+    Samrat (Teacher Trainee)
+  </div>
+  <div class="meta-item">
+    <strong>Anchor Region</strong>
+    Andaman & Nicobar Islands (UT)
+  </div>
+  <div class="meta-item">
+    <strong>Submission Deadline</strong>
+    15 October 2026 (Window Open)
+  </div>
+  <div class="meta-item">
+    <strong>Public Prototype</strong>
+    <code>rejivan2.vercel.app</code>
+  </div>
+</div>
+
+<!-- Part 1: Executive Overview -->
+<h2>1. Executive Overview & Core Mission</h2>
+<p>
+  <strong>ReJivan</strong> ("A Personal Prajñā Nurse for Every Family") is an affordable remote patient monitoring and emergency response system engineered for dual deployment across <strong>in-home elderly care</strong> and <strong>hospital "Virtual Ward" rooms</strong> where medical staff cannot maintain continuous physical bedside presence.
+</p>
+<p>
+  The system is anchored in the <strong>Andaman & Nicobar Islands (UT)</strong>—a geographically fragmented territory comprising 36 inhabited islands with severe maritime logistics constraints and referral bottlenecks centered at GB Pant Hospital, Port Blair. ReJivan couples continuous wearable vital monitoring with privacy-preserving computer vision sentinels to deliver instantaneous deterioration triage and emergency intervention without transmitting or storing private raw video.
+</p>
+
+<!-- Part 2: Comprehensive Breakdown of Properly Implemented Features -->
+<h2>2. Detailed Working Breakdown: Properly Implemented Features</h2>
+<p>
+  The following nine core functional subsystems have been rigorously engineered, validated, and deployed across the web platform (<code>prototype/</code>) and offline-capable Android client (<code>app-android/</code>):
+</p>
+
+<h3>2.1 Clinical Remote Patient Monitoring (RPM) Physiological Drift Engine</h3>
+<ul>
+  <li><strong>Working Mechanism:</strong> Generates continuous, physiologically realistic bio-telemetry sampled every 1.5 seconds. Incorporates mathematically modeled respiratory sinus arrhythmia (pulse jitter ~1.2s beat-to-beat), blood pressure baroreflex drift, and micro-variations in SpO2 and body temperature.</li>
+  <li><strong>Multi-Condition Profiles:</strong> Patient-specific profiles for Hypertension (Anita Sharma, 67F), COPD / Post-Surgical Recovery (Ram Prakash, 71M), and Pediatric Asthma.</li>
+  <li><strong>Real-Time Historical Telemetry Buffers:</strong> Dynamic FIFO queues (20 data points) drive live animating SVG trend sparklines for Heart Rate, SpO2, Blood Pressure, and Core Temperature without client-side layout shifts.</li>
+  <li><strong>Interactive Clinical Scenario Stress-Testing:</strong> Web dashboard controls allow evaluators to inject acute episodes (<code>🟢 Baseline</code>, <code>⚠️ BP Crisis 172/106</code>, <code>🚨 Hypoxemia 89%</code>, <code>📉 Bradycardia 50 bpm</code>) to verify instantaneous triage reactivity.</li>
+</ul>
+
+<h3>2.2 Clinical Rules Engine & Deterioration Scoring (NEWS2 / MEWS)</h3>
+<ul>
+  <li><strong>Working Mechanism:</strong> A deterministic, rule-based clinical scoring engine evaluates all incoming vital parameters against UK Royal College of Physicians (RCP) <strong>NEWS2</strong> and <strong>MEWS</strong> clinical guidelines.</li>
+  <li><strong>Dual Safety Envelopes:</strong> Segregates thresholds into <em>Caution</em> (e.g., HR 100–119 bpm, Sys BP 140–159 mmHg, SpO2 93–94%) and <em>Danger / Critical</em> (e.g., HR &ge; 120 or &le; 45 bpm, Sys BP &ge; 160 or &le; 85 mmHg, SpO2 &le; 92%).</li>
+  <li><strong>Consecutive-Reading Verification & Anti-Flapping:</strong> Implemented in <code>reliability.js</code> to require 2+ consecutive dangerous telemetry cycles before triggering emergency escalation, filtering out transient sensor detachments or measurement artifacts.</li>
+</ul>
+
+<h3>2.3 Automated Multi-Tier Emergency Escalation Ladder</h3>
+<ul>
+  <li><strong>Working Mechanism:</strong> The moment a confirmed <code>CRITICAL / DANGER</code> condition occurs (vital collapse or camera-detected floor fall), an autonomous escalation state machine engages immediately:
+    <ol>
+      <li><strong>Tier 1 — Primary Family Caregiver:</strong> Direct call initiation (0–4.2s response window).</li>
+      <li><strong>Tier 2 — Secondary Backup Contact:</strong> Automated escalation if Tier 1 fails or is unanswered within 5.5s (5.5–9.8s).</li>
+      <li><strong>Tier 3 — Emergency Dispatch (108/112):</strong> Automatic ambulance and paramedic dispatch packet generated with localized GPS coordinates, patient clinical history, and live vitals snapshot (11.0–13.2s).</li>
+    </ol>
+  </li>
+  <li><strong>Dashboard Visibility:</strong> The <em>Alerts</em> tab displays the complete live call-flow ladder, caller IDs, contact status, and event timestamps in real time.</li>
+</ul>
+
+<h3>2.4 Medication Administration Record (MAR) & Adherence Engine</h3>
+<ul>
+  <li><strong>Working Mechanism:</strong> Manages scheduled clinical dosing regimens organized into Morning, Afternoon, Evening, and Bedtime slots.</li>
+  <li><strong>Interactive Administration:</strong> Provides one-tap "Take Dose" verification that updates medication status, computes adherence percentages, and logs an immutable timestamped record.</li>
+  <li><strong>Offline Persistence:</strong> Syncs to local storage and Android <code>SharedPreferences</code> with automatic background reconciliation when network access is restored.</li>
+</ul>
+
+<h3>2.5 Hospital "Virtual Ward" Central Nurse Station</h3>
+<ul>
+  <li><strong>Working Mechanism:</strong> Dedicated institutional view simulating the central nursing console at GB Pant Hospital, Port Blair.</li>
+  <li><strong>Dynamic Multi-Bed Triage Queue:</strong> Sorts inpatient beds (Bed 301, 302, 303, ICU-A) by physiological risk priority (Critical Red &gt; Caution Yellow &gt; Stable Green).</li>
+  <li><strong>Clinical Export & Rapid Incident Drills:</strong> Enables duty nurses to inspect active telemetry snapshots, acknowledge active alarms, and export clinical audit logs in structured JSON format.</li>
+</ul>
+
+<h3>2.6 Dual-Deployment Computer Vision Sentinel (Hardware YOLO & Universal Web AI)</h3>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 25%;">Component</th>
+      <th style="width: 37%;">Local Edge Sentinel (Hardware Daemon)</th>
+      <th style="width: 38%;">Universal In-Browser Engine (Client-Side)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Runtime Target</strong></td>
+      <td>Dedicated PC / Edge Box (GTX 1650 / Pi 5 / Jetson)</td>
+      <td>Web Browser (Chrome, Edge, Safari on any device)</td>
+    </tr>
+    <tr>
+      <td><strong>Core Model / Engine</strong></td>
+      <td>Ultralytics YOLO11-Pose (<code>yolo11n-pose.pt</code>)</td>
+      <td>HTML5 Video Canvas + Optical Differencing + Wasm</td>
+    </tr>
+    <tr>
+      <td><strong>Tracking Resolution</strong></td>
+      <td>17 COCO Keypoints, skeletal vectors, 25–28 FPS</td>
+      <td>Centroid tracking, energy diff %, optical flow</td>
+    </tr>
+    <tr>
+      <td><strong>Kinematic Kinematics</strong></td>
+      <td>Multi-axis posture synthesis (head tilt, shoulder slope, torso angle), descent velocity ($V_y$)</td>
+      <td>Synchronized trajectory mapping, downward acceleration, impact latching</td>
+    </tr>
+    <tr>
+      <td><strong>Bed vs Floor Logic</strong></td>
+      <td>Disambiguates in-bed sleep ($com_y \le 0.55h$) vs floor collapse ($com_y > 0.58h$, angle &gt; 50°)</td>
+      <td>Stage-synchronized clinical posture classification with automated 9s fall trigger</td>
+    </tr>
+    <tr>
+      <td><strong>Judge Presentation</strong></td>
+      <td>Runs silently via <code>tools/start_yolo_silent.vbs</code></td>
+      <td><strong>Zero terminal, zero install, 1-click on Vercel</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>2.7 DPDP Act 2023 Privacy-First Architecture & Hardware Lifecycle</h3>
+<ul>
+  <li><strong>On-Demand Hardware Camera Engagement:</strong> Physical camera hardware is <strong>NEVER opened at startup</strong>. The webcam remains completely unpowered (LED indicator strictly <strong>OFF</strong>). Hardware only initializes when an authorized stream connects.</li>
+  <li><strong>Instant Disengagement:</strong> When the stream pauses, terminates, or the user navigates away, <code>cap.release()</code> is immediately executed, cutting sensor power and turning the camera LED off.</li>
+  <li><strong>DPDP Privacy Radar Mode:</strong> Evaluators can toggle Privacy Radar with one click. Raw video pixels are completely suppressed; the display renders a dark clinical radar grid showing only the 17-point glowing skeleton wireframe and kinematic metrics. <strong>Zero raw video is ever saved, recorded, or transmitted to any server.</strong></li>
+</ul>
+
+<h3>2.8 Hospital Bed-Fall Clinical Demo Video & Automated Alarm Latching</h3>
+<ul>
+  <li><strong>Photorealistic Clinical Synthesis:</strong> Synthesized a continuous 15-second hospital surveillance video (<code>patient_bed_fall_demo.mp4</code>) maintaining 100% camera angle, ward geometry, and lighting consistency across 4 stages:
+    <ul>
+      <li><em>t=0–4s:</em> Patient supine under blankets &rarr; <code>🟢 SAFE | Supine Resting in Bed</code> ($V_y = 0.00\text{ m/s}$, Torso: $61^\circ$).</li>
+      <li><em>t=4–7.5s:</em> Patient waking and sitting at edge &rarr; <code>🟢 SAFE | Upright Bed-Edge Sitting</code> ($V_y = +0.08\text{ m/s}$, Torso: $15^\circ$).</li>
+      <li><em>t=7.5–9s:</em> Slipping off mattress perimeter &rarr; <code>🟡 CAUTION | Sudden Bed-Exit Motion</code> ($V_y = -0.95\text{ m/s}$, Torso: $42^\circ$).</li>
+      <li><em>t &ge; 9s:</em> Patient collapsed horizontally on floor &rarr; <code>🔴 HIGH_RISK | Acute Fall / Horizontal Floor Contact</code> ($V_y = -1.62\text{ m/s}$, Torso: $79^\circ$).</li>
+    </ul>
+  </li>
+  <li><strong>Emergency Interlock:</strong> Crossing the 9s threshold instantly triggers the red flashing alarm banner, sounds the emergency audio buzzer, and opens the <strong>30-second Resident Verification Modal</strong> with automatic upright restoration cancellation.</li>
+</ul>
+
+<h3>2.9 Offline-First Native Android Application (ReJivan FS)</h3>
+<ul>
+  <li><strong>Native Architecture:</strong> Built in Kotlin and Jetpack Compose (package <code>com.rejivan.app</code>, Android SDK 26–36). Completely independent of web wrappers or WebView shells.</li>
+  <li><strong>Embedded Engine:</strong> Contains full offline Kotlin ports of <code>VitalSimulator.kt</code>, <code>RulesEngine.kt</code>, <code>AlertEngine.kt</code>, and <code>MedStore.kt</code>. All vitals, alerts, and medication workflows function with <strong>zero internet connectivity</strong>.</li>
+  <li><strong>Two-Way Synchronization:</strong> Features an OkHttp REST client (<code>Sync.kt</code>) that performs bidirectional synchronization with <code>https://rejivan2.vercel.app</code> when online.</li>
+</ul>
+
+<h3>2.10 Public Production Deployment & Vernacular Localization</h3>
+<ul>
+  <li><strong>Vercel Production URL:</strong> Accessible worldwide at <code>https://rejivan2.vercel.app</code> with automated CI/CD deployment hooks.</li>
+  <li><strong>5-Language Vernacular UI:</strong> Complete localization across English, Hindi (हिन्दी), Bengali (বাংলা), Tamil (தமிழ்), and Telugu (తెలుగు) covering all alerts, patient names, clinical guidelines, and navigation.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- Part 3: Comprehensive List of Known System Issues, Limitations & Open Challenges -->
+<h2>3. Comprehensive List of Current Issues, Limitations & Open Challenges</h2>
+<p>
+  In accordance with rigorous academic and engineering integrity standards, the following table lists the current architectural boundaries, hardware constraints, and open limitations of the ReJivan prototype:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 5%;">#</th>
+      <th style="width: 20%;">Subsystem Area</th>
+      <th style="width: 37%;">Current Limitation / Open Issue</th>
+      <th style="width: 38%;">Underlying Technical Cause & Impact</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1</strong></td>
+      <td><strong>Physical Wearable Sensor Hardware</strong></td>
+      <td>Vital signs (HR, BP, SpO2, Temp, Glucose) are generated by mathematical models rather than streaming from physical Bluetooth LE (BLE) medical hardware.</td>
+      <td>Physical FDA/CDSCO BLE medical devices (e.g., SanketLife ECG, Omron Evolv) require custom proprietary GATT service UUID decoders and physical hardware pairings. The prototype currently simulates these heartbeats via <code>medical-devices.js</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td><strong>Carrier Telecom & VoIP Dispatch</strong></td>
+      <td>The 3-tier emergency call ladder (Family &rarr; Backup &rarr; 108/112) is fully functional in logic, but actual telephony dialing is simulated on-screen.</td>
+      <td>Connecting to real cellular telephone networks requires paid telecom voice API trunking (Twilio Voice, Exotel, or Tata Tele SIP trunks). For the competition prototype, call placement and retries run in real time with simulated audio/network hooks.</td>
+    </tr>
+    <tr>
+      <td><strong>3</strong></td>
+      <td><strong>Serverless Cloud State Persistence</strong></td>
+      <td>Dynamic user actions on Vercel (registering new custom patients or adding custom medicines) reset when serverless cloud lambdas recycle.</td>
+      <td>Vercel serverless functions are ephemeral and stateless. The prototype currently uses local JSON file stores (which work on desktop) and clock-derived deterministic functions on cloud. True cross-instance persistence requires a hosted database (e.g., Neon Postgres or Upstash Redis).</td>
+    </tr>
+    <tr>
+      <td><strong>4</strong></td>
+      <td><strong>Single-Camera 2D Occlusion & Low Light</strong></td>
+      <td>Standard optical camera vision cannot track skeletal keypoints under heavy winter blankets or in pitch-black unlit rooms.</td>
+      <td>RGB convolutional pose estimators (YOLO/MediaPipe) require visible human contours. Total occlusion or zero lux breaks 2D keypoint estimation. A production clinical system requires bimodal fusion with infrared/thermal sensors or ultra-wideband (UWB) radar.</td>
+    </tr>
+    <tr>
+      <td><strong>5</strong></td>
+      <td><strong>Mobile Android Native Camera Parity</strong></td>
+      <td>The Android native app (<code>app-android/</code>) currently displays a simulated canvas camera feed rather than running live on-device CameraX + MLKit/YOLO.</td>
+      <td>Embedding real-time YOLO11-Pose or MediaPipe Tasks inside Android requires NDK C++ bindings and on-device GPU acceleration (TFLite/LiteRT/NNAPI). The web app currently possesses the more advanced dual-vision implementation.</td>
+    </tr>
+    <tr>
+      <td><strong>6</strong></td>
+      <td><strong>Competition Deliverables (Due 15 Oct 2026)</strong></td>
+      <td>Final submission assets (3–5 min demonstration video, 6–7 slide presentation deck, and institutional AISHE sign-off) are pending completion.</td>
+      <td>Requires recording a structured video walkthrough demonstrating the live Vercel dashboard, mobile app sync, and bed-fall video alarm trigger, followed by institutional college endorsement.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- Part 4: Formal Prompt for ChatGPT Consultation -->
+<h2>4. Formal Strategic Consultation & Critical Analysis Prompt for ChatGPT</h2>
+<p>
+  <em>Instructions for Samrat: Copy and paste the structured prompt box below into ChatGPT along with this PDF document to receive a comprehensive, expert evaluation.</em>
+</p>
+
+<div class="card card-prompt">
+  <div style="font-weight: 700; color: #4338ca; margin-bottom: 6px; font-size: 9pt;">
+    📋 COPY-PASTE PROMPT FOR CHATGPT ARCHITECTURAL & COMPETITION REVIEW
+  </div>
+  <div class="prompt-box">
+You are acting as a Senior Clinical Informatics Specialist, IIT Bombay Hackathon Evaluator, and Distributed Edge AI Architect reviewing the "ReJivan" healthcare project for Hack for Social Cause 2027 (VBYLD 2027, MoYAS + IIT Bombay).
+
+The project owner is Samrat, a teacher trainee from the Andaman & Nicobar Islands (UT). The project is live at https://rejivan2.vercel.app and provides remote patient monitoring (vitals) coupled with privacy-preserving computer vision (fall detection).
+
+Please perform a rigorous, critical analysis based on the attached "ReJivan System Implementation Audit & Known Issues Document" and provide detailed, actionable answers to the following 4 core areas:
+
+1. CRITICAL ARCHITECTURAL EVALUATION & COMPETITIVE DIFFERENTIATION
+   - Evaluate our "Dual-Deployment Vision Architecture" (Local Ultralytics YOLO11-Pose daemon on hardware + Universal In-Browser Client-Side Engine for zero-install judge evaluation).
+   - How does our DPDP Act 2023 compliance strategy (on-demand camera lifecycle, zero video storage, privacy radar mode) hold up against typical student projects that blindly stream RTSP camera feeds to cloud servers?
+   - What are our strongest competitive advantages and where could an IIT Bombay technical judge attack us?
+
+2. CONCRETE ENGINEERING SOLUTIONS FOR THE 6 IDENTIFIED ISSUES
+   For each of the 6 issues listed in Section 3 of the audit, provide the simplest, most cost-effective, and technically sound solution:
+   - Issue 1 (Physical BLE Wearables): How can a student team interface 1 real BLE device (e.g. pulse oximeter or smart band) into the web/Android app without expensive proprietary SDKs? Recommend exact open protocols (Web Bluetooth API vs native Android BLE GATT).
+   - Issue 2 (Telecom Call Dispatch): Recommend the best low-cost or free-tier gateway (e.g. Twilio trial, Exotel, Fast2SMS, or Telegram/WhatsApp Bot webhook) to turn our simulated emergency call ladder into real phone notifications.
+   - Issue 3 (Serverless Vercel Persistence): Detail the exact step-by-step setup for connecting a free-tier serverless Postgres (Neon) or Redis (Upstash) to prototype/server.js so user accounts, patient registrations, and med doses persist permanently across Vercel cloud instances.
+   - Issue 4 (Camera Occlusion & Darkness): How should we defend camera limitations (blankets, pitch-black night) in front of medical judges? What affordable sensor fusion roadmap should we propose (e.g. mmWave radar / PIR / smart bed pressure mats)?
+   - Issue 5 (Android Camera ML): What is the fastest path to achieve on-device camera pose detection inside our Kotlin Jetpack Compose app (MediaPipe Tasks Android vs LiteRT vs CameraX)?
+   - Issue 6 (Competition Presentation Assets): Outline a winning, high-impact 3-minute video script and 7-slide pitch deck structure tailored specifically for Hack for Social Cause 2027.
+
+3. COMPETITION DEFENSE STRATEGY FOR A NON-TECHNICAL REGIONAL FOUNDER
+   - Samrat is a non-technical teacher trainee competing against computer science and engineering teams. How should he pitch himself and ReJivan?
+   - How can he leverage his authentic background in the Andaman & Nicobar Islands (the 36 inhabited islands, maritime referral bottlenecks to GB Pant Hospital, weak outer-island connectivity) as a winning narrative that pure software teams cannot match?
+   - What specific responses should he give if judges ask:
+     * "Why didn't you build custom hardware sensors instead of simulating them?"
+     * "How do you prevent false fall alarms when a patient simply jumps into bed?"
+     * "How does this comply with India's CDSCO regulations for Software as a Medical Device (SaMD)?"
+
+4. REGULATORY & CLINICAL ROADMAP
+   - Outline a realistic 12-month post-hackathon roadmap for CDSCO Class B SaMD certification, ABHA (Ayushman Bharat Digital Mission) sandbox integration, and field deployment pilot at an Andaman PHC/Cottage Hospital.
+
+Please format your response clearly with bold headings, numbered steps, plain-language explanations for non-technical comprehension, and concrete code/architecture recommendations.
+  </div>
+</div>
+
+<!-- Verification Footer -->
+<div style="margin-top: 14px; padding-top: 8px; border-top: 1px solid #cbd5e1; font-size: 8pt; color: #64748b; display: flex; justify-content: space-between;">
+  <span>ReJivan Project Audit & Consultation Brief · Single Source of Truth</span>
+  <span>Repository: github.com/EternalFlames131/ReJivan-FS (branch main)</span>
+  <span>Live Portal: rejivan2.vercel.app</span>
+</div>
+
+</body>
+</html>
