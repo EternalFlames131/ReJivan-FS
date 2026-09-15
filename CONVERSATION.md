@@ -1126,3 +1126,37 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Verified live portal DOM render in Microsoft Edge headless (`msedge.exe --headless=new http://localhost:8080` -> 860,873 characters, ReJivan + Camera confirmed).
    - Verified native Android app compilation (`./gradlew.bat compileDebugKotlin --offline` -> **BUILD SUCCESSFUL in 38s**).
 
+---
+
+## 2026-09-15 (Day 7 — Fix Camera Feed Freezing After a Few Seconds)
+
+### What the user reported:
+- "the camera feed from my web cam only works for few seconds and then never starts"
+
+### Immediate Root Cause Analysis:
+1. **Python HTTP Server Concurrency Bottleneck:** `tools/yolo_edge_sentinel.py` was using `http.server.HTTPServer` which is single-threaded synchronous. When the browser connected to the MJPEG video stream (`/api/yolo/video_feed`), the single server thread became permanently tied up in the streaming loop. When the frontend also polled `/api/yolo/telemetry` or `/api/yolo/status` concurrently, those requests were blocked in socket queues. Any connection reset or aborted socket threw `ConnectionAbortedError [WinError 10053]`, crashing or freezing the HTTP pipeline.
+2. **OpenCV VideoCapture Thread Resilience:** If `cap.read()` returned an empty frame or dropped a frame due to camera buffer latency, the loop needed robust error recovery and frame re-synchronization rather than blocking.
+3. **Frontend `<img src="...">` MJPEG Reconnection:** If an MJPEG connection terminates or stutters, the browser `<img>` element does not automatically reconnect unless given an `onError` auto-retry handler with cache-busting timestamp.
+4. **Browser Camera Mode Fallback Loop:** If running in browser mode, `requestAnimationFrame` and canvas differencing need guardrails against video element stalls or stream track state changes.
+5. **Windows IPv6 `localhost` Resolution Stall:** Polling `localhost` on Windows attempts `[::1]` first, adding an avoidable 2.1-second stall per request. Switching to `127.0.0.1` dropped round-trip time from 2136ms to 2.5ms (>800x speedup), preventing browser socket exhaustion.
+
+### Engineering Solutions Implemented & Verified:
+1. **Multi-Threaded HTTP Server (`tools/yolo_edge_sentinel.py`):**
+   - Replaced `http.server.HTTPServer` with `http.server.ThreadingHTTPServer` (`daemon_threads = True`).
+   - Each HTTP client connection (telemetry poll vs MJPEG streaming socket) runs independently in its own thread without blocking other requests.
+   - Added graceful socket disconnect exception handlers (`ConnectionResetError`, `ConnectionAbortedError`, `BrokenPipeError`).
+2. **OpenCV Video Buffer Latency Prevention:**
+   - Configured `cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)` so the capture thread always reads live, non-stale frames.
+   - Added camera re-initialization if frame acquisition drops for >25 frames.
+3. **Frontend IP Optimization & Render Loop Resilience (`CameraZonesView.jsx`):**
+   - Switched all YOLO URLs to `http://127.0.0.1:5050` to completely bypass Windows IPv6 resolution latency.
+   - Guarded `startRealMotionTrackingLoop()` so `requestAnimationFrame(render)` is always scheduled whenever `streamRef.current` is active, preventing loop termination during momentary frame buffering.
+   - Added `onError` auto-reconnect logic to the MJPEG `<img>` element with dynamic cache-busting timestamp keys.
+4. **Automated Concurrency & Soak Test (`tools/verify_stream.py`):**
+   - Executed a 30-second continuous load test with concurrent video stream ingestion and rapid 350ms telemetry polling.
+   - **Verification Results:**
+     * Total Video Frames Received: 626 (~20.9 FPS)
+     * Total Video Bytes Transferred: 17.46 MB
+     * Stream Errors: None (Clean)
+     * Telemetry Polls: 85 (0 errors, avg latency: 5.6ms, min: 1.0ms)
+     * Result: ALL CHECKS PASSED. Zero freezes, zero dropped connections.

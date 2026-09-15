@@ -11,7 +11,7 @@ import json
 import math
 import threading
 from urllib.parse import urlparse, parse_qs
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import numpy as np
 
 # Verify dependencies
@@ -352,23 +352,46 @@ def camera_processing_thread():
         hub.telemetry["status"] = "CAMERA_UNAVAILABLE"
         return
 
-    # Optimize capture settings for smooth low-latency 30 FPS
+    # Optimize capture settings for smooth low-latency 30 FPS and zero frame buffering
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FPS, 30)
+    try:
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception:
+        pass
     
     hub.cap = cap
     hub.telemetry["status"] = "ONLINE_STREAMING"
     print(f"[+] Camera index {hub.camera_index} online! Running YOLO Pose inference pipeline...")
     
     frame_counter = 0
+    consecutive_fails = 0
     t_start = time.time()
 
     while hub.running:
         ret, frame = cap.read()
         if not ret or frame is None:
+            consecutive_fails += 1
+            if consecutive_fails > 25:
+                print("[!] Camera frame stream stalled, re-initializing video capture backend...")
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+                time.sleep(0.4)
+                cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(hub.camera_index)
+                try:
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                except Exception:
+                    pass
+                consecutive_fails = 0
             time.sleep(0.02)
             continue
+            
+        consecutive_fails = 0
             
         current_time = time.time()
         frame_counter += 1
@@ -523,12 +546,14 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             
             try:
+                last_streamed_time = 0
                 while hub.running:
                     with hub.lock:
                         frame_to_stream = hub.latest_radar_frame if privacy else hub.latest_rendered_frame
+                        current_frame_time = hub.last_seen
                     
-                    if frame_to_stream is not None:
-                        # Encode to JPEG
+                    if frame_to_stream is not None and current_frame_time != last_streamed_time:
+                        last_streamed_time = current_frame_time
                         ret, jpeg = cv2.imencode(".jpg", frame_to_stream, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
                         if ret:
                             data = jpeg.tobytes()
@@ -537,16 +562,19 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                             self.wfile.write(f"Content-Length: {len(data)}\r\n\r\n".encode("utf-8"))
                             self.wfile.write(data)
                             self.wfile.write(b"\r\n")
-                    time.sleep(0.035) # ~28 FPS stream rate
-            except (BrokenPipeError, ConnectionResetError):
-                pass # Client disconnected
+                    time.sleep(0.025)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+                pass # Client disconnected or reloaded cleanly
             return
 
         # 404 Fallback
         self.send_response(404)
         self.send_cors_headers("text/plain")
         self.end_headers()
-        self.wfile.write(b"Endpoint not found")
+        try:
+            self.wfile.write(b"Endpoint not found")
+        except Exception:
+            pass
 
     def do_POST(self):
         # Allow triggering a simulated fall for verification test
@@ -567,7 +595,10 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "message": "Simulated fall event activated for 7 seconds"}).encode("utf-8"))
+            try:
+                self.wfile.write(json.dumps({"ok": True, "message": "Simulated fall event activated for 7 seconds"}).encode("utf-8"))
+            except Exception:
+                pass
             
             # Reset after 7 seconds in background
             def reset():
@@ -586,7 +617,8 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         pass # Silent access logging
 
 def start_server(port=5050):
-    server = HTTPServer(("0.0.0.0", port), SentinelRequestHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), SentinelRequestHandler)
+    server.daemon_threads = True
     print(f"\n[+] Local Sentinel Discovery API: http://localhost:{port}/api/yolo/status")
     print(f"[+] Live MJPEG Video Stream:     http://localhost:{port}/api/yolo/video_feed")
     print(f"[+] Privacy Radar Stream:         http://localhost:{port}/api/yolo/video_feed?privacy=1")

@@ -2993,6 +2993,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   const [localYoloActive, setLocalYoloActive] = React.useState(false);
   const [localYoloInfo, setLocalYoloInfo] = React.useState(null);
   const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(false);
+  const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
 
   // Local Device Webcam States
   const [isWebcamActive, setIsWebcamActive] = React.useState(false);
@@ -3033,12 +3034,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll Local Hardware YOLO Sentinel Daemon (NVIDIA GTX 1650 on http://localhost:5050)
+  const YOLO_API_BASE = "http://127.0.0.1:5050";
+
+  // Poll Local Hardware YOLO Sentinel Daemon (NVIDIA GTX 1650 on 127.0.0.1:5050)
   React.useEffect(() => {
     let isCancelled = false;
     const checkYoloDaemon = async () => {
       try {
-        const res = await fetch("http://localhost:5050/api/yolo/status", {
+        const res = await fetch(`${YOLO_API_BASE}/api/yolo/status`, {
           method: "GET",
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined,
@@ -3079,7 +3082,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let isCancelled = false;
     const pollTelemetry = async () => {
       try {
-        const res = await fetch("http://localhost:5050/api/yolo/telemetry", {
+        const res = await fetch(`${YOLO_API_BASE}/api/yolo/telemetry`, {
           headers: { Accept: "application/json" },
           signal: AbortSignal.timeout ? AbortSignal.timeout(900) : undefined,
         });
@@ -3213,11 +3216,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let activeBox = null; // { x, y, w, h }
 
     const render = () => {
-      if (!video || video.paused || video.ended || !streamRef.current) {
-        return;
+      if (!streamRef.current) {
+        return; // Only terminate loop if camera stream was explicitly stopped
       }
 
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
+      if (video && video.paused && !video.ended) {
+        video.play().catch(() => {});
+      }
+
+      if (video && !video.paused && !video.ended && video.videoWidth > 0 && video.videoHeight > 0) {
         if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
@@ -3684,9 +3691,13 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                       /* Sub-branch A1: Real Hardware Ultralytics YOLO Stream */
                       <div className="relative w-full h-full flex items-center justify-center">
                         <img
-                          src={`http://localhost:5050/api/yolo/video_feed${privacyRadarOnly ? "?privacy=1" : ""}`}
+                          key={`yolo-feed-${streamRetryKey}-${privacyRadarOnly}`}
+                          src={`${YOLO_API_BASE}/api/yolo/video_feed${privacyRadarOnly ? "?privacy=1&" : "?"}t=${streamRetryKey}`}
                           alt="Ultralytics YOLO Pose Stream"
-                          className="w-full h-full object-cover select-none"
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                          onError={() => {
+                            setTimeout(() => setStreamRetryKey(Date.now()), 1200);
+                          }}
                         />
 
                         {/* Top Left Live REC HUD */}
@@ -3762,7 +3773,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                fetch("http://localhost:5050/api/yolo/simulate_fall", { method: "POST" }).catch(() => {});
+                                fetch(`${YOLO_API_BASE}/api/yolo/simulate_fall`, { method: "POST" }).catch(() => {});
                                 handleSimulateDrop();
                               }}
                               className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-rose-950/80 hover:bg-rose-900 border-rose-700 text-rose-200 transition-all flex items-center gap-1.5 shadow-xs"
