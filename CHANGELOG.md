@@ -213,4 +213,10 @@
   - **Root Cause 3 (OpenCV Capture Buffer Latency):** Configured `cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)` on the VideoCapture handle to eliminate stale buffered frame queuing, with automatic camera re-initialization if frame acquisition stalls.
   - **Root Cause 4 (In-Browser Motion Differencing Render Loop Recovery):** In `CameraZonesView.jsx`, `startRealMotionTrackingLoop()` was exiting early without rescheduling `requestAnimationFrame(render)` if `video.paused` or during minor frame buffering. Added resilient frame rescheduling guardrails and `onError` auto-retry on the MJPEG stream `<img>` with timestamp cache-busting.
   - **Deep Concurrency Soak Test (`tools/verify_stream.py`):** Ran automated 30-second continuous load test with concurrent video stream ingestion and rapid 350ms telemetry polling. Results: **626 frames received (~20.9 FPS), 17.46 MB transferred, 85 telemetry polls, 0 connection errors, 5.6ms average latency, stream error: None (Clean)**.
-  - Web bundle recompiled (`node tools/build_web.js` -> 235.3 KB). Verified both hardware YOLO sentinel and browser fallback modes operational.
+- 2026-09-15 10:15 | CAMERA CONSENT & PRIVACY GATEWAY (User inquiry: why is it directly taking video feed instead of asking?):
+  - **Technical Explanation:** Clarified distinction between native Python OpenCV desktop hardware access (which accesses camera hardware directly via Windows drivers without browser sandbox prompts) vs web browser `getUserMedia` (which requires browser permission popups). When the web frontend polled port 5050 and found the daemon active, it had previously auto-connected to the stream (`hardwareStreamPaused = false`).
+  - **Implementation of DPDP Consent Gateway (`CameraZonesView.jsx`):** Changed `hardwareStreamPaused` to default to `true` on load. Replaced direct auto-streaming with an explicit DPDP Act 2023 Consent-First Gateway card displaying hardware sentinel readiness, on-device privacy guarantee, and explicit authorization controls:
+    * `[ Start Camera Sentinel ]` (activates live YOLO stream + pose overlay)
+    * `[ Start Privacy Radar Only ]` (activates DPDP radar mode with zero raw video exposed)
+    * `[ Use Browser Camera Instead ]` (switches to browser camera prompting native browser permission)
+  - Web bundle recompiled (`node tools/build_web.js` -> 237.2 KB).

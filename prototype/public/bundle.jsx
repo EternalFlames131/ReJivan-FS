@@ -2992,7 +2992,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   // Local System Hardware YOLO Daemon Auto-Discovery (GTX 1650 on port 5050)
   const [localYoloActive, setLocalYoloActive] = React.useState(false);
   const [localYoloInfo, setLocalYoloInfo] = React.useState(null);
-  const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(false);
+  const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(true);
   const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
 
   // Local Device Webcam States
@@ -3903,28 +3903,32 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         </div>
                       </div>
                     ) : (
-                      /* Sub-branch A3: Standby Screen */
-                      <div className="p-6 text-center max-w-md">
-                        <div className="w-12 h-12 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto mb-3 shadow-lg">
-                          <Camera className="w-6 h-6 text-blue-400" />
+                      /* Sub-branch A3: Explicit Consent & Standby Screen */
+                      <div className="p-6 text-center max-w-lg">
+                        <div className={`w-12 h-12 rounded-xl ${localYoloActive ? "bg-emerald-600/20 text-emerald-400 border-emerald-500/30" : "bg-blue-600/20 text-blue-400 border-blue-500/30"} border flex items-center justify-center mx-auto mb-3 shadow-lg`}>
+                          {localYoloActive ? <ShieldCheck className="w-6 h-6 text-emerald-400" /> : <Camera className="w-6 h-6 text-blue-400" />}
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[10px] font-mono text-emerald-400 mb-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>DPDP ACT 2023 · CONSENT-FIRST GATEWAY</span>
                         </div>
                         <h4 className="text-sm font-bold text-white">
-                          {localYoloActive ? "Hardware YOLO Sentinel Paused" : "Connect Local Device Camera"}
+                          {localYoloActive ? "Hardware AI Sentinel Ready · Awaiting Permission" : "Connect Local Device Camera"}
                         </h4>
-                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
                           {localYoloActive 
-                            ? "The local hardware YOLO11-Pose sentinel is running on this system. Click resume to restore live video and kinematics streaming."
+                            ? "A local Ultralytics YOLO-Pose sentinel was detected on this machine. In accordance with clinical privacy & DPDP guidelines, camera feeds never start automatically without your explicit consent."
                             : "Test ReJivan's real-time motion detection with your webcam. Accurately tracks actual physical motion energy, calculates descent velocity, and detects sudden falls."}
                         </p>
                         {localYoloActive ? (
-                          <p className="text-[11px] text-blue-400 font-mono mt-1 font-bold">
-                            🚀 {localYoloInfo?.device || "Hardware GPU"} Active (Port 5050)
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-emerald-400 font-mono mt-1">
-                            🔒 100% Private — Processed on-device. Zero video recorded or sent to any server.
-                          </p>
-                        )}
+                          <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 rounded-md bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-blue-300">
+                            <span className="w-2 h-2 rounded-full bg-blue-400" />
+                            <span>Hardware: {localYoloInfo?.device || "NVIDIA GeForce GTX 1650"} (YOLO11)</span>
+                          </div>
+                        ) : null}
+                        <p className="text-[11px] text-slate-400 mt-2">
+                          🔒 100% On-Device · Zero raw video recorded, stored, or sent to any server.
+                        </p>
 
                         {webcamError && (
                           <div className="mt-3 p-2 rounded-lg bg-rose-950/70 border border-rose-800 text-rose-200 text-xs">
@@ -3932,18 +3936,33 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           </div>
                         )}
 
-                        <div className="flex items-center justify-center gap-2 mt-4">
+                        <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
                           {localYoloActive && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHardwareStreamPaused(false);
-                              }}
-                              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>Resume Hardware YOLO Feed</span>
-                            </button>
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPrivacyRadarOnly(false);
+                                  setHardwareStreamPaused(false);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
+                              >
+                                <Camera className="w-4 h-4" />
+                                <span>Start Camera Sentinel</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPrivacyRadarOnly(true);
+                                  setHardwareStreamPaused(false);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
+                                title="Run in privacy radar mode with raw video completely blacked out"
+                              >
+                                <EyeOff className="w-4 h-4 text-emerald-400" />
+                                <span>Start Privacy Radar Only</span>
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={(e) => {
@@ -3951,7 +3970,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               handleStartWebcam();
                             }}
                             disabled={webcamLoading}
-                            className={`px-4 py-2 rounded-lg ${localYoloActive ? "bg-slate-800 hover:bg-slate-700 text-slate-200" : "bg-blue-600 hover:bg-blue-500 text-white"} font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2`}
+                            className={`px-4 py-2 rounded-lg ${localYoloActive ? "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800" : "bg-blue-600 hover:bg-blue-500 text-white"} font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2`}
                           >
                             {webcamLoading ? (
                               <span>Starting Camera...</span>

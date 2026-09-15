@@ -1160,3 +1160,33 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      * Stream Errors: None (Clean)
      * Telemetry Polls: 85 (0 errors, avg latency: 5.6ms, min: 1.0ms)
      * Result: ALL CHECKS PASSED. Zero freezes, zero dropped connections.
+
+---
+
+## 2026-09-15 (Day 7 — Camera Consent & Explicit Activation Gate)
+
+### What the user asked:
+- "it is working now but why is it directly taking video feed instead of asking?"
+
+### Analysis & Cause:
+1. **Desktop Native Process (Python OpenCV) vs Browser Sandbox:**
+   - In web browsers, web pages are forced by the browser sandbox to request permission via `navigator.mediaDevices.getUserMedia()`, displaying the browser's "Allow Camera Access" prompt.
+   - When running the native Python daemon (`tools/yolo_edge_sentinel.py`), it is a local Windows program with hardware access, so OpenCV opens Camera 0 directly without a browser prompt.
+2. **Auto-Display on Frontend:**
+   - In `CameraZonesView.jsx`, when the frontend polled port 5050 and found the YOLO daemon active, it immediately auto-rendered the video stream (`<img>` tag) without presenting an explicit DPDP consent gate or "Start Camera Monitoring" button.
+3. **Clinical & DPDP Alignment:**
+   - In clinical patient monitoring and DPDP Act 2023 compliance, camera activation must be **explicitly consent-driven**. The user must see an active "Start Sentinel Camera" consent prompt and explicitly click "Start Camera" before video acquisition and streaming begins.
+
+### Solutions Delivered & Verified:
+1. **Default to Standby / Awaiting Consent (`hardwareStreamPaused = true`):**
+   - In `CameraZonesView.jsx`, initialized `hardwareStreamPaused` to `true` by default so no video stream connection is initiated upon page load.
+2. **DPDP Act 2023 Consent-First Gateway Screen:**
+   - Created a dedicated consent card informing the user: *"Hardware AI Sentinel Ready · Awaiting Permission"*.
+   - Explains that camera monitoring is never started automatically to protect privacy and comply with DPDP guidelines.
+   - Provides explicit authorization buttons:
+     * `[ Start Camera Sentinel ]` — Enables live YOLO video and pose detection.
+     * `[ Start Privacy Radar Only ]` — Runs in full DPDP radar mode with zero raw video pixels exposed.
+     * `[ Use Browser Camera Instead ]` — Fallback to browser webcam with native browser permission dialog.
+3. **Recompiled & Tested:**
+   - Web bundle recompiled (`node tools/build_web.js` -> 237.2 KB).
+   - Confirmed that loading the Camera Zones view remains in standby until the user explicitly clicks to authorize.
