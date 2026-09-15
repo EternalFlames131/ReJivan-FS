@@ -2996,6 +2996,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
 
   // Local Device Webcam States
+  const [activeVideoSource, setActiveVideoSource] = React.useState("bed_fall_demo"); // 'bed_fall_demo' or 'webcam'
   const [isWebcamActive, setIsWebcamActive] = React.useState(false);
   const [webcamLoading, setWebcamLoading] = React.useState(false);
   const [webcamError, setWebcamError] = React.useState(null);
@@ -3142,6 +3143,41 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       }
     };
   }, []);
+
+  // Source selection & demo video activation
+  const handleSelectSource = async (sourceKey) => {
+    setActiveVideoSource(sourceKey);
+    if (localYoloActive) {
+      try {
+        await fetch(`${YOLO_API_BASE}/api/yolo/source`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: sourceKey })
+        });
+        setStreamRetryKey(Date.now());
+      } catch (e) {}
+    }
+  };
+
+  const handleStartDemoStream = async (sourceKey = "bed_fall_demo") => {
+    setActiveVideoSource(sourceKey);
+    if (localYoloActive) {
+      try {
+        await fetch(`${YOLO_API_BASE}/api/yolo/source`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: sourceKey })
+        });
+        await fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" });
+        setHardwareStreamPaused(false);
+        setStreamRetryKey(Date.now());
+      } catch (e) {
+        setHardwareStreamPaused(false);
+      }
+    } else {
+      handleStartWebcam();
+    }
+  };
 
   // Activate Local Device Webcam
   const handleStartWebcam = async () => {
@@ -3701,8 +3737,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                       /* Sub-branch A1: Real Hardware Ultralytics YOLO Stream */
                       <div className="relative w-full h-full flex items-center justify-center">
                         <img
-                          key={`yolo-feed-${streamRetryKey}-${privacyRadarOnly}`}
-                          src={`${YOLO_API_BASE}/api/yolo/video_feed${privacyRadarOnly ? "?privacy=1&" : "?"}t=${streamRetryKey}`}
+                          key={`yolo-feed-${streamRetryKey}-${privacyRadarOnly}-${activeVideoSource}`}
+                          src={`${YOLO_API_BASE}/api/yolo/video_feed?source=${activeVideoSource}${privacyRadarOnly ? "&privacy=1" : ""}&t=${streamRetryKey}`}
                           alt="Ultralytics YOLO Pose Stream"
                           className="w-full h-full object-cover select-none pointer-events-none"
                           onError={() => {
@@ -3713,7 +3749,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         {/* Top Left Live REC HUD */}
                         <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-white text-[11px] font-mono shadow-md">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                          <span className="font-bold text-emerald-400">HARDWARE LIVE</span>
+                          <span className="font-bold text-emerald-400">
+                            {activeVideoSource === "bed_fall_demo" ? "HOSPITAL BED-FALL DEMO" : "HARDWARE LIVE"}
+                          </span>
                           <span className="text-slate-400">|</span>
                           <span>{localYoloInfo?.device || "YOLO11-Pose Sentinel"}</span>
                         </div>
@@ -3776,7 +3814,20 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               title="Toggle DPDP Privacy Mode (blanks out raw video and shows radar only)"
                             >
                               {privacyRadarOnly ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              <span>{privacyRadarOnly ? "Privacy Radar Active" : "Privacy Mode"}</span>
+                              <span>{privacyRadarOnly ? "Radar Active" : "Privacy Mode"}</span>
+                            </button>
+
+                            {/* Switch Source Toggle (Bed Fall Demo vs Physical Webcam) */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const nextSrc = activeVideoSource === "bed_fall_demo" ? "webcam" : "bed_fall_demo";
+                                handleSelectSource(nextSrc);
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-sky-300 hover:text-white transition-all flex items-center gap-1.5"
+                              title="Toggle between Hospital Bed Fall Demo Video and Physical Hardware Webcam"
+                            >
+                              <span>{activeVideoSource === "bed_fall_demo" ? "📹 Switch to Webcam" : "🛏️ Play Bed Fall Demo"}</span>
                             </button>
 
                             {/* Test Sudden Fall */}
@@ -3790,7 +3841,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               title="Test sudden downward fall trigger"
                             >
                               <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                              <span>Test Sudden Fall</span>
+                              <span>Test Fall</span>
                             </button>
                           </div>
 
@@ -3948,26 +3999,36 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         )}
 
                         <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
+                          {/* Primary Clinical Demo Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartDemoStream("bed_fall_demo");
+                            }}
+                            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
+                            title="Play realistic hospital ward bed-fall demonstration with live Ultralytics YOLO-Pose skeleton tracking"
+                          >
+                            <AlertTriangle className="w-4 h-4 text-amber-300" />
+                            <span>Play Hospital Bed-Fall Demo (YOLO)</span>
+                          </button>
+
                           {localYoloActive && (
                             <>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" }).catch(() => {});
-                                  setPrivacyRadarOnly(false);
-                                  setHardwareStreamPaused(false);
+                                  handleStartDemoStream("webcam");
                                 }}
                                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
                               >
                                 <Camera className="w-4 h-4" />
-                                <span>Start Camera Sentinel</span>
+                                <span>Start Live Webcam</span>
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" }).catch(() => {});
                                   setPrivacyRadarOnly(true);
-                                  setHardwareStreamPaused(false);
+                                  handleStartDemoStream(activeVideoSource);
                                 }}
                                 className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
                                 title="Run in privacy radar mode with raw video completely blacked out"

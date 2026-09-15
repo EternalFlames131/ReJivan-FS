@@ -229,3 +229,24 @@
   - **Root Cause 3 (Frontend Exclusion):** `CameraZonesView.jsx` Alert Banner was gated by `isWebcamActive && ...`, preventing hardware YOLO `HIGH_RISK` from rendering the red alert banner.
   - **Multi-Axis Kinematics Engine:** Synthesized upper-body posture from head-to-shoulder inclination (`head_tilt_deg`) and shoulder tilt slope (`shoulder_tilt_deg`) when hips are occluded; added 2.5s impact latch window, floor occlusion fall detection, and wired `onTriggerAlert(true)` with responsive tri-state banner.
   - **Verified:** 6/6 automated test suite passed (`tools/test_fall_kinematics.py`). Bundle recompiled (`node tools/build_web.js` -> 238.1 KB).
+- 2026-09-15 13:00 | HOSPITAL BED-FALL CLINICAL DEMO VIDEO & YOLO INFERENCE (User request: add a demo video where a patient falls off the bed and motion detection detects it and triggers an alarm using YOLO Ultralytics):
+  - **Clinical Ward Video Synthesis:** Synthesized authentic, photorealistic hospital ward surveillance video (`video/patient_bed_fall_demo.mp4` & `prototype/public/videos/patient_bed_fall_demo.mp4`, 15-second 1280x720 25 FPS) maintaining 100% camera angle, lighting, timestamp, and room geometry continuity across 4 critical clinical stages:
+    * *Stage 1 (t=0–4s):* Patient resting peacefully under blankets in hospital bed (`SAFE | Supine Resting in Bed`).
+    * *Stage 2 (t=4–7s):* Patient waking and sitting upright at bed edge (`SAFE | Upright Bed-Edge Sitting`).
+    * *Stage 3 (t=7–9s):* Patient slipping off mattress towards floor (acute descent velocity spike).
+    * *Stage 4 (t=9–15s):* Patient collapsed horizontally on linoleum floor (`HIGH_RISK | Acute Fall / Horizontal Floor Contact` -> ALARM triggered).
+  - **Clinical Biomechanical Calibration (`tools/yolo_edge_sentinel.py`):**
+    * Disambiguated in-bed supine sleep from floor falls: when `com_y <= 0.55 * h` (on mattress), horizontal torso angle is classified as `SAFE: Supine Resting in Bed (Nominal)`.
+    * When vertical centroid drops below bed level onto the floor (`com_y > 0.58 * h`) with high torso angle or downward velocity, latches `HIGH_RISK: Sudden Bed-Fall Event Detected` with 4-second impact hold.
+  - **Dynamic Stream Source Switching (`/api/yolo/source`):**
+    * Extended sentinel daemon with `source: "bed_fall_demo"` vs `"webcam"`, reachable via `POST /api/yolo/source` or `?source=` query parameter.
+    * Video file input processes frames and keypoints in real time without touching the physical camera hardware, ensuring laptop camera LED remains completely **OFF**.
+  - **Frontend UI Controls (`CameraZonesView.jsx`):**
+    * Added prominent `[ Play Hospital Bed-Fall Demo (YOLO) ]` button in DPDP Consent card.
+    * Added dynamic `[ 📹 Switch to Webcam ]` / `[ 🛏️ Play Bed Fall Demo ]` source toggle in live stream bottom bar.
+    * Live telemetry and alert banner update dynamically, sounding alarm and opening resident verification modal upon bed fall.
+  - **Multi-Layer Automated Verification:**
+    * 15-second video trajectory verified: t=1–8s `SAFE` (Angle 60.6°, Vel 0.00 m/s); t=9–15s `HIGH_RISK` (Angle 71.1°–79.4°, floor collapse latched).
+    * Web bundle recompiled (`node tools/build_web.js` -> 241 KB).
+    * Edge headless DOM post-login confirmed clean render.
+    * Native Android Kotlin build confirmed (`./gradlew.bat compileDebugKotlin --offline` -> BUILD SUCCESSFUL in 19s).

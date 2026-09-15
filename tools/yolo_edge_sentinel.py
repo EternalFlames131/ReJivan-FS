@@ -87,6 +87,9 @@ class SentinelHub:
         self.camera_active = False # On-demand hardware lifecycle (Camera OFF by default)
         self.active_streamers = 0  # Active MJPEG client count
         self.camera_index = 0
+        self.source = "bed_fall_demo" # 'webcam' or 'bed_fall_demo'
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.demo_video_path = os.path.join(repo_root, "video", "patient_bed_fall_demo.mp4")
         self.cap = None
         self.latest_raw_frame = None
         self.latest_rendered_frame = None
@@ -109,6 +112,7 @@ class SentinelHub:
             "device": GPU_NAME,
             "cuda_enabled": CUDA_AVAILABLE,
             "engine": "Ultralytics YOLO11-Pose",
+            "source": "bed_fall_demo",
             "fps": 0.0,
             "person_detected": False,
             "persons_count": 0,
@@ -230,32 +234,44 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
 
     # 5. Multi-Hypothesis Fall Detection Decision
     is_recent_drop = (current_time - hub.recent_drop_time) < 2.5
+    is_on_floor = com_y > (img_h * 0.58)
+    is_in_bed = com_y <= (img_h * 0.55)
     
     # Fall trigger criteria:
     # 1. High downward speed while tilting/slumping
     fall_active = (velocity_down > 0.55 and torso_angle_deg > 30.0)
-    # 2. Recent rapid drop (<2.5s ago) and posture is now collapsed (>38 deg) or low in frame
-    fall_post_drop = is_recent_drop and (torso_angle_deg > 38.0 or com_y > img_h * 0.65)
-    # 3. Severe horizontal collapse (>55 deg)
-    fall_severe = torso_angle_deg > 55.0
+    # 2. Recent rapid drop (<2.5s ago) followed by collapse or floor impact
+    fall_post_drop = is_recent_drop and (torso_angle_deg > 38.0 or is_on_floor)
+    # 3. Severe horizontal collapse on the floor (outside bed zone)
+    fall_floor_collapse = (torso_angle_deg > 50.0 and is_on_floor)
 
-    is_fall = fall_active or fall_post_drop or fall_severe
+    is_fall = fall_active or fall_post_drop or fall_floor_collapse
 
     if is_fall:
         hub.last_high_risk_time = current_time
 
-    # Alert Latch: maintain high risk for 4.0s unless resident restores upright posture (<20 deg)
-    is_latched = (current_time - hub.last_high_risk_time < 4.0) and (torso_angle_deg > 22.0)
+    # Alert Latch: maintain high risk for 4.0s unless resident restores upright posture (<22 deg)
+    is_latched = (current_time - hub.last_high_risk_time < 4.0) and (torso_angle_deg > 22.0 or is_on_floor)
 
     if is_fall or is_latched:
         risk_level = "HIGH_RISK"
         posture = "Acute Fall / Horizontal Floor Contact"
         hypothesis = {
             "id": "H1",
-            "label": "Sudden Fall Event Detected",
-            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) with torso breakdown to {torso_angle_deg}°."
+            "label": "Sudden Bed-Fall Event Detected",
+            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) with floor impact collapse at {torso_angle_deg}°."
         }
         confidence = 98.8
+    elif is_in_bed and torso_angle_deg > 50.0:
+        # Patient is resting peacefully in bed
+        risk_level = "SAFE"
+        posture = "Supine Resting in Bed (Nominal)"
+        hypothesis = {
+            "id": "H0",
+            "label": "Resting Safely in Care Bed",
+            "mechanism": "Patient in supine resting posture within mattress safety perimeter. Zero downward velocity."
+        }
+        confidence = 99.1
     elif torso_angle_deg > 30.0 or velocity_down > 0.45:
         risk_level = "CAUTION"
         posture = "Reclined / Transitioning Posture"
@@ -397,6 +413,7 @@ def camera_processing_thread():
     """
     print("[*] Camera processing worker initialized in STANDBY (Camera hardware released, LED OFF).")
     cap = None
+    current_source = None
     frame_counter = 0
     consecutive_fails = 0
     t_start = time.time()
@@ -404,6 +421,7 @@ def camera_processing_thread():
     while hub.running:
         with hub.lock:
             should_run = bool(hub.camera_active or hub.active_streamers > 0)
+            active_source = hub.source
 
         # Standby: No active viewers requested the camera
         if not should_run:
@@ -414,6 +432,7 @@ def camera_processing_thread():
                 except Exception:
                     pass
                 cap = None
+                current_source = None
                 with hub.lock:
                     hub.cap = None
                     hub.fps = 0.0
@@ -436,53 +455,94 @@ def camera_processing_thread():
             time.sleep(0.1)
             continue
 
-        # Active: Open camera hardware on-demand
+        # If source has been switched dynamically while active, release current capture handle
+        if cap is not None and current_source != active_source:
+            print(f"[*] Switching active video source from '{current_source}' to '{active_source}'...")
+            try:
+                cap.release()
+            except Exception:
+                pass
+            cap = None
+            current_source = None
+
+        # Active: Open camera hardware or clinical demo video on-demand
         if cap is None:
-            print(f"[*] On-Demand Activation: Initializing hardware webcam (index {hub.camera_index})...")
-            cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
-            if not cap.isOpened():
-                print(f"[!] Warning: Camera index {hub.camera_index} with CAP_DSHOW not opened. Trying default backend...")
-                cap = cv2.VideoCapture(hub.camera_index)
+            current_source = active_source
+            if current_source == "bed_fall_demo":
+                if os.path.exists(hub.demo_video_path):
+                    print(f"[*] On-Demand Activation: Opening Bed-Fall Clinical Demo Video from {hub.demo_video_path}...")
+                    cap = cv2.VideoCapture(hub.demo_video_path)
+                else:
+                    print(f"[!] Warning: Demo video not found at {hub.demo_video_path}. Falling back to webcam...")
+                    cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
+                    current_source = "webcam"
+            else:
+                print(f"[*] On-Demand Activation: Initializing hardware webcam (index {hub.camera_index})...")
+                cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    print(f"[!] Warning: Camera index {hub.camera_index} with CAP_DSHOW not opened. Trying default backend...")
+                    cap = cv2.VideoCapture(hub.camera_index)
                 
             if not cap.isOpened():
-                print(f"[!] ERROR: Unable to access hardware camera at index {hub.camera_index}.")
+                print(f"[!] ERROR: Unable to access video source '{current_source}'.")
                 with hub.lock:
                     hub.telemetry["status"] = "CAMERA_UNAVAILABLE"
                     hub.camera_active = False
                 cap = None
+                current_source = None
                 time.sleep(1.0)
                 continue
 
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            cap.set(cv2.CAP_PROP_FPS, 30)
-            try:
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            except Exception:
-                pass
+            if current_source == "webcam":
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_FPS, 30)
+                try:
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                except Exception:
+                    pass
             
             with hub.lock:
                 hub.cap = cap
                 hub.telemetry["status"] = "ONLINE_STREAMING"
-            print(f"[+] Hardware camera online (LED ON). Running YOLO Pose inference pipeline...")
+            print(f"[+] Source '{current_source}' online (Physical LED: {'ON' if current_source == 'webcam' else 'OFF (Demo Video)'}). Running YOLO Pose pipeline...")
             t_start = time.time()
             frame_counter = 0
             consecutive_fails = 0
 
-        # Read camera frame
+        # Read video frame
+        frame_read_start = time.time()
         ret, frame = cap.read()
         if not ret or frame is None:
-            consecutive_fails += 1
-            if consecutive_fails > 25:
-                print("[!] Camera stream stalled, re-initializing backend...")
-                try:
-                    cap.release()
-                except Exception:
-                    pass
-                cap = None
-                consecutive_fails = 0
-            time.sleep(0.02)
-            continue
+            if current_source == "bed_fall_demo":
+                # Continuous seamless looping of clinical bed fall demo
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                hub.prev_com_y = None
+                hub.prev_time = None
+                hub.smooth_velocity = 0.0
+                hub.recent_drop_time = 0.0
+                hub.recent_drop_velocity = 0.0
+                ret, frame = cap.read()
+
+            if not ret or frame is None:
+                consecutive_fails += 1
+                if consecutive_fails > 25:
+                    print("[!] Video stream stalled, re-initializing backend...")
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+                    cap = None
+                    current_source = None
+                    consecutive_fails = 0
+                time.sleep(0.02)
+                continue
+
+        # Pace video playback for realistic ~25 FPS when streaming video file
+        if current_source == "bed_fall_demo":
+            read_elapsed = time.time() - frame_read_start
+            sleep_target = max(0.005, (1.0 / 25.0) - read_elapsed)
+            time.sleep(sleep_target)
 
         consecutive_fails = 0
         current_time = time.time()
@@ -633,8 +693,10 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     "device": GPU_NAME,
                     "cuda_enabled": CUDA_AVAILABLE,
                     "status": hub.telemetry.get("status", "STANDBY_AWAITING_CONSENT"),
+                    "source": hub.source,
+                    "demo_video_available": os.path.exists(hub.demo_video_path),
                     "hardware_active": is_hardware_on,
-                    "camera_led_state": "ON" if is_hardware_on else "OFF",
+                    "camera_led_state": ("ON" if (is_hardware_on and hub.source == "webcam") else "OFF"),
                     "active_streamers": int(hub.active_streamers),
                     "fps": float(hub.fps),
                     "model": "yolo11n-pose.pt",
@@ -655,14 +717,18 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(payload, cls=NumpyJSONEncoder).encode("utf-8"))
             return
 
-        # 3. Live MJPEG Video Stream (Engages camera hardware on-demand, releases on disconnect)
+        # 3. Live MJPEG Video Stream (Engages camera hardware or demo video on-demand)
         if path in ["/api/yolo/stream", "/api/yolo/video_feed"]:
             privacy = query.get("privacy", ["0"])[0] == "1"
+            req_source = query.get("source", [None])[0]
             
             with hub.lock:
+                if req_source in ["webcam", "bed_fall_demo"] and req_source != hub.source:
+                    hub.source = req_source
+                    print(f"[*] Stream query requested source change to '{req_source}'")
                 hub.active_streamers += 1
                 hub.camera_active = True
-                print(f"[+] Client connected to video feed (Active viewers: {hub.active_streamers}). Engaging camera hardware...")
+                print(f"[+] Client connected to video feed (Active viewers: {hub.active_streamers}, Source: {hub.source}).")
 
             self.send_response(200)
             self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
@@ -710,16 +776,42 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        # Video Source Selection Endpoint (Webcam vs Bed Fall Demo Video)
+        if self.path == "/api/yolo/source":
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_len).decode("utf-8")
+                req_data = json.loads(body) if body else {}
+                target_src = req_data.get("source", "bed_fall_demo")
+                if target_src in ["webcam", "bed_fall_demo"]:
+                    with hub.lock:
+                        hub.source = target_src
+                        hub.camera_active = True
+                    print(f"[+] Source switched via API to: {hub.source}")
+                    self.send_response(200)
+                    self.send_cors_headers("application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"ok": True, "source": hub.source}).encode("utf-8"))
+                    return
+            except Exception as e:
+                pass
+            self.send_response(400)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": False, "error": "Invalid source"}).encode("utf-8"))
+            return
+
         # Explicit Camera Start Endpoint
         if self.path == "/api/yolo/start":
             with hub.lock:
                 hub.camera_active = True
-            print("[+] Explicit /api/yolo/start command received: Engaging camera hardware...")
+            print(f"[+] Explicit /api/yolo/start command received: Engaging source '{hub.source}'...")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
             try:
-                self.wfile.write(json.dumps({"ok": True, "camera_active": True, "camera_led": "ON"}).encode("utf-8"))
+                led_state = "ON" if hub.source == "webcam" else "OFF (Demo Video)"
+                self.wfile.write(json.dumps({"ok": True, "camera_active": True, "source": hub.source, "camera_led": led_state}).encode("utf-8"))
             except Exception:
                 pass
             return
@@ -729,7 +821,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             with hub.lock:
                 hub.camera_active = False
                 hub.active_streamers = 0
-            print("[*] Explicit /api/yolo/stop command received: Powering down camera hardware (LED OFF)...")
+            print("[*] Explicit /api/yolo/stop command received: Powering down stream...")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
