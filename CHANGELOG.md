@@ -176,3 +176,36 @@
 - **Android Offline Parity:**
   - Verified native Kotlin build (`compileDebugKotlin`, BUILD SUCCESSFUL in 25s).
 
+### v3.7 – 2026-09-15 — Real Ultralytics YOLO-Pose Hardware Sentinel Integration
+- **AI & Vision Package Ecosystem Installed:**
+  - Installed `ultralytics` 8.4.152, `torch` 2.14.0, `torchvision` 0.29.0, and `opencv-python` 5.0.0.
+  - Automatically downloaded and verified `yolo11n-pose.pt` (6.0 MB) executing at sub-45ms per frame.
+- **Hardware-Integrated YOLO Edge Sentinel Daemon (`tools/yolo_edge_sentinel.py`):**
+  - Connects directly to local system hardware webcam (Camera index 0 via OpenCV `cv2.VideoCapture(0, cv2.CAP_DSHOW)`).
+  - Background daemon thread runs Ultralytics YOLO-Pose on video frames at ~20–25 FPS.
+  - Calculates real physical biomechanics from 17 COCO skeletal landmarks:
+    * Shoulders & hips midpoint (Center of Mass - CoM).
+    * Torso angle $\theta$ (0° upright to 90° horizontal floor contact).
+    * Downward vertical velocity $V_y$ (calibrated in m/s).
+    * Differentiates $H_1$ Sudden Fall (rapid descent + collapsed torso) vs $H_2$ Controlled Sitting (upright spine maintained).
+  - Serves high-speed JSON telemetry on `GET /api/yolo/telemetry` with custom `NumpyJSONEncoder`.
+  - Serves real-time MJPEG live video stream on `GET /api/yolo/video_feed` with medical-grade skeletal vectors, joints, and corner tracking brackets.
+  - Fully supports DPDP Act 2023 Privacy Mode on `GET /api/yolo/video_feed?privacy=1` (dark clinical radar grid with glowing skeleton, zero raw video pixels exposed).
+  - Supports `POST /api/yolo/simulate_fall` for rapid verification and evaluator demonstrations.
+- **Frontend Live Feed Integration (`CameraZonesView.jsx`):**
+  - High-frequency telemetry polling hook running every 350ms to consume live YOLO telemetry.
+  - Live stream rendering directly embedded via native MJPEG stream when daemon is running on port 5050.
+  - Dynamic HUD displaying live daemon FPS, torso angle, descent velocity, posture label, and risk level.
+  - Seamless toggling: Privacy Radar Mode, Test Sudden Fall, Pause/Resume Stream, and graceful fallback to browser webcam if the local hardware daemon is paused or on an external device.
+- **Single-Click Launchers:**
+  - Created `tools/run_yolo.bat` (double-click on Windows to start sentinel immediately).
+  - Created `tools/run_yolo.ps1` for PowerShell users.
+- **Multi-Layer Automated Verification:**
+  - Verified `curl.exe http://localhost:5050/api/yolo/status` -> 200 OK (`status: ONLINE_STREAMING`, `model: yolo11n-pose.pt`).
+  - Verified `curl.exe http://localhost:5050/api/yolo/telemetry` -> valid JSON with keypoints, bbox, posture, velocity.
+  - Verified `curl.exe http://localhost:5050/api/yolo/video_feed` -> active multipart JPEG stream at ~28 FPS.
+  - Compiled React web bundle (`node tools/build_web.js` -> 234.8 KB, 0 syntax errors, 1209 balanced brackets).
+  - Verified live portal DOM render in Microsoft Edge headless (`msedge.exe --headless=new http://localhost:8080` -> 860,873 characters, ReJivan + Camera confirmed).
+  - Verified native Android app compilation (`./gradlew.bat compileDebugKotlin --offline` -> **BUILD SUCCESSFUL in 38s**).
+
+

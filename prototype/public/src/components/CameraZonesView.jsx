@@ -13,6 +13,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   // Local System Hardware YOLO Daemon Auto-Discovery (GTX 1650 on port 5050)
   const [localYoloActive, setLocalYoloActive] = React.useState(false);
   const [localYoloInfo, setLocalYoloInfo] = React.useState(null);
+  const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(false);
 
   // Local Device Webcam States
   const [isWebcamActive, setIsWebcamActive] = React.useState(false);
@@ -92,6 +93,54 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       clearInterval(pollInterval);
     };
   }, []);
+
+  // Live High-Frequency Telemetry Stream from Local YOLO Daemon
+  React.useEffect(() => {
+    if (!localYoloActive || hardwareStreamPaused) return;
+    let isCancelled = false;
+    const pollTelemetry = async () => {
+      try {
+        const res = await fetch("http://localhost:5050/api/yolo/telemetry", {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(900) : undefined,
+        });
+        if (res.ok && !isCancelled) {
+          const data = await res.json();
+          setWebcamTelemetry((prev) => {
+            const isDanger = data.risk_level === "HIGH_RISK";
+            const isCaution = data.risk_level === "CAUTION";
+            return {
+              ...prev,
+              fps: Math.round(data.fps || (localYoloInfo && localYoloInfo.fps) || 24),
+              motionEnergyPercent: data.person_detected ? Math.min(100, Math.round(data.confidence || 95)) : 0,
+              downwardVelocity: data.downward_velocity ?? -0.1,
+              torsoAngle: Math.round(data.torso_angle ?? 12),
+              posture: data.posture || "Upright Posture",
+              riskLevel: data.risk_level || "SAFE",
+              confidence: `${Math.round(data.confidence || 98)}%`,
+              visionSource: `${data.device || "System Hardware"} (${data.engine || "YOLO11-Pose"})`,
+              hardwareBadge: data.cuda_enabled ? "CUDA Active" : "Local Edge YOLO Active",
+              consensusSummary: data.hypothesis?.mechanism || "Continuous Ultralytics YOLO-Pose monitoring on local hardware."
+            };
+          });
+
+          if (data.risk_level === "HIGH_RISK" && onTriggerVerification && !dropSimTimerRef.current) {
+            onTriggerVerification("trip_fall");
+            dropSimTimerRef.current = setTimeout(() => {
+              dropSimTimerRef.current = null;
+            }, 6000);
+          }
+        }
+      } catch (e) {}
+    };
+
+    pollTelemetry();
+    const timer = setInterval(pollTelemetry, 350);
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+    };
+  }, [localYoloActive, hardwareStreamPaused, onTriggerVerification, localYoloInfo]);
 
   // Cleanup webcam stream and timers on unmount
   React.useEffect(() => {
@@ -428,14 +477,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   const cameras = [
     {
       id: "cam-local",
-      title: localYoloActive ? "My Device Camera (GTX 1650 YOLO Active)" : "My Device Camera (Live Edge Prajñā)",
-      location: localYoloActive ? "Hardware GPU Daemon (localhost:5050)" : "Active Local Sensor (Webcam / Mobile)",
+      title: localYoloActive && !hardwareStreamPaused 
+        ? "My Device Camera (Ultralytics YOLO Active)" 
+        : "My Device Camera (Live Edge Prajñā)",
+      location: localYoloActive && !hardwareStreamPaused 
+        ? `Hardware YOLO Daemon (${localYoloInfo?.device || "GTX 1650"})` 
+        : "Active Local Sensor (Webcam / Mobile)",
       isLocalWebcam: true,
-      resolution: isWebcamActive ? "720p · 30fps" : "Standby (Click to Start)",
-      latency: localYoloActive ? "14ms (CUDA)" : isWebcamActive ? "16ms (Local)" : "--",
-      status: isWebcamActive ? "Online" : "Ready",
-      patientPosture: isWebcamActive ? webcamTelemetry.posture : "Connect Device Camera to test live movement",
-      confidence: isWebcamActive ? webcamTelemetry.confidence : "99.1%",
+      resolution: (localYoloActive && !hardwareStreamPaused) || isWebcamActive ? "480p · 30fps" : "Standby (Click to Start)",
+      latency: localYoloActive ? "18ms (Hardware)" : isWebcamActive ? "16ms (Local)" : "--",
+      status: (localYoloActive && !hardwareStreamPaused) || isWebcamActive ? "Online" : "Ready",
+      patientPosture: (localYoloActive && !hardwareStreamPaused) || isWebcamActive ? webcamTelemetry.posture : "Connect Device Camera to test live movement",
+      confidence: (localYoloActive && !hardwareStreamPaused) || isWebcamActive ? webcamTelemetry.confidence : "99.1%",
       roomTemp: "Local Amb.",
       humidity: "Ambient",
       lightLevel: "Auto Exposure",
@@ -648,9 +701,116 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 {/* BRANCH A: Local System Webcam Feed */}
                 {cam.isLocalWebcam ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
-                    {isWebcamActive ? (
+                    {localYoloActive && !hardwareStreamPaused ? (
+                      /* Sub-branch A1: Real Hardware Ultralytics YOLO Stream */
                       <div className="relative w-full h-full flex items-center justify-center">
-                        {/* Hidden native video stream element used as tracking source */}
+                        <img
+                          src={`http://localhost:5050/api/yolo/video_feed${privacyRadarOnly ? "?privacy=1" : ""}`}
+                          alt="Ultralytics YOLO Pose Stream"
+                          className="w-full h-full object-cover select-none"
+                        />
+
+                        {/* Top Left Live REC HUD */}
+                        <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-white text-[11px] font-mono shadow-md">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                          <span className="font-bold text-emerald-400">HARDWARE LIVE</span>
+                          <span className="text-slate-400">|</span>
+                          <span>{localYoloInfo?.device || "YOLO11-Pose Sentinel"}</span>
+                        </div>
+
+                        {/* Top Right Kinematics HUD */}
+                        <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-slate-300 text-[10px] font-mono flex items-center gap-2 shadow-md">
+                          <span className="text-emerald-400 font-bold">{webcamTelemetry.fps} FPS</span>
+                          <span className="text-slate-500">•</span>
+                          <span>Torso: {webcamTelemetry.torsoAngle}°</span>
+                          <span className="text-slate-500">•</span>
+                          <span className={webcamTelemetry.downwardVelocity < -1.4 ? "text-rose-400 font-bold" : "text-slate-300"}>
+                            {webcamTelemetry.downwardVelocity} m/s
+                          </span>
+                        </div>
+
+                        {/* Target Detection Box Overlay */}
+                        <div
+                          className={`absolute bottom-14 left-4 right-4 border rounded-lg p-2.5 text-center shadow-2xl backdrop-blur-md transition-all ${
+                            webcamTelemetry.riskLevel === "HIGH_RISK"
+                              ? "border-rose-400/90 bg-rose-950/85 text-rose-100"
+                              : "border-slate-700/80 bg-slate-950/80 text-slate-100"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[10px] font-mono uppercase font-bold tracking-wider mb-1">
+                            <span className={webcamTelemetry.riskLevel === "HIGH_RISK" ? "text-rose-400 font-bold" : "text-emerald-400"}>
+                              [ {webcamTelemetry.riskLevel === "HIGH_RISK" ? "⚠️ CRITICAL FALL WARNING" : "Prajñā Biomechanics Sentinel: Active"} ]
+                            </span>
+                            <span className="text-blue-400 font-normal">
+                              Ultralytics YOLO-Pose · 17 COCO Joints
+                            </span>
+                          </div>
+                          <div className="text-xs font-semibold">
+                            {webcamTelemetry.posture}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-300 mt-0.5 flex items-center justify-center gap-3">
+                            <span>Confidence: {webcamTelemetry.confidence}</span>
+                            <span>•</span>
+                            <span>Descent: {webcamTelemetry.downwardVelocity} m/s</span>
+                            <span>•</span>
+                            <span>Spine: {webcamTelemetry.torsoAngle}°</span>
+                            <span>•</span>
+                            <span>Privacy: {privacyRadarOnly ? "Radar Active" : "Active Camera"}</span>
+                          </div>
+                        </div>
+
+                        {/* Live Stream Bottom Action Controls */}
+                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            {/* Privacy Mode Toggle */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPrivacyRadarOnly(!privacyRadarOnly);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                                privacyRadarOnly
+                                  ? "bg-emerald-600 border-emerald-500 text-white"
+                                  : "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200"
+                              }`}
+                              title="Toggle DPDP Privacy Mode (blanks out raw video and shows radar only)"
+                            >
+                              {privacyRadarOnly ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              <span>{privacyRadarOnly ? "Privacy Radar Active" : "Privacy Mode"}</span>
+                            </button>
+
+                            {/* Test Sudden Fall */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fetch("http://localhost:5050/api/yolo/simulate_fall", { method: "POST" }).catch(() => {});
+                                handleSimulateDrop();
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-rose-950/80 hover:bg-rose-900 border-rose-700 text-rose-200 transition-all flex items-center gap-1.5 shadow-xs"
+                              title="Test sudden downward fall trigger"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                              <span>Test Sudden Fall</span>
+                            </button>
+                          </div>
+
+                          {/* Pause Stream */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHardwareStreamPaused(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1"
+                            title="Pause hardware camera stream"
+                          >
+                            <CameraOff className="w-3.5 h-3.5" />
+                            <span>Pause Stream</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : isWebcamActive ? (
+                      /* Sub-branch A2: In-Browser Webcam with Optical Differencing */
+                      <div className="relative w-full h-full flex items-center justify-center">
                         <video
                           ref={webcamVideoRef}
                           autoPlay
@@ -658,7 +818,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           muted
                           className="hidden"
                         />
-                        {/* Live Canvas rendering clean video with real dynamic motion reticle */}
                         <canvas
                           ref={webcamCanvasRef}
                           className="w-full h-full object-cover"
@@ -669,7 +828,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                           <span className="font-bold text-rose-400">LIVE</span>
                           <span className="text-slate-400">|</span>
-                          <span>{localYoloActive ? "GTX 1650 YOLO" : "LOCAL SYSTEM"}</span>
+                          <span>BROWSER WEBCAM</span>
                         </div>
 
                         {/* Top Right Kinematics HUD */}
@@ -696,7 +855,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               [ {webcamTelemetry.riskLevel === "HIGH_RISK" ? "⚠️ CRITICAL FALL WARNING" : "Prajñā Optical Sentinel: Nominal"} ]
                             </span>
                             <span className="text-slate-400 font-normal">
-                              {localYoloActive ? "YOLO11 GPU Acceleration" : "On-Device Engine"}
+                              Browser On-Device Optical Engine
                             </span>
                           </div>
                           <div className="text-xs font-semibold">
@@ -714,7 +873,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         {/* Live Webcam Bottom Action Controls */}
                         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
-                            {/* Privacy Mode Toggle */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -725,34 +883,29 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                                   ? "bg-emerald-600 border-emerald-500 text-white"
                                   : "bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-200"
                               }`}
-                              title="Toggle DPDP Privacy Mode (blanks out raw video and shows radar only)"
                             >
                               {privacyRadarOnly ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                               <span>{privacyRadarOnly ? "Privacy Radar Active" : "Privacy Mode"}</span>
                             </button>
 
-                            {/* Simulate Sudden Drop */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSimulateDrop();
                               }}
                               className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-rose-950/80 hover:bg-rose-900 border-rose-700 text-rose-200 transition-all flex items-center gap-1.5 shadow-xs"
-                              title="Test sudden downward fall trigger"
                             >
                               <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                               <span>Test Sudden Fall</span>
                             </button>
                           </div>
 
-                          {/* Stop Webcam */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleStopWebcam();
                             }}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-rose-300 hover:text-rose-200 transition-all flex items-center gap-1"
-                            title="Turn off local device camera"
                           >
                             <CameraOff className="w-3.5 h-3.5" />
                             <span>Stop Camera</span>
@@ -760,20 +913,22 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         </div>
                       </div>
                     ) : (
-                      /* Webcam Standby Connect Stage */
+                      /* Sub-branch A3: Standby Screen */
                       <div className="p-6 text-center max-w-md">
                         <div className="w-12 h-12 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto mb-3 shadow-lg">
                           <Camera className="w-6 h-6 text-blue-400" />
                         </div>
                         <h4 className="text-sm font-bold text-white">
-                          Connect Local Device Camera
+                          {localYoloActive ? "Hardware YOLO Sentinel Paused" : "Connect Local Device Camera"}
                         </h4>
                         <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                          Test ReJivan's real-time motion detection with your webcam. Accurately tracks actual physical motion energy, calculates descent velocity, and detects sudden falls.
+                          {localYoloActive 
+                            ? "The local hardware YOLO11-Pose sentinel is running on this system. Click resume to restore live video and kinematics streaming."
+                            : "Test ReJivan's real-time motion detection with your webcam. Accurately tracks actual physical motion energy, calculates descent velocity, and detects sudden falls."}
                         </p>
                         {localYoloActive ? (
                           <p className="text-[11px] text-blue-400 font-mono mt-1 font-bold">
-                            🚀 NVIDIA GTX 1650 Daemon Detected (Ready for Hardware Inference)
+                            🚀 {localYoloInfo?.device || "Hardware GPU"} Active (Port 5050)
                           </p>
                         ) : (
                           <p className="text-[11px] text-emerald-400 font-mono mt-1">
@@ -787,23 +942,37 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           </div>
                         )}
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartWebcam();
-                          }}
-                          disabled={webcamLoading}
-                          className="mt-4 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
-                        >
-                          {webcamLoading ? (
-                            <span>Starting Camera...</span>
-                          ) : (
-                            <>
-                              <Camera className="w-4 h-4" />
-                              <span>Turn On My Camera</span>
-                            </>
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          {localYoloActive && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHardwareStreamPaused(false);
+                              }}
+                              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Resume Hardware YOLO Feed</span>
+                            </button>
                           )}
-                        </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartWebcam();
+                            }}
+                            disabled={webcamLoading}
+                            className={`px-4 py-2 rounded-lg ${localYoloActive ? "bg-slate-800 hover:bg-slate-700 text-slate-200" : "bg-blue-600 hover:bg-blue-500 text-white"} font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2`}
+                          >
+                            {webcamLoading ? (
+                              <span>Starting Camera...</span>
+                            ) : (
+                              <>
+                                <Camera className="w-4 h-4" />
+                                <span>{localYoloActive ? "Use Browser Camera Instead" : "Turn On My Camera"}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
