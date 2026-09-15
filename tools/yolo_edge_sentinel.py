@@ -84,6 +84,8 @@ class SentinelHub:
     def __init__(self):
         self.lock = threading.Lock()
         self.running = True
+        self.camera_active = False # On-demand hardware lifecycle (Camera OFF by default)
+        self.active_streamers = 0  # Active MJPEG client count
         self.camera_index = 0
         self.cap = None
         self.latest_raw_frame = None
@@ -97,9 +99,9 @@ class SentinelHub:
         self.prev_time = None
         self.immobility_start_time = None
         
-        # Telemetry State
+        # Telemetry State (Privacy-First Default: Hardware Powered Off)
         self.telemetry = {
-            "status": "INITIALIZING",
+            "status": "STANDBY_AWAITING_CONSENT",
             "device": GPU_NAME,
             "cuda_enabled": CUDA_AVAILABLE,
             "engine": "Ultralytics YOLO11-Pose",
@@ -108,16 +110,16 @@ class SentinelHub:
             "persons_count": 0,
             "keypoints": [],
             "bbox": None,
-            "torso_angle": 12.0,
-            "downward_velocity": -0.1,
+            "torso_angle": 0.0,
+            "downward_velocity": 0.0,
             "motion_energy": 0.0,
-            "posture": "Camera Initializing",
+            "posture": "Hardware Standby (Webcam Powered Off · Privacy Safe)",
             "risk_level": "SAFE",
-            "confidence": 98.5,
+            "confidence": 100.0,
             "hypothesis": {
                 "id": "H0",
-                "label": "Standby",
-                "mechanism": "System standing by for subject detection."
+                "label": "Camera Hardware Standby",
+                "mechanism": "Physical webcam uninitialized and LED indicator extinguished."
             },
             "timestamp": time.time()
         }
@@ -340,59 +342,103 @@ def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
     return canvas
 
 def camera_processing_thread():
-    """Continuous background loop capturing camera frames and running YOLO pose inference."""
-    print("[*] Starting hardware video capture thread...")
-    cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        print(f"[!] Warning: Camera index {hub.camera_index} with CAP_DSHOW not opened. Trying default backend...")
-        cap = cv2.VideoCapture(hub.camera_index)
-        
-    if not cap.isOpened():
-        print(f"[!] ERROR: Unable to access hardware camera at index {hub.camera_index}.")
-        hub.telemetry["status"] = "CAMERA_UNAVAILABLE"
-        return
-
-    # Optimize capture settings for smooth low-latency 30 FPS and zero frame buffering
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    try:
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    except Exception:
-        pass
-    
-    hub.cap = cap
-    hub.telemetry["status"] = "ONLINE_STREAMING"
-    print(f"[+] Camera index {hub.camera_index} online! Running YOLO Pose inference pipeline...")
-    
+    """
+    Continuous background worker with DPDP Act 2023 On-Demand Hardware Lifecycle:
+    - Camera hardware is NOT opened at startup. Physical LED remains completely OFF.
+    - Camera hardware ONLY opens when an active subscriber connects to the stream.
+    - When all viewers disconnect or stream pauses, camera is immediately released,
+      extinguishing the physical LED.
+    """
+    print("[*] Camera processing worker initialized in STANDBY (Camera hardware released, LED OFF).")
+    cap = None
     frame_counter = 0
     consecutive_fails = 0
     t_start = time.time()
 
     while hub.running:
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            consecutive_fails += 1
-            if consecutive_fails > 25:
-                print("[!] Camera frame stream stalled, re-initializing video capture backend...")
+        with hub.lock:
+            should_run = bool(hub.camera_active or hub.active_streamers > 0)
+
+        # Standby: No active viewers requested the camera
+        if not should_run:
+            if cap is not None:
+                print("[*] Privacy Protection Gate: Zero active stream clients. Powering down camera hardware (LED OFF)...")
                 try:
                     cap.release()
                 except Exception:
                     pass
-                time.sleep(0.4)
-                cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
-                if not cap.isOpened():
-                    cap = cv2.VideoCapture(hub.camera_index)
+                cap = None
+                with hub.lock:
+                    hub.cap = None
+                    hub.fps = 0.0
+                    hub.latest_rendered_frame = None
+                    hub.latest_radar_frame = None
+                    hub.telemetry.update({
+                        "status": "STANDBY_AWAITING_CONSENT",
+                        "fps": 0.0,
+                        "person_detected": False,
+                        "persons_count": 0,
+                        "posture": "Hardware Standby (Webcam Powered Off · Privacy Safe)",
+                        "risk_level": "SAFE",
+                        "confidence": 100.0,
+                        "hypothesis": {
+                            "id": "H0",
+                            "label": "Camera Hardware Standby",
+                            "mechanism": "Physical webcam uninitialized and LED indicator extinguished."
+                        }
+                    })
+            time.sleep(0.1)
+            continue
+
+        # Active: Open camera hardware on-demand
+        if cap is None:
+            print(f"[*] On-Demand Activation: Initializing hardware webcam (index {hub.camera_index})...")
+            cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                print(f"[!] Warning: Camera index {hub.camera_index} with CAP_DSHOW not opened. Trying default backend...")
+                cap = cv2.VideoCapture(hub.camera_index)
+                
+            if not cap.isOpened():
+                print(f"[!] ERROR: Unable to access hardware camera at index {hub.camera_index}.")
+                with hub.lock:
+                    hub.telemetry["status"] = "CAMERA_UNAVAILABLE"
+                    hub.camera_active = False
+                cap = None
+                time.sleep(1.0)
+                continue
+
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+            try:
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
+            
+            with hub.lock:
+                hub.cap = cap
+                hub.telemetry["status"] = "ONLINE_STREAMING"
+            print(f"[+] Hardware camera online (LED ON). Running YOLO Pose inference pipeline...")
+            t_start = time.time()
+            frame_counter = 0
+            consecutive_fails = 0
+
+        # Read camera frame
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            consecutive_fails += 1
+            if consecutive_fails > 25:
+                print("[!] Camera stream stalled, re-initializing backend...")
                 try:
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    cap.release()
                 except Exception:
                     pass
+                cap = None
                 consecutive_fails = 0
             time.sleep(0.02)
             continue
-            
+
         consecutive_fails = 0
-            
         current_time = time.time()
         frame_counter += 1
         
@@ -405,7 +451,6 @@ def camera_processing_thread():
             t_start = current_time
 
         # Run Ultralytics YOLO Pose Inference
-        # imgsz=320 delivers high accuracy for pose while keeping latency <35ms
         results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
         r = results[0]
         
@@ -428,11 +473,10 @@ def camera_processing_thread():
         primary_bbox = None
         
         if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
-            primary_kp = r.keypoints.data[0].cpu().numpy() # (17, 3)
+            primary_kp = r.keypoints.data[0].cpu().numpy()
             h_img, w_img = frame.shape[:2]
             kinematics_data = compute_kinematics(primary_kp, w_img, h_img, current_time)
             
-            # Format keypoints for frontend consumption
             for idx, (kx, ky, kconf) in enumerate(primary_kp):
                 keypoints_formatted.append({
                     "name": KEYPOINT_NAMES[idx],
@@ -444,7 +488,6 @@ def camera_processing_thread():
             box = r.boxes.xyxy[0].cpu().numpy()
             primary_bbox = [int(box[0]), int(box[1]), int(box[2] - box[0]), int(box[3] - box[1])]
 
-        # Render Overlays
         rendered_frame = draw_pose_overlays(frame, results, kinematics_data, privacy_mode=False)
         radar_frame = draw_pose_overlays(frame, results, kinematics_data, privacy_mode=True)
         
@@ -472,8 +515,12 @@ def camera_processing_thread():
                 "timestamp": current_time
             }
 
-    cap.release()
-    print("[*] Camera capture thread stopped.")
+    if cap is not None:
+        try:
+            cap.release()
+        except Exception:
+            pass
+    print("[*] Camera processing thread stopped.")
 
 class NumpyJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -512,11 +559,15 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.send_cors_headers("application/json")
             self.end_headers()
             with hub.lock:
+                is_hardware_on = bool(hub.cap is not None and (hub.camera_active or hub.active_streamers > 0))
                 status_payload = {
                     "engine": "Ultralytics YOLO11-Pose",
                     "device": GPU_NAME,
                     "cuda_enabled": CUDA_AVAILABLE,
-                    "status": hub.telemetry.get("status", "ONLINE_STREAMING"),
+                    "status": hub.telemetry.get("status", "STANDBY_AWAITING_CONSENT"),
+                    "hardware_active": is_hardware_on,
+                    "camera_led_state": "ON" if is_hardware_on else "OFF",
+                    "active_streamers": int(hub.active_streamers),
                     "fps": float(hub.fps),
                     "model": "yolo11n-pose.pt",
                     "camera_index": hub.camera_index,
@@ -536,9 +587,15 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(payload, cls=NumpyJSONEncoder).encode("utf-8"))
             return
 
-        # 3. Live MJPEG Video Stream
+        # 3. Live MJPEG Video Stream (Engages camera hardware on-demand, releases on disconnect)
         if path in ["/api/yolo/stream", "/api/yolo/video_feed"]:
             privacy = query.get("privacy", ["0"])[0] == "1"
+            
+            with hub.lock:
+                hub.active_streamers += 1
+                hub.camera_active = True
+                print(f"[+] Client connected to video feed (Active viewers: {hub.active_streamers}). Engaging camera hardware...")
+
             self.send_response(200)
             self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -549,6 +606,8 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 last_streamed_time = 0
                 while hub.running:
                     with hub.lock:
+                        if not hub.camera_active and hub.active_streamers <= 0:
+                            break
                         frame_to_stream = hub.latest_radar_frame if privacy else hub.latest_rendered_frame
                         current_frame_time = hub.last_seen
                     
@@ -564,7 +623,13 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                             self.wfile.write(b"\r\n")
                     time.sleep(0.025)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-                pass # Client disconnected or reloaded cleanly
+                pass # Client disconnected or paused cleanly
+            finally:
+                with hub.lock:
+                    hub.active_streamers = max(0, hub.active_streamers - 1)
+                    if hub.active_streamers == 0:
+                        hub.camera_active = False
+                    print(f"[-] Client disconnected from video feed (Remaining viewers: {hub.active_streamers}).")
             return
 
         # 404 Fallback
@@ -577,6 +642,35 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        # Explicit Camera Start Endpoint
+        if self.path == "/api/yolo/start":
+            with hub.lock:
+                hub.camera_active = True
+            print("[+] Explicit /api/yolo/start command received: Engaging camera hardware...")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            try:
+                self.wfile.write(json.dumps({"ok": True, "camera_active": True, "camera_led": "ON"}).encode("utf-8"))
+            except Exception:
+                pass
+            return
+
+        # Explicit Camera Stop / Pause Endpoint
+        if self.path in ["/api/yolo/stop", "/api/yolo/pause"]:
+            with hub.lock:
+                hub.camera_active = False
+                hub.active_streamers = 0
+            print("[*] Explicit /api/yolo/stop command received: Powering down camera hardware (LED OFF)...")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            try:
+                self.wfile.write(json.dumps({"ok": True, "camera_active": False, "camera_led": "OFF"}).encode("utf-8"))
+            except Exception:
+                pass
+            return
+
         # Allow triggering a simulated fall for verification test
         if self.path == "/api/yolo/simulate_fall":
             with hub.lock:

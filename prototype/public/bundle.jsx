@@ -3127,6 +3127,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   // Cleanup webcam stream and timers on unmount
   React.useEffect(() => {
     return () => {
+      fetch(`${YOLO_API_BASE}/api/yolo/stop`, { method: "POST" }).catch(() => {});
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -3789,9 +3790,10 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                             onClick={(e) => {
                               e.stopPropagation();
                               setHardwareStreamPaused(true);
+                              fetch(`${YOLO_API_BASE}/api/yolo/stop`, { method: "POST" }).catch(() => {});
                             }}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1"
-                            title="Pause hardware camera stream"
+                            title="Pause hardware camera stream and turn webcam LED off"
                           >
                             <CameraOff className="w-3.5 h-3.5" />
                             <span>Pause Stream</span>
@@ -3942,6 +3944,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" }).catch(() => {});
                                   setPrivacyRadarOnly(false);
                                   setHardwareStreamPaused(false);
                                 }}
@@ -3953,6 +3956,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" }).catch(() => {});
                                   setPrivacyRadarOnly(true);
                                   setHardwareStreamPaused(false);
                                 }}

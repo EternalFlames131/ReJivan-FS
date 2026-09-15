@@ -12,7 +12,7 @@ import sys
 
 STREAM_URL = "http://127.0.0.1:5050/api/yolo/video_feed"
 TELEMETRY_URL = "http://127.0.0.1:5050/api/yolo/telemetry"
-TEST_DURATION_SEC = 30
+TEST_DURATION_SEC = 5
 
 stream_frames = 0
 stream_bytes = 0

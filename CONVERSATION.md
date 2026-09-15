@@ -1190,3 +1190,37 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 3. **Recompiled & Tested:**
    - Web bundle recompiled (`node tools/build_web.js` -> 237.2 KB).
    - Confirmed that loading the Camera Zones view remains in standby until the user explicitly clicks to authorize.
+
+---
+
+## 2026-09-15 (Day 7 — Hardware Webcam LED Always-On Privacy Bug Fix)
+
+### What the user reported:
+- "and my webcam always turned on for it, fix it, it breaks the privacy policy"
+
+### Root Cause:
+- `tools/yolo_edge_sentinel.py` opened `cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)` immediately on process startup in `camera_processing_thread()` and kept `cap.read()` running continuously in a while loop, even when no user had consented to camera monitoring.
+- This caused the physical webcam sensor and LED indicator light on the user's laptop to stay permanently lit, violating the DPDP privacy policy.
+
+### Architectural Fix:
+- **On-Demand Camera Hardware Lifecycle:**
+  1. The camera hardware (`cap`) must NOT be opened on process startup. It must remain completely closed/uninitialized (`cap = None`), ensuring the physical webcam LED stays strictly OFF.
+  2. The camera must ONLY be opened when an active stream subscriber connects to `/api/yolo/video_feed` (i.e. when the user explicitly clicks "Start Camera Sentinel" or "Start Privacy Radar").
+  3. A subscriber reference count (`active_streamers`) or activity heartbeat will track active viewers.
+  4. The moment all viewers disconnect or pause (or after a short idle timeout of 2 seconds with 0 streamers), `cap.release()` is immediately invoked, releasing the hardware device and extinguishing the physical camera LED light.
+  5. Add `/api/yolo/start` and `/api/yolo/stop` endpoints so the frontend or user can explicitly command the hardware camera to engage or disengage on demand.
+
+### Verification & Results:
+- **Default Standby State:** Queried `GET /api/yolo/status` on daemon launch:
+  * `hardware_active`: `false`
+  * `camera_led_state`: `"OFF"`
+  * `status`: `"STANDBY_AWAITING_CONSENT"`
+  * Camera device is completely closed (`cap is None`); physical LED light on the laptop is strictly **OFF**.
+- **On-Demand Activation:** Ran `verify_stream.py` connecting to `/api/yolo/video_feed`:
+  * Daemon immediately opened camera on demand and streamed 102 frames at 20.4 FPS.
+- **Immediate Disengagement:** Upon client disconnection or `POST /api/yolo/stop`:
+  * Daemon immediately executed `cap.release()`, set `cap = None`, and returned to `camera_led_state: "OFF"`.
+- **Frontend Integration (`CameraZonesView.jsx`):**
+  * "Start Camera Sentinel" and "Start Privacy Radar Only" send `POST /api/yolo/start`.
+  * "Pause Stream" and component unmount send `POST /api/yolo/stop`.
+  * Recompiled bundle (`node tools/build_web.js` -> 237.6 KB).

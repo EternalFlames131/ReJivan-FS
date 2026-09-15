@@ -219,4 +219,8 @@
     * `[ Start Camera Sentinel ]` (activates live YOLO stream + pose overlay)
     * `[ Start Privacy Radar Only ]` (activates DPDP radar mode with zero raw video exposed)
     * `[ Use Browser Camera Instead ]` (switches to browser camera prompting native browser permission)
-  - Web bundle recompiled (`node tools/build_web.js` -> 237.2 KB).
+- 2026-09-15 10:25 | HARDWARE WEBCAM PRIVACY FIX (User reported: webcam LED indicator was always on in background):
+  - **Root Cause:** `tools/yolo_edge_sentinel.py` initialized `cv2.VideoCapture` immediately on script startup and continuously looped `cap.read()`, keeping the physical webcam sensor powered and the laptop LED permanently illuminated even when no one was monitoring.
+  - **On-Demand Camera Lifecycle:** Re-architected daemon so the camera hardware is **never opened at startup** (`cap = None`, `camera_led_state: OFF`). The camera only initializes on-demand when an authorized client connects to `/api/yolo/video_feed` or sends `POST /api/yolo/start`.
+  - **Automatic Disengagement:** When the stream ends, the user clicks "Pause Stream", or the client disconnects, `cap.release()` is immediately invoked, releasing the device and turning the physical camera LED indicator light **OFF**.
+  - **Verified:** Tested via `tools/verify_stream.py` and `curl` commands. Confirmed hardware stays completely offline and LED stays OFF until active viewing, and instantly powers down upon exit. Bundle recompiled (`node tools/build_web.js` -> 237.6 KB).
