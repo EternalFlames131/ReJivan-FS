@@ -284,3 +284,8 @@
     * Documented simulated BLE wearables, simulated carrier telecom trunking, serverless Vercel state resets, single-camera 2D occlusion, mobile Android camera parity, and pending competition submission assets.
   - **Structured Strategic Consultation Prompt for ChatGPT:**
     * Embedded a formal copy-paste prompt instructing ChatGPT to act as Senior Clinical Informatics Specialist and IIT Bombay Hackathon Judge to evaluate architecture, provide step-by-step engineering fixes, and craft a winning pitch for a non-technical founder from Andaman & Nicobar.
+
+- **2026-09-15 23:38 | Camera Card Consolidation & Clean Single-Sentinel Interface:**
+  - Consolidated the camera vision interface in `prototype/public/src/components/CameraZonesView.jsx` by removing the two legacy simulated static cards (`cam-1` and `cam-2`), leaving a single, focused, responsive Clinical Vision Sentinel (`max-w-4xl mx-auto`).
+  - Preserved all 4 operational camera modes: Hardware Ultralytics YOLO daemon on `127.0.0.1:5050` (NVIDIA GTX 1650 CUDA), universal in-browser bed-fall demonstration video, local device webcam with real optical flow differencing, and DPDP Act 2023 on-demand privacy radar mode.
+  - Fixed JSX balance and recompiled web bundle (`node tools/build_web.js` &rarr; 244,739 bytes). Validated Babel transformation with zero errors.

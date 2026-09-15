@@ -1376,3 +1376,23 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      * Step-by-step low-cost engineering solutions for each of the 6 issues.
      * Authentic regional founder pitch strategy (Andaman & Nicobar island logistics and referral bottlenecks).
      * 12-month post-hackathon CDSCO SaMD and ABDM sandbox regulatory roadmap.
+
+---
+
+## 2026-09-15 (Day 7 — Camera Card Consolidation & Clean Single-Sentinel Interface)
+
+### What the user asked / what was resumed:
+- Resumed session from interrupted work: consolidate the camera vision interface by removing the two legacy simulated camera panels (Room 302 and Bedside Radar) and keeping only the unified, multi-mode Clinical Vision Sentinel.
+
+### What was completed & verified:
+1. **Camera Feed Consolidation (`CameraZonesView.jsx`):**
+   - Cleaned out the two legacy static demo feed cards (`cam-1` and `cam-2`) along with their unused state hooks and overlays.
+   - Preserved all advanced sentinel capabilities in a single focused, responsive sentinel card (`max-w-4xl mx-auto`):
+     * Hardware Ultralytics YOLO auto-discovery on `127.0.0.1:5050` (NVIDIA GeForce GTX 1650 CUDA).
+     * Universal in-browser Bed-Fall clinical video demonstration with real-time synchronized telemetry and emergency alert latching.
+     * On-device browser webcam monitoring with real optical flow pixel differencing and downward velocity fall detection.
+     * DPDP Act 2023 on-demand privacy radar mode (raw pixels blanked out, kinetic radar grid only).
+2. **Syntax & Build Verification:**
+   - Fixed missing outer wrapper closing tag in `CameraZonesView.jsx`.
+   - Recompiled production bundle via `node tools/build_web.js` (244,739 bytes).
+   - Validated complete JSX transformation through Babel (`prototype/public/vendor/babel.min.js`), confirming zero syntax errors or unclosed tags.
