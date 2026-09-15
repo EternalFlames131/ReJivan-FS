@@ -97,6 +97,10 @@ class SentinelHub:
         # Kinematic Tracking History
         self.prev_com_y = None
         self.prev_time = None
+        self.smooth_velocity = 0.0
+        self.recent_drop_time = 0.0
+        self.recent_drop_velocity = 0.0
+        self.last_high_risk_time = 0.0
         self.immobility_start_time = None
         
         # Telemetry State (Privacy-First Default: Hardware Powered Off)
@@ -129,106 +133,148 @@ hub = SentinelHub()
 def compute_kinematics(keypoints, img_w, img_h, current_time):
     """
     Computes genuine physical biomechanics from COCO 17 keypoints:
-    - Torso Angle theta (0 upright to 90 horizontal)
-    - Center of Mass (CoM) hip midpoint
-    - Downward vertical velocity in m/s
-    - Posture and safety risk classification (H1 Fall vs H2 Sitting vs Normal)
+    - Torso Angle theta (0 upright to 90 horizontal):
+      * Full-body mode: angle between shoulder-midpoint and hip-midpoint.
+      * Upper-body/webcam mode: synthesized from head-to-shoulder tilt and shoulder slope.
+    - Center of Mass (CoM) vertical position and velocity.
+    - Event-based fall detection:
+      * Rapid descent + posture breakdown.
+      * Slump/collapse within 2.5s of rapid downward movement.
+      * Sustained horizontal posture (>50 deg).
     """
-    # Keypoints tensor: shape (17, 3) -> [x, y, confidence]
-    kp = keypoints
+    kp = keypoints # (17, 3) -> [x, y, confidence]
     
-    # Extract shoulder & hip landmarks
-    ls_conf = kp[5][2]
-    rs_conf = kp[6][2]
-    lh_conf = kp[11][2]
-    rh_conf = kp[12][2]
-    
-    has_shoulders = ls_conf > 0.35 and rs_conf > 0.35
-    has_hips = lh_conf > 0.35 and rh_conf > 0.35
-    
-    if not has_shoulders:
+    # 1. Keypoint Availability Checks (Confidence threshold 0.25)
+    has_shoulders = kp[5][2] > 0.25 and kp[6][2] > 0.25
+    has_hips = kp[11][2] > 0.25 and kp[12][2] > 0.25
+    has_head = kp[0][2] > 0.25 or (kp[1][2] > 0.25 and kp[2][2] > 0.25)
+
+    if not has_shoulders and not has_head:
         return {
             "person_detected": True,
-            "torso_angle": 15.0,
-            "downward_velocity": -0.1,
-            "posture": "Partial Upper Body Detected",
+            "torso_angle": 12.0,
+            "downward_velocity": 0.0,
+            "posture": "Partial Detection",
             "risk_level": "SAFE",
-            "confidence": 88.0,
+            "confidence": 80.0,
             "hypothesis": {
-                "id": "H2",
+                "id": "H0",
                 "label": "Partial Subject in View",
-                "mechanism": "Subject partially visible; upper body tracking active."
+                "mechanism": "Key landmark confidence below threshold."
             }
         }
-    
-    sh_x = (kp[5][0] + kp[6][0]) / 2.0
-    sh_y = (kp[5][1] + kp[6][1]) / 2.0
-    
-    if has_hips:
+
+    # 2. Extract Landmarks & Reference Points
+    if has_shoulders:
+        sh_x = (kp[5][0] + kp[6][0]) / 2.0
+        sh_y = (kp[5][1] + kp[6][1]) / 2.0
+        # Shoulder line inclination (tilt to left/right)
+        dx_sh = kp[6][0] - kp[5][0]
+        dy_sh = kp[6][1] - kp[5][1]
+        shoulder_tilt_deg = abs(math.degrees(math.atan2(abs(dy_sh), max(abs(dx_sh), 1.0))))
+    else:
+        sh_x = kp[0][0]
+        sh_y = kp[0][1] + (img_h * 0.15)
+        shoulder_tilt_deg = 0.0
+
+    # Head inclination relative to shoulders
+    head_tilt_deg = 0.0
+    if has_head and has_shoulders:
+        head_x = kp[0][0] if kp[0][2] > 0.25 else (kp[1][0] + kp[2][0]) / 2.0
+        head_y = kp[0][1] if kp[0][2] > 0.25 else (kp[1][1] + kp[2][1]) / 2.0
+        dx_head = head_x - sh_x
+        dy_head = sh_y - head_y # In upright posture, head is above shoulders, so dy_head > 0
+        if dy_head > 12.0:
+            head_tilt_deg = abs(math.degrees(math.atan2(abs(dx_head), dy_head)))
+        else:
+            # Head dropped level with or below shoulders (forward slump/bow/collapse)
+            head_tilt_deg = 60.0 + min(30.0, abs(dy_head) * 1.5)
+
+    # 3. Torso Angle Calculation
+    if has_hips and has_shoulders:
         com_x = (kp[11][0] + kp[12][0]) / 2.0
         com_y = (kp[11][1] + kp[12][1]) / 2.0
-    else:
-        # Fallback: estimate CoM below shoulders
+        dx_torso = sh_x - com_x
+        dy_torso = com_y - sh_y # Positive when shoulders above hips
+        torso_angle_hips = abs(math.degrees(math.atan2(abs(dx_torso), max(dy_torso, 1.0))))
+        torso_angle_deg = round(max(torso_angle_hips, shoulder_tilt_deg, head_tilt_deg), 1)
+    elif has_shoulders:
+        # Upper-body / webcam mode (sitting in front of laptop or hips occluded)
         com_x = sh_x
-        com_y = sh_y + (img_h * 0.25)
-    
-    # Calculate Torso Angle relative to vertical
-    dx = sh_x - com_x
-    dy = sh_y - com_y # Screen Y is inverted (0 at top, increasing downwards)
-    
-    # Vector from hip to shoulder points upwards, so -dy is upward component
-    angle_rad = abs(math.atan2(dx, -dy))
-    torso_angle_deg = round(math.degrees(angle_rad), 1)
-    
-    # Downward velocity calculation (in normalized m/s)
-    velocity_down = -0.1
-    is_rapid_drop = False
-    
+        com_y = sh_y
+        torso_angle_deg = round(max(shoulder_tilt_deg, head_tilt_deg), 1)
+    else:
+        com_x = kp[0][0]
+        com_y = kp[0][1]
+        torso_angle_deg = 50.0
+
+    # Clamp torso angle to [0, 90]
+    torso_angle_deg = min(90.0, max(0.0, torso_angle_deg))
+
+    # 4. Vertical Velocity Calculation
+    velocity_down = 0.0
     if hub.prev_com_y is not None and hub.prev_time is not None:
         dt = max(current_time - hub.prev_time, 0.015)
         dy_pixels = com_y - hub.prev_com_y
-        # Positive dy_pixels means moving DOWNWARDS on screen
-        # Normalize by frame height: assume frame height ~ 2.5 meters in room view
-        velocity_down = round((dy_pixels / img_h) / dt * 2.5, 2)
-        if velocity_down > 1.35 and torso_angle_deg > 55.0:
-            is_rapid_drop = True
-    
+        instant_vel = (dy_pixels / img_h) / dt * 2.2
+        hub.smooth_velocity = 0.60 * instant_vel + 0.40 * hub.smooth_velocity
+        velocity_down = round(hub.smooth_velocity, 2)
+        
+        # Record rapid drop event if velocity exceeds 0.50 m/s
+        if velocity_down > 0.50:
+            hub.recent_drop_time = current_time
+            hub.recent_drop_velocity = velocity_down
+
     hub.prev_com_y = com_y
     hub.prev_time = current_time
+
+    # 5. Multi-Hypothesis Fall Detection Decision
+    is_recent_drop = (current_time - hub.recent_drop_time) < 2.5
     
-    # Classification of physical hypotheses
-    if is_rapid_drop or (torso_angle_deg > 65.0 and com_y > img_h * 0.65):
-        # H1: Acute Fall Trajectory or On-Floor Horizontal Posture
+    # Fall trigger criteria:
+    # 1. High downward speed while tilting/slumping
+    fall_active = (velocity_down > 0.55 and torso_angle_deg > 30.0)
+    # 2. Recent rapid drop (<2.5s ago) and posture is now collapsed (>38 deg) or low in frame
+    fall_post_drop = is_recent_drop and (torso_angle_deg > 38.0 or com_y > img_h * 0.65)
+    # 3. Severe horizontal collapse (>55 deg)
+    fall_severe = torso_angle_deg > 55.0
+
+    is_fall = fall_active or fall_post_drop or fall_severe
+
+    if is_fall:
+        hub.last_high_risk_time = current_time
+
+    # Alert Latch: maintain high risk for 4.0s unless resident restores upright posture (<20 deg)
+    is_latched = (current_time - hub.last_high_risk_time < 4.0) and (torso_angle_deg > 22.0)
+
+    if is_fall or is_latched:
         risk_level = "HIGH_RISK"
         posture = "Acute Fall / Horizontal Floor Contact"
         hypothesis = {
             "id": "H1",
-            "label": "Sudden Fall & Impact Trajectory",
-            "mechanism": f"Rapid downward translation ({velocity_down} m/s) with torso collapse to {torso_angle_deg}°."
+            "label": "Sudden Fall Event Detected",
+            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) with torso breakdown to {torso_angle_deg}°."
         }
-        confidence = 97.4
-    elif torso_angle_deg > 50.0:
-        # H3: Lying / Reclined
+        confidence = 98.8
+    elif torso_angle_deg > 30.0 or velocity_down > 0.45:
         risk_level = "CAUTION"
         posture = "Reclined / Transitioning Posture"
         hypothesis = {
             "id": "H3",
             "label": "Low Posture / Transitioning",
-            "mechanism": f"Torso inclination at {torso_angle_deg}°. Monitoring posture stability."
+            "mechanism": f"Torso inclination at {torso_angle_deg}° (Descent: {velocity_down} m/s). Monitoring stability."
         }
-        confidence = 94.2
-    elif velocity_down > 0.75 and torso_angle_deg < 35.0:
-        # H2: Controlled Sitting
+        confidence = 94.5
+    elif velocity_down > 0.35 and torso_angle_deg < 25.0:
         risk_level = "SAFE"
         posture = "Controlled Sitting / Intentional Descent"
         hypothesis = {
             "id": "H2",
             "label": "Controlled Sitting",
-            "mechanism": f"Gradual descent ({velocity_down} m/s) with upright spine ({torso_angle_deg}°); intentional sitting confirmed."
+            "mechanism": f"Controlled descent ({velocity_down} m/s) with upright spine ({torso_angle_deg}°)."
         }
-        confidence = 98.1
+        confidence = 98.2
     else:
-        # Normal Upright Posture
         risk_level = "SAFE"
         posture = "Upright Ambulation / Nominal"
         hypothesis = {
@@ -237,11 +283,11 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
             "mechanism": f"Upright equilibrium maintained (Torso {torso_angle_deg}°). Biomechanics nominal."
         }
         confidence = 99.0
-        
+
     return {
         "person_detected": True,
         "torso_angle": torso_angle_deg,
-        "downward_velocity": -velocity_down, # Report negative for downward in UI convention
+        "downward_velocity": -velocity_down,
         "posture": posture,
         "risk_level": risk_level,
         "confidence": confidence,
@@ -455,19 +501,41 @@ def camera_processing_thread():
         r = results[0]
         
         persons_count = len(r.boxes) if r.boxes is not None else 0
-        kinematics_data = {
-            "person_detected": False,
-            "posture": "Perimeter Clear (No Subject)",
-            "risk_level": "SAFE",
-            "confidence": 99.2,
-            "torso_angle": 0.0,
-            "downward_velocity": 0.0,
-            "hypothesis": {
-                "id": "H0",
-                "label": "Room Perimeter Clear",
-                "mechanism": "Zero subjects detected in monitored camera zone."
+        h_img, w_img = frame.shape[:2]
+
+        # Check for Floor Occlusion Fall (Rapid drop followed by subject falling below camera frame)
+        is_recent_drop = (current_time - hub.recent_drop_time < 2.5) and hub.prev_com_y is not None and (hub.prev_com_y > h_img * 0.40)
+        is_latch = (current_time - hub.last_high_risk_time < 4.0)
+
+        if is_recent_drop or is_latch:
+            hub.last_high_risk_time = current_time
+            kinematics_data = {
+                "person_detected": False,
+                "posture": "Acute Fall / Subject Below Camera View",
+                "risk_level": "HIGH_RISK",
+                "confidence": 98.2,
+                "torso_angle": 75.0,
+                "downward_velocity": -abs(hub.recent_drop_velocity or 0.8),
+                "hypothesis": {
+                    "id": "H1",
+                    "label": "Floor Occlusion Fall",
+                    "mechanism": "Rapid vertical drop followed by subject falling below camera field of view."
+                }
             }
-        }
+        else:
+            kinematics_data = {
+                "person_detected": False,
+                "posture": "Perimeter Clear (No Subject)",
+                "risk_level": "SAFE",
+                "confidence": 99.2,
+                "torso_angle": 0.0,
+                "downward_velocity": 0.0,
+                "hypothesis": {
+                    "id": "H0",
+                    "label": "Room Perimeter Clear",
+                    "mechanism": "Zero subjects detected in monitored camera zone."
+                }
+            }
         
         keypoints_formatted = []
         primary_bbox = None

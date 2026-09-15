@@ -1224,3 +1224,34 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   * "Start Camera Sentinel" and "Start Privacy Radar Only" send `POST /api/yolo/start`.
   * "Pause Stream" and component unmount send `POST /api/yolo/stop`.
   * Recompiled bundle (`node tools/build_web.js` -> 237.6 KB).
+
+---
+
+## 2026-09-15 (Day 7 — Fall Detection Sensitivity & Kinematic Calibration)
+
+### What the user asked:
+- "why is not detecting fall at all?"
+
+### Root Causes Discovered:
+1. **Torso Angle Hardcoded to 0.0° in Webcam Mode:** When testing with a laptop or desk webcam, only head and shoulders are visible; hips are occluded. In `compute_kinematics`, when `has_hips` was False, `com_x` was set to `sh_x`, making `dx = 0` and locking `torso_angle_deg` at `0.0°` forever. Because `HIGH_RISK` required `torso_angle > 55°`, a fall could never mathematically trigger!
+2. **Instantaneous Velocity Check vs Post-Impact Stillness:** The old code checked `velocity_down > 1.35 and torso_angle > 55` in the exact same 40ms frame. In reality, maximum downward velocity occurs during descent ($V_y \approx 0.6–1.0$ m/s), whereas high torso angle occurs upon floor impact/stillness ($V_y \approx 0$).
+3. **Disappearance Classified as "SAFE":** When a person dropped below the camera frame bottom, `persons_count == 0` was unconditionally classified as `"Perimeter Clear (SAFE)"` instead of detecting a Floor Occlusion Fall.
+4. **Frontend Alert Banner Excluded Hardware YOLO:** `CameraZonesView.jsx` checked `(isWebcamActive && webcamTelemetry.riskLevel === "HIGH_RISK")`. Since `isWebcamActive` was only true for browser mode, the banner never responded to hardware YOLO!
+
+### Engineering Fixes Delivered:
+1. **Multi-Axis Kinematics Synthesis (`tools/yolo_edge_sentinel.py`):**
+   - Synthesizes posture from head-to-shoulder axis (`head_tilt_deg`) and shoulder tilt slope (`shoulder_tilt_deg`) whenever hips are occluded by desk or camera framing.
+   - When a person bows, leans forward, slumps onto the desk, or collapses sideways, `torso_angle_deg` accurately measures the actual tilt angle.
+2. **Event-Latched Impact Window:**
+   - Detects rapid downward movement ($V_y > 0.50$ m/s) and latches an impact window for 2.5 seconds.
+   - If torso angle collapses ($> 38^\circ$) or subject drops low in the frame within 2.5s of descent, it triggers `HIGH_RISK`.
+   - Alert holds for 4.0s unless upright posture ($< 22^\circ$) is safely restored.
+3. **Floor Occlusion Fall Detection:**
+   - If a subject rapidly translates downward and then disappears off the bottom edge (`persons_count == 0`), it detects an acute floor fall.
+4. **Frontend Alert Wiring (`CameraZonesView.jsx`):**
+   - Calls `onTriggerAlert(true)` when `HIGH_RISK` occurs from YOLO telemetry.
+   - Updated the Alert Banner to respond to `webcamTelemetry.riskLevel === "HIGH_RISK"` (rose red, bouncing icon, alert text) and `CAUTION` (amber).
+5. **Comprehensive Verification (`tools/test_fall_kinematics.py`):**
+   - 6/6 tests passed: Upright (SAFE), Webcam No-Hips Upright (SAFE), Sideways Collapse (CAUTION/HIGH_RISK), Forward Slump/Head Drop (HIGH_RISK), Rapid Descent (HIGH_RISK), and HTTP Fall Simulation (HIGH_RISK).
+
+

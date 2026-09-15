@@ -3,3 +3,5 @@
 tools/autosaver.log
 *.pt
 *.onnx
+__pycache__/
+*.py[cod]

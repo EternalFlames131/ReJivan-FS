@@ -127,11 +127,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             };
           });
 
-          if (data.risk_level === "HIGH_RISK" && onTriggerVerification && !dropSimTimerRef.current) {
-            onTriggerVerification("trip_fall");
-            dropSimTimerRef.current = setTimeout(() => {
-              dropSimTimerRef.current = null;
-            }, 6000);
+          if (data.risk_level === "HIGH_RISK") {
+            if (onTriggerAlert) onTriggerAlert(true);
+            if (onTriggerVerification && !dropSimTimerRef.current) {
+              onTriggerVerification("trip_fall");
+              dropSimTimerRef.current = setTimeout(() => {
+                dropSimTimerRef.current = null;
+              }, 6000);
+            }
           }
         }
       } catch (e) {}
@@ -623,26 +626,32 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       {/* Alert Banner alongside the feed */}
       <div
         className={`p-4 rounded-xl border transition-all ${
-          simulatedAlert || (isWebcamActive && webcamTelemetry.riskLevel === "HIGH_RISK")
-            ? "bg-rose-50 border-rose-200 text-rose-900"
+          simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+            ? "bg-rose-50 border-rose-300 text-rose-950 shadow-sm"
+            : webcamTelemetry.riskLevel === "CAUTION"
+            ? "bg-amber-50 border-amber-300 text-amber-950 shadow-sm"
             : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
         }`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            {simulatedAlert || (isWebcamActive && webcamTelemetry.riskLevel === "HIGH_RISK") ? (
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK" ? (
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 animate-bounce" />
+            ) : webcamTelemetry.riskLevel === "CAUTION" ? (
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             ) : (
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             )}
             <div>
               <span className="text-xs font-bold uppercase tracking-wider">
-                {simulatedAlert || (isWebcamActive && webcamTelemetry.riskLevel === "HIGH_RISK")
-                  ? "Alert: Sudden Motion / Rapid Downward Event Detected"
-                  : "Continuous Fall &amp; Motion Sentinel Active"}
+                {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+                  ? "Alert: Acute Fall / Sudden Downward Impact Detected"
+                  : webcamTelemetry.riskLevel === "CAUTION"
+                  ? "Caution: Transitioning / Reclined Body Posture"
+                  : "Continuous Fall & Motion Sentinel Active"}
               </span>
               <p className="text-xs mt-0.5 text-slate-700">
-                {isWebcamActive
+                {(isWebcamActive || (localYoloActive && !hardwareStreamPaused))
                   ? webcamTelemetry.consensusSummary
                   : simulatedAlert
                   ? "Patient rose rapidly from living room armchair. Radar monitoring stability for 30s before family alert escalation."
@@ -651,10 +660,10 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             </div>
           </div>
           <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-700 shrink-0">
-            {isWebcamActive && webcamTelemetry.riskLevel === "HIGH_RISK"
+            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
               ? "Critical Fall Event"
-              : simulatedAlert
-              ? "Caution Alert Active"
+              : webcamTelemetry.riskLevel === "CAUTION"
+              ? "Caution: Low Posture"
               : "Sentinel Status: Nominal"}
           </span>
         </div>
