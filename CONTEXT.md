@@ -94,6 +94,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 - [x] P2.4: Resident Verification & Proportional Escalation: 4-option verification dialog in `ResidentCheckinModal.jsx` ("I'm Okay", "I Fell (Minor)", "Need Help", "Device Drop") plus upright recovery auto-cancellation.
 - [x] P3.1: Incident Reconstruction UI: Interactive dashboard panel in `IncidentReconstructionPanel.jsx` displaying 3 confidence scores, 9 competing hypotheses, counterfactual explanations, and 30s chronological timeline.
 - [x] P3.2: False-Positive Test Lab: Automated test suite in `tools/test_false_positive_lab.py` running all 23 deterministic scenarios with 100% pass rate (22 false alarms suppressed + 1 genuine fall alerted). Unit test suite `tools/test_fall_kinematics.py` also 7/7 passed.
+- [x] P0.5: Resolve "YOLO is not working" diagnostic & single-click launcher: (1) Diagnosed browser mixed-content/PNA barrier on HTTPS cloud link and lack of active local processes; (2) Configured UTF-8 encoding and ASCII hyphens across all scripts; (3) Added Access-Control-Allow-Private-Network header to YOLO daemon; (4) Created single-click root launcher `Start-ReJivan.bat` launching Node (8080) + YOLO (5050) + browser seamlessly; (5) Verified all 7 system endpoints and 100% test pass rate.
 
 
 

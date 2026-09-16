@@ -14,6 +14,12 @@ from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import numpy as np
 
+# Configure UTF-8 encoding for standard output on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # Verify dependencies
 try:
     import cv2
@@ -29,7 +35,7 @@ except ImportError:
     sys.exit(1)
 
 print("=" * 72)
-print("   ReJivan Real Edge Sentinel Daemon — Ultralytics YOLO-Pose")
+print("   ReJivan Real Edge Sentinel Daemon - Ultralytics YOLO-Pose")
 print("   Hardware Platform: System Camera & GPU Acceleration")
 print("=" * 72)
 
@@ -882,6 +888,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "0")

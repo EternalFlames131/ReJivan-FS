@@ -298,11 +298,19 @@
 
 - **2026-09-16 09:12 | Multimodal Elderly-Safety Engine: OBSERVE → RECONSTRUCT → CORROBORATE → REASON → VERIFY → RESPOND:**
   - **Live Camera False Alert Bug Root-Caused & Eliminated:** Resolved infinite latch bug, initial source latch, track acquisition derivative velocity spikes, desk-framing misclassifications, and browser webcam auto-exposure luminosity transients.
-  - **Formal Camera Lifecycle:** Implemented `CAMERA_OFFLINE` -> `CAMERA_STARTING` -> `CAMERA_CALIBRATING` (30-35 frames) -> `MONITORING` in both `tools/yolo_edge_sentinel.py` and `prototype/public/src/components/CameraZonesView.jsx` with derivative suppression requiring 3-4 consecutive frames.
+  - **Formal Camera Lifecycle:** Implemented `CAMERA_OFFLINE` -> `CAMERA_STARTING` -> `CAMERA_CALIBRATING` (30-35 frames) -> `MONITORING` with derivative suppression requiring 3-4 consecutive frames.
   - **Edge YOLO Heartbeat & Watchdog Resilience:** Added `/api/yolo/heartbeat` polling (2.5s beat, 6s timeout). Edge disconnection triggers `EDGE_OFFLINE` / `MONITORING_DEGRADED` in system health without triggering a patient emergency.
-  - **Decoupled Alert Architecture & Canonical Events Contract:** Created `prototype/canonical-events.js` (`v2.1.0`) with 9 physical mechanisms, recovery tracking, idempotent event IDs, and server ingestion (`GET/POST /api/canonical-events`, `POST /api/canonical-events/:id/verify`). Alert engine strictly consumes verified events.
-  - **9-Hypothesis Multimodal Engine & Counterfactual Reasoning (`movement-engine.js`):** Bayesian likelihood scoring comparing Normal Walking, Sitting, Lying, Kneeling, Trip, Loss of Balance, Fall, Fall with Immobility, and Unknown. Evaluates negative evidence (chair proximity, controlled descent, recovery, tracking quality) and outputs 3 distinct confidences (Detection, Mechanism, Severity).
-  - **4-Option Resident Verification Modal (`ResidentCheckinModal.jsx`):** Supports "I'm Okay", "I Fell (Minor / No Injury)", "I Need Emergency Help", and "Device Drop (Phone Dropped)" with 30s countdown and upright recovery auto-cancellation.
+  - **Decoupled Alert Architecture & Canonical Events Contract:** Created `prototype/canonical-events.js` (`v2.1.0`) with 9 physical mechanisms, recovery tracking, idempotent event IDs, and server ingestion.
+  - **9-Hypothesis Multimodal Engine & Counterfactual Reasoning (`movement-engine.js`):** Bayesian likelihood scoring across 9 mechanisms with counterfactual negative evidence and 3 distinct confidences (Detection, Mechanism, Severity).
+  - **4-Option Resident Verification Modal (`ResidentCheckinModal.jsx`):** Supports "I'm Okay", "I Fell (Minor)", "Need Help", and "Device Drop" with upright recovery auto-cancellation.
   - **Separate Patient Health vs System Health UI (`CameraZonesView.jsx`):** Two-pillar status grid isolating Clinical Resident Safety from Technical Infrastructure.
-  - **Automated Validation Labs:** `tools/test_fall_kinematics.py` (7/7 unit tests passed) and `tools/test_false_positive_lab.py` (23/23 deterministic scenarios passed with 100% precision). Rebuilt production bundle (`tools/build_web.js` -> 268,449 bytes).
+  - **Automated Validation Labs:** `tools/test_fall_kinematics.py` (7/7 passed) and `tools/test_false_positive_lab.py` (23/23 passed with 100% precision).
+
+- **2026-09-16 09:35 | YOLO Operational Resolution & Single-Click Launcher (Port 5050/8080):**
+  - **Diagnosed "YOLO is not working":** (1) Background processes were stopped at session start; (2) Browsers strictly enforce W3C Mixed Content and Private Network Access (PNA) security blocking requests from the public cloud site (`https://rejivan2.vercel.app`) to local loopback (`http://127.0.0.1:5050`); (3) ReJivan gracefully uses Universal In-Browser AI on the cloud URL, while local hardware YOLO connects on `http://localhost:8080`.
+  - **Hardened Hardware Edge Daemon:** Added UTF-8 stdout reconfiguration in `tools/yolo_edge_sentinel.py` for Windows consoles, replaced unicode em-dashes across scripts, and added `Access-Control-Allow-Private-Network: true` to CORS headers.
+  - **Created Single-Click Root Launcher (`Start-ReJivan.bat`):** Double-clickable root batch file that silently spins up the YOLO Sentinel (port 5050), starts the Node web server (port 8080), and opens `http://localhost:8080` in the user's browser automatically.
+  - **End-to-End Verification:** Verified all 7 API endpoints 100% operational; 7/7 unit tests passed; 23/23 false-positive lab scenarios passed.
+
+
 

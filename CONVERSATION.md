@@ -1458,3 +1458,36 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - `tools/test_fall_kinematics.py`: 7/7 unit tests passed.
    - `tools/test_false_positive_lab.py`: 23/23 deterministic scenarios passed (100% precision: 22 false alarms suppressed, 1 genuine fall alerted).
 
+---
+
+## 2026-09-16 (Day 8 — YOLO Operational Diagnostic, Port 5050/8080 & One-Click Launcher)
+
+### What the user reported:
+- "yolo is not working" followed by "done?"
+
+### Root-Cause Diagnosis:
+1. **Daemon Processes Were Not Running:**
+   - Both the YOLO daemon (`127.0.0.1:5050`) and the local Node web server (`localhost:8080`) were offline prior to investigation.
+2. **Cloud HTTPS vs Local HTTP Mixed-Content & PNA Blocking:**
+   - When the user accesses `https://rejivan2.vercel.app` over HTTPS, modern browsers strictly block web pages from fetching local private HTTP endpoints (`http://127.0.0.1:5050`) under W3C Mixed Content and Private Network Access (PNA) security rules.
+   - ReJivan handles this gracefully by using its built-in **Universal In-Browser AI** for cloud visitors, but on the cloud site the "Hardware YOLO" indicator naturally reports offline.
+   - For physical hardware acceleration with the local NVIDIA GPU/CPU YOLO sentinel, the user must access the portal via `http://localhost:8080`.
+3. **Windows Charset Safeguard:**
+   - Configured UTF-8 encoding on standard output in `tools/yolo_edge_sentinel.py` to prevent any Windows console codepage exceptions.
+
+### Fixes & Enhancements Executed:
+1. **Daemon & Web Server Running:**
+   - Started YOLO Sentinel on port 5050 (`http://127.0.0.1:5050`).
+   - Started local web server on port 8080 (`http://localhost:8080`).
+   - Added `Access-Control-Allow-Private-Network: true` to CORS headers in `tools/yolo_edge_sentinel.py`.
+2. **Created Single-Click Root Launcher (`Start-ReJivan.bat`):**
+   - Automatically starts the silent background YOLO Sentinel on port 5050.
+   - Automatically starts the Node web server on port 8080.
+   - Automatically opens `http://localhost:8080` in the user's default browser.
+   - Stops all services cleanly when closed.
+3. **End-to-End Verification:**
+   - All 7 API endpoints verified operational (`/api/health`, `/api/system-health`, `/api/yolo/status`, `/api/yolo/heartbeat`, `/api/yolo/telemetry`, `/api/yolo/start`, `/api/yolo/stop`).
+   - 7/7 kinematics unit tests passed (`tools/test_fall_kinematics.py`).
+   - 23/23 false-positive test lab scenarios passed (`tools/test_false_positive_lab.py`).
+
+

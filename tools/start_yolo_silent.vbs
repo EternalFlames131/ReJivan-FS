@@ -1,4 +1,4 @@
-' ReJivan — Start YOLO Sentinel silently in the background (No terminal window)
+' ReJivan - Start YOLO Sentinel silently in the background (No terminal window)
 Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
