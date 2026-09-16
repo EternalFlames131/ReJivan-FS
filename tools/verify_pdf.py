@@ -4,7 +4,7 @@
 import sys
 from pypdf import PdfReader
 
-path = sys.argv[1] if len(sys.argv) > 1 else "docs/ReJivan_Concept_Document_v1.1.pdf"
+path = sys.argv[1] if len(sys.argv) > 1 else "docs/ReJivan_Features_And_Recommended_Fixes.pdf"
 r = PdfReader(path)
 text = "".join(p.extract_text() for p in r.pages)
 low = text.lower()
