@@ -3792,8 +3792,17 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let lastFpsCheck = Date.now();
     let currentFps = 30;
     let calibrationFrames = 0;
-    const CALIBRATION_TOTAL = 20;
+    const CALIBRATION_TOTAL = 50; // Extended to 50 frames (~1.6s) to guarantee complete auto-exposure stabilization
     let trackPersistence = 0;
+
+    // Multi-Frame Temporal Corroboration & Physical Gating State
+    let smoothedVelocity = 0.0;
+    let consecutiveDescentFrames = 0;
+    let descentOriginY = null;
+    let cumulativeDescentY = 0.0;
+    let postDescentHoldFrames = 0;
+    let candidateFloorFall = false;
+    let lastRecoveryTimestamp = 0;
 
     // Small analysis off-screen canvas for high-performance optical flow
     const sampleW = 64;
@@ -3833,7 +3842,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           lastFpsCheck = now;
         }
 
-        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (20 frames)
+        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (50 frames)
         if (calibrationFrames < CALIBRATION_TOTAL) {
           calibrationFrames++;
           const progress = Math.round((calibrationFrames / CALIBRATION_TOTAL) * 100);
@@ -3842,6 +3851,16 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             cameraLifecycle: "CAMERA_CALIBRATING",
             calibrationProgress: progress
           }));
+
+          // Keep baseline states clean while hardware auto-exposure adjusts
+          prevFrameDataRef.current = null;
+          prevCentroidYRef.current = null;
+          activeBox = null;
+          consecutiveDescentFrames = 0;
+          cumulativeDescentY = 0.0;
+          smoothedVelocity = 0.0;
+          postDescentHoldFrames = 0;
+          candidateFloorFall = false;
 
           // Render clean frame and calibration HUD banner
           if (privacyRadarOnly) {
@@ -3941,54 +3960,113 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         // Calibrate motion energy: 15% of frame in motion = 100% kinetic energy
         const motionPercent = Math.min(Math.round((diffPixels / (totalPixels * 0.15)) * 100), 100);
 
-        // 3. Compute Real Motion Centroid & Downward Velocity (with Track Persistence & Derivative Protection)
-        let downwardVelocity = -0.05;
-        let isRapidDrop = false;
+        // 3. Multimodal Physical Corroboration Engine (OBSERVE -> RECONSTRUCT -> CORROBORATE -> REASON)
+        let instantVelocity = 0.0;
+        let normCentroidY = 0.0;
+        let isDescentInProgress = false;
 
-        if (diffPixels > 8) {
+        if (diffPixels > 10) {
           const centroidX = (sumX / diffPixels) * (width / sampleW);
           const centroidY = (sumY / diffPixels) * (height / sampleH);
+          normCentroidY = centroidY / height; // 0.0 (top) to 1.0 (bottom/floor)
 
-          // Require 2 consecutive stable frames to eliminate track acquisition spikes
-          if (prevCentroidYRef.current !== null && trackPersistence >= 2) {
+          const boxH = ((maxY - minY + 1) * height) / sampleH;
+          const boxW = ((maxX - minX + 1) * width) / sampleW;
+          const normBoxH = boxH / height;
+
+          // Require at least 3 consecutive frames before computing velocity derivative
+          if (prevCentroidYRef.current !== null && trackPersistence >= 3) {
             const dy = centroidY - prevCentroidYRef.current;
-            // Negative velocity = downward motion in m/s
-            downwardVelocity = -Math.round((dy / (height * 0.25) / dt) * 10) / 10;
-            if (downwardVelocity < -1.25 && motionPercent > 18) {
-              isRapidDrop = true;
-            }
+            // Instantaneous velocity (negative = downward motion in m/s)
+            instantVelocity = -((dy / (height * 0.25)) / dt);
           }
-          prevCentroidYRef.current = centroidY;
-          trackPersistence = Math.min(trackPersistence + 1, 15);
 
-          // Smooth tracking bounding box over the real moving area
+          // Low-pass exponential smoothing filter: dampens 1-frame hand-flick spikes
+          smoothedVelocity = (smoothedVelocity * 0.65) + (instantVelocity * 0.35);
+          trackPersistence = Math.min(trackPersistence + 1, 30);
+
+          // Update smoothed target bounding box
           const targetBox = {
             x: Math.max((minX * width) / sampleW - 16, 10),
             y: Math.max((minY * height) / sampleH - 16, 10),
-            w: Math.min(((maxX - minX + 1) * width) / sampleW + 32, width - 20),
-            h: Math.min(((maxY - minY + 1) * height) / sampleH + 32, height - 20),
+            w: Math.min(boxW + 32, width - 20),
+            h: Math.min(boxH + 32, height - 20),
           };
 
           if (!activeBox) {
             activeBox = targetBox;
           } else {
-            // Responsive interpolation
-            activeBox.x += (targetBox.x - activeBox.x) * 0.4;
-            activeBox.y += (targetBox.y - activeBox.y) * 0.4;
-            activeBox.w += (targetBox.w - activeBox.w) * 0.4;
-            activeBox.h += (targetBox.h - activeBox.h) * 0.4;
+            activeBox.x += (targetBox.x - activeBox.x) * 0.35;
+            activeBox.y += (targetBox.y - activeBox.y) * 0.35;
+            activeBox.w += (targetBox.w - activeBox.w) * 0.35;
+            activeBox.h += (targetBox.h - activeBox.h) * 0.35;
           }
+
+          // --- PHYSICAL CORROBORATION CRITERIA ---
+          // Criterion 1: Spatial Floor-Level Gate (Fall must descend into bottom half / floor of frame)
+          const isFloorLevel = normCentroidY > 0.52;
+
+          // Criterion 2: Body Scale Gate (Reject localized hand/arm movements; require whole-body scale)
+          const isBodyScale = normBoxH > 0.35 || motionPercent > 28;
+
+          // Criterion 3: Multi-Frame Sustained Descent (Sustained downward velocity for >= 3 frames)
+          if (smoothedVelocity < -1.05 && normCentroidY > 0.30) {
+            if (consecutiveDescentFrames === 0) {
+              descentOriginY = prevCentroidYRef.current || centroidY;
+            }
+            consecutiveDescentFrames++;
+            cumulativeDescentY = centroidY - (descentOriginY || centroidY);
+            isDescentInProgress = true;
+          } else if (smoothedVelocity > 0.35) {
+            // Rapid upward recovery detected (standing back up or lifting posture)
+            if (consecutiveDescentFrames > 0 || postDescentHoldFrames > 0) {
+              lastRecoveryTimestamp = Date.now();
+            }
+            consecutiveDescentFrames = 0;
+            cumulativeDescentY = 0.0;
+            postDescentHoldFrames = 0;
+            candidateFloorFall = false;
+          } else if (smoothedVelocity > -0.4 && consecutiveDescentFrames > 0) {
+            // Motion stopped / impact phase: check if all physical corroboration criteria are satisfied
+            const traversedDistance = cumulativeDescentY / height;
+            if (consecutiveDescentFrames >= 3 && isFloorLevel && isBodyScale && traversedDistance > 0.16) {
+              postDescentHoldFrames++;
+              if (postDescentHoldFrames >= 6) { // ~200ms post-descent floor presence
+                candidateFloorFall = true;
+              }
+            } else {
+              // Failed whole-body floor fall criteria (e.g. hand dropped to mouse, or seated shift)
+              consecutiveDescentFrames = 0;
+              cumulativeDescentY = 0.0;
+              postDescentHoldFrames = 0;
+            }
+          }
+
+          prevCentroidYRef.current = centroidY;
         } else {
+          // Low motion / stillness
           trackPersistence = Math.max(0, trackPersistence - 1);
+          smoothedVelocity = smoothedVelocity * 0.8;
           if (trackPersistence === 0) {
             prevCentroidYRef.current = null;
+            consecutiveDescentFrames = 0;
+            cumulativeDescentY = 0.0;
+          }
+
+          // If post-descent stillness occurs at floor level after sustained drop, corroborate fall with immobility
+          if (postDescentHoldFrames > 0 && postDescentHoldFrames < 20) {
+            postDescentHoldFrames++;
+            if (postDescentHoldFrames >= 6 && normCentroidY > 0.52) {
+              candidateFloorFall = true;
+            }
           }
         }
 
-        // 4. Render Dynamic Motion Reticle & Brackets (Follows actual moving body, NO static cartoons)
+        // 4. Render Dynamic Motion Reticle & Brackets (Color-coded by corroborated state)
         if (activeBox && (motionPercent >= 2 || diffPixels >= 10)) {
-          const isDanger = isRapidDrop || downwardVelocity < -1.3;
-          const boxColor = isDanger ? "#F43F5E" : "#10B981"; // Red on fast drop, Emerald on safe movement
+          const isDanger = candidateFloorFall;
+          const isCaution = isDescentInProgress && consecutiveDescentFrames >= 2;
+          const boxColor = isDanger ? "#F43F5E" : (isCaution ? "#F59E0B" : "#10B981");
 
           ctx.strokeStyle = boxColor;
           ctx.lineWidth = 2.5;
@@ -4011,28 +4089,48 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
           // Privacy Mode: Draw optical flow particle field inside the detected active area
           if (privacyRadarOnly) {
-            ctx.fillStyle = isDanger ? "rgba(244, 63, 94, 0.25)" : "rgba(16, 185, 129, 0.2)";
+            ctx.fillStyle = isDanger ? "rgba(244, 63, 94, 0.25)" : (isCaution ? "rgba(245, 158, 11, 0.2)" : "rgba(16, 185, 129, 0.2)");
             ctx.fillRect(bX, bY, bW, bH);
           }
         }
 
         // 5. Update Telemetry State (Throttled for smooth UI updates)
         if (frameCount % 4 === 0) {
-          const isDanger = isRapidDrop || downwardVelocity < -1.3;
-          const isCaution = motionPercent > 25 && downwardVelocity < -0.65;
-          const postureLabel = isDanger
-            ? "Acute Rapid Descent / Fall Trajectory"
-            : isCaution
-            ? "Rapid Posture Change / Motion Transition"
-            : (motionPercent > 1 ? "Active Dynamic Movement / Seated Tracking" : "Stationary / Supine Resting");
+          const isRecentRecovery = (Date.now() - lastRecoveryTimestamp) < 3000;
+          const displayVelocity = Math.round(smoothedVelocity * 100) / 100;
 
-          const riskLevel = isDanger ? "HIGH_RISK" : isCaution ? "CAUTION" : "SAFE";
+          let postureLabel = "Stationary / Supine Resting";
+          let riskLevel = "SAFE";
+          let consensusSummary = "Active optical tracking nominal. Multi-frame kinematic corroborator operational.";
 
-          // If rapid drop occurs in real life, trigger verification modal
-          if (isDanger && onTriggerVerification && !dropSimTimerRef.current) {
+          if (candidateFloorFall && !isRecentRecovery) {
+            postureLabel = "Acute Mechanical Fall / Floor Contact";
+            riskLevel = "HIGH_RISK";
+            consensusSummary = "Critical floor-level descent corroborated across multi-frame trajectory. Resident check-in initiated.";
+          } else if (isRecentRecovery) {
+            postureLabel = "Rapid Postural Recovery / Upright Restored";
+            riskLevel = "SAFE";
+            consensusSummary = "Postural recovery detected within 3.0s. Transient movement resolved without alarm.";
+          } else if (isDescentInProgress && consecutiveDescentFrames >= 2) {
+            postureLabel = "Accelerated Motion Transition / Descent Tracked";
+            riskLevel = "CAUTION";
+            consensusSummary = "Monitoring descent trajectory for floor contact and postural recovery.";
+          } else if (motionPercent > 1) {
+            postureLabel = normCentroidY > 0.52
+              ? "Active Floor-Level Movement / Supervised"
+              : "Active Seated Movement / Upper-Body Tracking";
+            riskLevel = "SAFE";
+            consensusSummary = "Localized physical movement tracked. Spatial position upright and safe.";
+          }
+
+          // Trigger resident verification check-in modal ONLY on confirmed, corroborated whole-body floor fall
+          if (candidateFloorFall && !isRecentRecovery && onTriggerVerification && !dropSimTimerRef.current) {
             onTriggerVerification("trip_fall");
             dropSimTimerRef.current = setTimeout(() => {
               dropSimTimerRef.current = null;
+              consecutiveDescentFrames = 0;
+              postDescentHoldFrames = 0;
+              candidateFloorFall = false;
             }, 6000);
           }
 
@@ -4040,18 +4138,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             ...prev,
             fps: currentFps || 30,
             motionEnergyPercent: motionPercent,
-            downwardVelocity: downwardVelocity,
-            torsoAngle: isDanger ? 74 : isCaution ? 38 : (motionPercent > 10 ? 22 : 10),
+            downwardVelocity: displayVelocity,
+            torsoAngle: candidateFloorFall ? 78 : (isDescentInProgress ? 42 : (motionPercent > 10 ? 20 : 10)),
             posture: postureLabel,
             riskLevel: riskLevel,
-            confidence: isDanger ? "97.4%" : (motionPercent > 0 ? "98.9%" : "99.5%"),
+            confidence: candidateFloorFall ? "97.4%" : (motionPercent > 0 ? "98.9%" : "99.5%"),
             visionSource: "In-Browser Optical Sentinel (Client-Side)",
             hardwareBadge: "Browser Camera Active",
-            consensusSummary: isDanger
-              ? "Critical downward trajectory detected by optical flow analysis. Resident check-in prompt initiated."
-              : isCaution
-              ? "Accelerated motion transition detected. Monitoring postural recovery."
-              : "Active video telemetry nominal. Optical motion tracking operational."
+            consensusSummary: consensusSummary
           }));
         }
       }

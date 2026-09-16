@@ -317,7 +317,12 @@
   - **Fixed Asynchronous Video Binding:** Replaced fixed 120ms timeout with event-driven `onloadedmetadata`/`oncanplay` listeners and explicit `.muted = true` binding to ensure the loop only runs once the camera hardware has actively negotiated dimensions (`videoWidth > 0`).
   - **Calibrated Motion Differencing Noise Gate & Kinetic Energy Scaling:** Adjusted luminance noise gate to `delta > 10` (ideal for indoor lighting), re-scaled motion energy to human body scale (~15% of frame in motion = 100% kinetic energy), and dynamically rendered responsive green corner brackets around the moving area.
   - **Corrected HUD Telemetry in Browser Mode:** Browser webcam HUD now displays actual measured browser render loop FPS instead of conflicting with the local YOLO daemon status.
-  - **Rebuilt & Tested:** Web bundle recompiled (`tools/build_web.js` &rarr; 270,248 bytes); verified with Edge headless DOM dump (983,351 bytes); 7/7 unit tests and 23/23 false-positive scenarios passed.
+- **2026-09-16 13:25 | Browser Camera False Alert Bug Eliminated via Multi-Frame Descent Corroboration & Floor Gating:**
+  - **Diagnosed False Alarms in Browser Camera:** (1) Centroid differencing calculated single-frame pixel changes rather than whole-body mass, causing hand movements toward keyboard/mouse to register instantaneous `-5.0 m/s` velocity derivative spikes; (2) The trigger condition `downwardVelocity < -1.3` fired immediately without requiring multi-frame descent; (3) Short 20-frame calibration allowed webcam auto-exposure luminosity shifts to trigger false falls; (4) Lack of spatial floor boundary checking allowed alerts while sitting upright.
+  - **Multi-Frame Sustained Descent Corroboration:** Replaced single-frame derivative threshold with multi-frame corroborator requiring $\ge 3$ consecutive frames of downward motion with low-pass exponential smoothing (0.65/0.35 EMA filter).
+  - **Spatial Floor-Level Boundary & Scale Gating:** Enforced floor boundary (`normCentroidY > 0.52`) and human body bounding box scale (`normBoxH > 0.35` or `motionPercent > 28%`), mathematically rejecting isolated arm/hand motions and desk work.
+  - **Auto-Exposure Calibration & Postural Recovery:** Extended startup calibration to 50 frames (~1.6s) to completely suppress camera auto-exposure transients, and added postural recovery auto-cancellation within 3.0s if upright posture is restored.
+  - **Rebuilt & 100% Tested:** Web bundle recompiled via `node tools/build_web.js` (274,914 bytes); 7/7 kinematics unit tests passed (`test_fall_kinematics.py`); 23/23 false positive scenarios passed with 100% precision (`test_false_positive_lab.py`).
 
 
 

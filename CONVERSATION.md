@@ -1536,6 +1536,31 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - HUD in browser mode now correctly displays real measured browser render FPS (`currentFps || 30`).
 4. **Rebuilt & Verified:** Rebuilt web bundle via `node tools/build_web.js` (270,248 bytes); verified DOM render via Edge headless (983,351 characters, 0 errors); 7/7 kinematics unit tests passed; 23/23 false positive lab scenarios passed.
 
+---
+
+## 2026-09-16 (Day 8 — Browser Camera False Alert & Motion Sensitivity Elimination)
+
+### What the user reported:
+- "the browser camera feed sends false alert without proper motion detection, fix it immedeiatelt"
+
+### Root-Cause Diagnosis in `CameraZonesView.jsx`:
+1. **Raw Single-Frame Derivative Spike Coupling:**
+   - In optical differencing, `centroidY` tracks pixel change distribution rather than actual human skeleton center of mass.
+   - When a user moves their hand down toward a keyboard/mouse or shifts in their chair, the difference centroid jumps 30–60 pixels across 1 frame (33ms). At 30 FPS (`dt ≈ 0.033s`), `dy / dt` registers as `-5 m/s` to `-15 m/s` for that single frame.
+   - The code had `const isDanger = isRapidDrop || downwardVelocity < -1.3; if (isDanger && onTriggerVerification) { onTriggerVerification("trip_fall"); }` directly triggering an emergency verification modal on a single frame spike!
+2. **Camera Auto-Exposure Startup Glitch:**
+   - Webcams take 40–60 frames (1.2–2.0s) for hardware auto-exposure gain to stabilize. A 20-frame calibration caused auto-exposure shifts to be interpreted as a sudden vertical drop right as the camera turned on.
+3. **Absence of Spatial Floor Boundary & Scale Gate:**
+   - Falls require the body center to descend toward the lower half/floor of the frame (`centroidY > height * 0.52`). An elevated hand or head movement was triggering falls while sitting upright.
+4. **No Post-Descent Immobility / Postural Recovery Corroboration:**
+   - In real falls, rapid drop is followed by impact and stillness. Normal hand gestures or sitting shifts are immediately followed by upright stability or continuous motion.
+
+### Engineering Solution in Progress:
+1. Increase auto-exposure calibration window to 50 frames (~1.6s).
+2. Implement multi-frame sustained descent corroborator (require >= 3 consecutive frames of downward velocity < -1.1 m/s).
+3. Enforce spatial floor boundary check (`centroidY > height * 0.52`) and bounding box scale filter (`targetBox.h > height * 0.38`).
+4. Replace raw instantaneous trigger with post-descent confirmation window and postural recovery auto-cancellation.
+
 
 
 
