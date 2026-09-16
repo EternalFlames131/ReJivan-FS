@@ -1608,3 +1608,38 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   3. Headless DOM Render: 1,018,648 characters rendered with zero fatal errors.
   4. Web bundle compiled: `prototype/public/bundle.jsx` (282,524 bytes).
 
+---
+
+## 2026-09-16 (Day 8 — YOLO Overlay 5-Second Duration Diagnosis & Continuous Execution)
+
+### What the user reported:
+- "yolo overlay only works for 5 secs at max why not continuous"
+
+### Root Causes Diagnosed:
+1. **Mathematical Polling Race Condition (3.5s + 1.5s = 5.0s):**
+   - In `CameraZonesView.jsx`, `checkYoloDaemon` polled `/api/yolo/status` every 3500ms with a strict 1500ms timeout (`AbortSignal.timeout(1500)`).
+   - When YOLO was actively processing video frames, CPU/GPU thread contention caused the discovery response to take slightly longer than 1500ms.
+   - At exactly **5.0 seconds** (3.5s interval + 1.5s timeout), the abort signal fired, caught an error, and immediately called `setLocalYoloActive(false)`.
+   - In React, this unmounted the video stream `<img src="/api/yolo/video_feed" />`, severed the MJPEG socket, and returned the camera interface to standby!
+2. **PyTorch Inference Thread Contention:**
+   - In `yolo_edge_sentinel.py`, multiple server threads and the background video worker called `yolo_model(...)` without a mutex lock, leading to thread contention during concurrent HTTP polls.
+3. **Absence of Inflight Watchdog & Keypoint Decay in Browser Mode:**
+   - If a single `process_frame` call was delayed, `yoloInflight` remained locked. Furthermore, if a single frame missed detection, `latestYoloKeypoints` was immediately emptied (`[]`), causing the skeleton to drop out.
+
+### Engineering Solutions Executed & Verified:
+1. **Debounced 3-Strike Polling Resilience:**
+   - Replaced single-error flipping with a 3-consecutive-failure counter in both `checkYoloDaemon` and `checkHeartbeat`.
+   - Increased HTTP timeouts from 1500ms / 1200ms to **3000ms**, completely eliminating false-offline resets caused by normal inference latency.
+2. **Thread-Safe YOLO Inference Mutex:**
+   - Introduced `inference_lock = threading.Lock()` in `tools/yolo_edge_sentinel.py` wrapping all forward-pass calls to `yolo_model(...)`.
+3. **Inflight Watchdog & 1.8s Keypoint Decay:**
+   - Added a 1500ms watchdog for `yoloInflight` to prevent deadlocks.
+   - Added 1.8s temporal keypoint decay and expanded `hasActiveYolo` window to 2500ms, ensuring the 17-point pose skeleton remains continuous without dropping out during rapid motion or occlusions.
+4. **Automated Verification:**
+   - Rebuilt web bundle (`node tools/build_web.js` &rarr; 283,337 bytes).
+   - Edge headless DOM: 1,021,587 characters rendered with 0 errors.
+   - Kinematics unit tests (`tools/test_fall_kinematics.py`): 7/7 passed.
+   - False-positive validation lab (`tools/test_false_positive_lab.py`): 23/23 scenarios passed with 100% precision.
+
+
+

@@ -3378,14 +3378,16 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   // Poll Local Hardware YOLO Sentinel Daemon (NVIDIA GTX 1650 on 127.0.0.1:5050)
   React.useEffect(() => {
     let isCancelled = false;
+    let daemonFailures = 0;
     const checkYoloDaemon = async () => {
       try {
         const res = await fetch(`${YOLO_API_BASE}/api/yolo/status`, {
           method: "GET",
           headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined,
+          signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
         });
         if (res.ok && !isCancelled) {
+          daemonFailures = 0;
           const data = await res.json();
           setLocalYoloActive(true);
           setLocalYoloInfo(data);
@@ -3396,13 +3398,19 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             fps: Math.round(data.fps || 58)
           }));
         } else if (!isCancelled) {
-          setLocalYoloActive(false);
-          setLocalYoloInfo(null);
+          daemonFailures++;
+          if (daemonFailures >= 3) {
+            setLocalYoloActive(false);
+            setLocalYoloInfo(null);
+          }
         }
       } catch (e) {
         if (!isCancelled) {
-          setLocalYoloActive(false);
-          setLocalYoloInfo(null);
+          daemonFailures++;
+          if (daemonFailures >= 3) {
+            setLocalYoloActive(false);
+            setLocalYoloInfo(null);
+          }
         }
       }
     };
@@ -3415,17 +3423,19 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     };
   }, []);
 
-  // Dedicated Edge Sentinel Heartbeat & Watchdog (Every 2.5s)
+  // Dedicated Edge Sentinel Heartbeat & Watchdog (Every 2.5s with debounced 3-strike resilience)
   React.useEffect(() => {
     let isCancelled = false;
+    let hbFailures = 0;
     const checkHeartbeat = async () => {
       try {
         const res = await fetch(`${YOLO_API_BASE}/api/yolo/heartbeat`, {
           method: "GET",
           headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout ? AbortSignal.timeout(1200) : undefined,
+          signal: AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined,
         });
         if (res.ok && !isCancelled) {
+          hbFailures = 0;
           const hb = await res.json();
           setSystemHealth((prev) => ({
             ...prev,
@@ -3438,22 +3448,28 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             degradedReason: null
           }));
         } else if (!isCancelled) {
-          // Graceful edge degradation: System Health changes, Patient Health remains NOMINAL (never trigger alert on edge offline!)
-          setSystemHealth((prev) => ({
-            ...prev,
-            edgeStatus: "EDGE_OFFLINE",
-            cameraLifecycle: "CAMERA_OFFLINE",
-            degradedReason: "Edge sentinel unreachable. In-browser computer vision active."
-          }));
+          hbFailures++;
+          if (hbFailures >= 3) {
+            // Graceful edge degradation: System Health changes, Patient Health remains NOMINAL (never trigger alert on edge offline!)
+            setSystemHealth((prev) => ({
+              ...prev,
+              edgeStatus: "EDGE_OFFLINE",
+              cameraLifecycle: "CAMERA_OFFLINE",
+              degradedReason: "Edge sentinel unreachable. In-browser computer vision active."
+            }));
+          }
         }
       } catch (e) {
         if (!isCancelled) {
-          setSystemHealth((prev) => ({
-            ...prev,
-            edgeStatus: "EDGE_OFFLINE",
-            cameraLifecycle: "CAMERA_OFFLINE",
-            degradedReason: "Edge sentinel offline. Universal browser fallback active."
-          }));
+          hbFailures++;
+          if (hbFailures >= 3) {
+            setSystemHealth((prev) => ({
+              ...prev,
+              edgeStatus: "EDGE_OFFLINE",
+              cameraLifecycle: "CAMERA_OFFLINE",
+              degradedReason: "Edge sentinel offline. Universal browser fallback active."
+            }));
+          }
         }
       }
     };
@@ -3942,7 +3958,12 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
         // 1.5 Pipeline: Stream browser video frame to local YOLO Sentinel on port 5050 if available
         const nowMs = Date.now();
-        if (!yoloInflight && (nowMs - lastYoloFetchTime >= 100)) {
+        // Inflight watchdog: prevent any stalled network promise from freezing the frame loop
+        if (yoloInflight && (nowMs - lastYoloFetchTime > 1500)) {
+          yoloInflight = false;
+        }
+
+        if (!yoloInflight && (nowMs - lastYoloFetchTime >= 120)) {
           yoloInflight = true;
           lastYoloFetchTime = nowMs;
           yoloSnapCtx.drawImage(video, 0, 0, 320, 240);
@@ -3955,7 +3976,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               method: "POST",
               headers: { "Content-Type": "image/jpeg" },
               body: blob,
-              signal: AbortSignal.timeout ? AbortSignal.timeout(600) : undefined
+              signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined
             })
               .then((res) => {
                 if (!res.ok) throw new Error("YOLO offline");
@@ -3968,9 +3989,11 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                   latestYoloKinematics = data;
                   lastYoloSuccessTime = Date.now();
                 } else if (data.ok && !data.person_detected) {
-                  latestYoloKeypoints = [];
+                  // Temporal smoothing: keep rendering skeleton across brief occlusions or motion blur
+                  if (Date.now() - lastYoloSuccessTime > 1800) {
+                    latestYoloKeypoints = [];
+                  }
                   latestYoloKinematics = data;
-                  lastYoloSuccessTime = Date.now();
                 }
               })
               .catch(() => {
@@ -4126,7 +4149,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         }
 
         // 4. Render Dynamic Motion Reticle & Brackets or Real YOLO Skeleton
-        const hasActiveYolo = latestYoloKeypoints && latestYoloKeypoints.length > 0 && (Date.now() - lastYoloSuccessTime < 1200);
+        const hasActiveYolo = latestYoloKeypoints && latestYoloKeypoints.length > 0 && (Date.now() - lastYoloSuccessTime < 2500);
 
         if (hasActiveYolo) {
           // --- RENDER 17-KEYPOINT ULTRALYTICS YOLO-POSE SKELETON ON BROWSER WEBCAM ---

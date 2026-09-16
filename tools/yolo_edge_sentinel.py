@@ -86,8 +86,9 @@ KEYPOINT_NAMES = [
     "left_knee", "right_knee", "left_ankle", "right_ankle"
 ]
 
-# Thread-safe global state
-# Thread-safe global state
+# Thread-safe global state & inference mutex
+inference_lock = threading.Lock()
+
 class SentinelHub:
     def __init__(self):
         self.lock = threading.Lock()
@@ -749,7 +750,8 @@ def camera_processing_thread():
 
         # Run Ultralytics YOLO Pose Inference with latency measurement
         t_infer_start = time.time()
-        results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
+        with inference_lock:
+            results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
         hub.last_inference_latency = time.time() - t_infer_start
         r = results[0]
         
@@ -1045,7 +1047,8 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     raise ValueError("Failed to decode image frame")
 
                 h_img, w_img = frame.shape[:2]
-                results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
+                with inference_lock:
+                    results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
                 r = results[0]
 
                 persons_count = len(r.boxes) if r.boxes is not None else 0
