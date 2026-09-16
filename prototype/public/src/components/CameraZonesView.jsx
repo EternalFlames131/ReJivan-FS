@@ -14,6 +14,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(true);
   const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
 
+  // Formal System Infrastructure Health State (Strictly separated from Patient Health)
+  const [systemHealth, setSystemHealth] = React.useState({
+    edgeStatus: "EDGE_OFFLINE", // 'EDGE_ONLINE' | 'EDGE_DEGRADED' | 'EDGE_OFFLINE'
+    cameraLifecycle: "CAMERA_OFFLINE", // 'CAMERA_OFFLINE' | 'CAMERA_STARTING' | 'CAMERA_CALIBRATING' | 'MONITORING'
+    calibrationProgress: 0, // 0 to 100%
+    lastHeartbeat: null,
+    latencyMs: 18,
+    trackedPersons: 0,
+    fps: 0,
+    degradedReason: null
+  });
+
   // Local Device Webcam & In-Browser Demo States
   const [activeVideoSource, setActiveVideoSource] = React.useState("bed_fall_demo"); // 'bed_fall_demo' or 'webcam'
   const [isWebcamActive, setIsWebcamActive] = React.useState(false);
@@ -99,6 +111,57 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     };
   }, []);
 
+  // Dedicated Edge Sentinel Heartbeat & Watchdog (Every 2.5s)
+  React.useEffect(() => {
+    let isCancelled = false;
+    const checkHeartbeat = async () => {
+      try {
+        const res = await fetch(`${YOLO_API_BASE}/api/yolo/heartbeat`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(1200) : undefined,
+        });
+        if (res.ok && !isCancelled) {
+          const hb = await res.json();
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: hb.edge_status || "EDGE_ONLINE",
+            cameraLifecycle: hb.camera_status || (hb.camera_active ? "MONITORING" : "CAMERA_OFFLINE"),
+            lastHeartbeat: Date.now(),
+            latencyMs: hb.latency_ms || 18,
+            trackedPersons: hb.tracked_persons || 0,
+            fps: Math.round(hb.fps || 0),
+            degradedReason: null
+          }));
+        } else if (!isCancelled) {
+          // Graceful edge degradation: System Health changes, Patient Health remains NOMINAL (never trigger alert on edge offline!)
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: "EDGE_OFFLINE",
+            cameraLifecycle: "CAMERA_OFFLINE",
+            degradedReason: "Edge sentinel unreachable. In-browser computer vision active."
+          }));
+        }
+      } catch (e) {
+        if (!isCancelled) {
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: "EDGE_OFFLINE",
+            cameraLifecycle: "CAMERA_OFFLINE",
+            degradedReason: "Edge sentinel offline. Universal browser fallback active."
+          }));
+        }
+      }
+    };
+
+    checkHeartbeat();
+    const hbInterval = setInterval(checkHeartbeat, 2500);
+    return () => {
+      isCancelled = true;
+      clearInterval(hbInterval);
+    };
+  }, []);
+
   // Live High-Frequency Telemetry Stream from Local YOLO Daemon
   React.useEffect(() => {
     if (!localYoloActive || hardwareStreamPaused) return;
@@ -112,8 +175,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         if (res.ok && !isCancelled) {
           const data = await res.json();
           setWebcamTelemetry((prev) => {
-            const isDanger = data.risk_level === "HIGH_RISK";
-            const isCaution = data.risk_level === "CAUTION";
             return {
               ...prev,
               fps: Math.round(data.fps || (localYoloInfo && localYoloInfo.fps) || 24),
@@ -129,10 +190,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             };
           });
 
+          // Decoupled Alert Architecture: Consumes Canonical Event and initiates Resident Checkin
           if (data.risk_level === "HIGH_RISK") {
-            if (onTriggerAlert) onTriggerAlert(true);
-            if (onTriggerVerification && !dropSimTimerRef.current) {
-              onTriggerVerification("trip_fall");
+            const canonical = data.canonical_event;
+            // Negative evidence check: Rapid postural recovery auto-cancels alert
+            if (canonical && canonical.recoveryStatus === "RECOVERED_RAPID") {
+              // Upright recovery confirmed, alarm suppressed
+            } else if (onTriggerVerification && !dropSimTimerRef.current) {
+              const mechanism = canonical?.probableMechanism || "trip_fall";
+              onTriggerVerification(mechanism);
               dropSimTimerRef.current = setTimeout(() => {
                 dropSimTimerRef.current = null;
               }, 6000);
@@ -189,7 +255,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
       if (!demoAlarmLatchedRef.current) {
         demoAlarmLatchedRef.current = true;
-        if (onTriggerAlert) onTriggerAlert(true);
         if (onTriggerVerification && !dropSimTimerRef.current) {
           onTriggerVerification("trip_fall");
           dropSimTimerRef.current = setTimeout(() => {
@@ -386,6 +451,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let frameCount = 0;
     let lastFpsCheck = Date.now();
     let currentFps = 30;
+    let calibrationFrames = 0;
+    const CALIBRATION_TOTAL = 30;
+    let trackPersistence = 0;
 
     // Small analysis off-screen canvas for high-performance optical flow
     const sampleW = 64;
@@ -423,6 +491,44 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           currentFps = frameCount;
           frameCount = 0;
           lastFpsCheck = now;
+        }
+
+        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (30 frames)
+        if (calibrationFrames < CALIBRATION_TOTAL) {
+          calibrationFrames++;
+          const progress = Math.round((calibrationFrames / CALIBRATION_TOTAL) * 100);
+          setSystemHealth((prev) => ({
+            ...prev,
+            cameraLifecycle: "CAMERA_CALIBRATING",
+            calibrationProgress: progress
+          }));
+
+          // Render clean frame and calibration HUD banner
+          if (privacyRadarOnly) {
+            ctx.fillStyle = "#090D16";
+            ctx.fillRect(0, 0, width, height);
+          } else {
+            ctx.drawImage(video, 0, 0, width, height);
+          }
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.fillRect(20, 20, width - 40, 48);
+          ctx.strokeStyle = "#38BDF8";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(20, 20, width - 40, 48);
+          ctx.fillStyle = "#38BDF8";
+          ctx.font = "bold 13px monospace";
+          ctx.fillText(`CALIBRATING SENSOR: Establishing optical baseline... (${progress}%)`, 36, 49);
+
+          animFrameRef.current = requestAnimationFrame(render);
+          return;
+        } else if (calibrationFrames === CALIBRATION_TOTAL) {
+          calibrationFrames++;
+          setSystemHealth((prev) => ({
+            ...prev,
+            cameraLifecycle: "MONITORING",
+            calibrationProgress: 100
+          }));
         }
 
         // 1. Draw Clean Camera Frame OR DPDP Privacy Radar Grid
@@ -466,7 +572,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
         if (prevFrameDataRef.current) {
           const prev = prevFrameDataRef.current;
-          const totalSamplePixels = sampleW * sampleH;
 
           for (let i = 0; i < data.length; i += 4) {
             // Luminance = 0.299R + 0.587G + 0.114B
@@ -494,7 +599,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         const totalPixels = sampleW * sampleH;
         const motionPercent = Math.min(Math.round((diffPixels / totalPixels) * 100), 100);
 
-        // 3. Compute Real Motion Centroid & Downward Velocity
+        // 3. Compute Real Motion Centroid & Downward Velocity (with Track Persistence & Derivative Protection)
         let downwardVelocity = -0.1;
         let isRapidDrop = false;
 
@@ -502,7 +607,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           const centroidX = (sumX / diffPixels) * (width / sampleW);
           const centroidY = (sumY / diffPixels) * (height / sampleH);
 
-          if (prevCentroidYRef.current !== null) {
+          // Require 3 consecutive stable frames to eliminate track reacquisition velocity spikes
+          if (prevCentroidYRef.current !== null && trackPersistence >= 3) {
             const dy = centroidY - prevCentroidYRef.current;
             // Negative velocity = downward motion in m/s
             downwardVelocity = -Math.round((dy / (height * 0.35) / dt) * 10) / 10;
@@ -511,6 +617,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             }
           }
           prevCentroidYRef.current = centroidY;
+          trackPersistence++;
 
           // Smooth tracking bounding box over the real moving area
           const targetBox = {
@@ -529,6 +636,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             activeBox.w += (targetBox.w - activeBox.w) * 0.3;
             activeBox.h += (targetBox.h - activeBox.h) * 0.3;
           }
+        } else {
+          trackPersistence = 0;
+          prevCentroidYRef.current = null;
         }
 
         // 4. Render Dynamic Motion Reticle & Brackets (Follows actual moving body, NO static cartoons)
@@ -620,7 +730,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       consensusSummary: "[Gemini Clinical Synthesis] Sudden high-velocity floor impact observed (-1.94 m/s). Resident verification prompt initiated."
     }));
 
-    if (onTriggerAlert) onTriggerAlert(true);
     if (onTriggerVerification) {
       onTriggerVerification("trip_fall");
     }
@@ -741,7 +850,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           <button
             onClick={() => {
               setSimulatedAlert(!simulatedAlert);
-              if (onTriggerAlert) onTriggerAlert(!simulatedAlert);
+              if (!simulatedAlert && onTriggerVerification) {
+                onTriggerVerification("trip_fall");
+              }
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               simulatedAlert
@@ -754,49 +865,100 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
       </div>
 
-      {/* Alert Banner alongside the feed */}
-      <div
-        className={`p-4 rounded-xl border transition-all ${
-          simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-            ? "bg-rose-50 border-rose-300 text-rose-950 shadow-sm"
-            : webcamTelemetry.riskLevel === "CAUTION"
-            ? "bg-amber-50 border-amber-300 text-amber-950 shadow-sm"
-            : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
-        }`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK" ? (
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 animate-bounce" />
-            ) : webcamTelemetry.riskLevel === "CAUTION" ? (
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            )}
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider">
-                {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-                  ? "Alert: Acute Fall / Sudden Downward Impact Detected"
-                  : webcamTelemetry.riskLevel === "CAUTION"
-                  ? "Caution: Transitioning / Reclined Body Posture"
-                  : "Continuous Fall & Motion Sentinel Active"}
-              </span>
-              <p className="text-xs mt-0.5 text-slate-700">
-                {(isWebcamActive || (localYoloActive && !hardwareStreamPaused))
-                  ? webcamTelemetry.consensusSummary
-                  : simulatedAlert
-                  ? "Patient rose rapidly from living room armchair. Radar monitoring stability for 30s before family alert escalation."
-                  : "Motion sentinel active: Zero fall risk detected. Resident resting safely in room perimeter."}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-700 shrink-0">
-            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-              ? "Critical Fall Event"
+      {/* Two-Pillar Telemetry Grid: Separate Patient Health from System Health */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Pillar 1: Patient Safety & Biomechanics Status */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+              ? "bg-rose-50 border-rose-300 text-rose-950 shadow-xs"
               : webcamTelemetry.riskLevel === "CAUTION"
-              ? "Caution: Low Posture"
-              : "Sentinel Status: Nominal"}
-          </span>
+              ? "bg-amber-50 border-amber-300 text-amber-950 shadow-xs"
+              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK" ? (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 animate-bounce" />
+              ) : webcamTelemetry.riskLevel === "CAUTION" ? (
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              )}
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                  Resident Safety Status (Clinical)
+                </span>
+                <span className="text-xs font-bold text-slate-900">
+                  {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+                    ? "Suspected Incident &bull; Verification Window Active"
+                    : webcamTelemetry.riskLevel === "CAUTION"
+                    ? "Postural Transition &bull; Monitoring Equilibrium"
+                    : "Patient Nominal &bull; Upright &amp; Stable"}
+                </span>
+              </div>
+            </div>
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+                ? "bg-rose-600 text-white"
+                : webcamTelemetry.riskLevel === "CAUTION"
+                ? "bg-amber-500 text-white"
+                : "bg-emerald-600 text-white"
+            }`}>
+              {webcamTelemetry.riskLevel}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
+            {webcamTelemetry.consensusSummary}
+          </p>
+        </div>
+
+        {/* Pillar 2: System Health & Edge Sentinel Infrastructure Status */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            systemHealth.edgeStatus === "EDGE_ONLINE" && systemHealth.cameraLifecycle === "MONITORING"
+              ? "bg-slate-900 text-white border-slate-800"
+              : systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
+              ? "bg-sky-950 text-sky-100 border-sky-800"
+              : "bg-slate-100 text-slate-800 border-slate-300"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Activity className={`w-4 h-4 shrink-0 ${
+                systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
+              }`} />
+              <div>
+                <span className={`text-[10px] uppercase font-bold tracking-wider block ${
+                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-slate-400" : "text-slate-500"
+                }`}>
+                  System Health &amp; Sentinel Infrastructure
+                </span>
+                <span className="text-xs font-bold">
+                  {systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
+                    ? `Camera Calibrating (${systemHealth.calibrationProgress}%)`
+                    : systemHealth.edgeStatus === "EDGE_ONLINE"
+                    ? "Edge GPU Online &bull; Local Daemon Active"
+                    : "Edge Offline &bull; Browser AI Active (Degraded)"}
+                </span>
+              </div>
+            </div>
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              systemHealth.edgeStatus === "EDGE_ONLINE"
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
+            }`}>
+              {systemHealth.edgeStatus}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-2 text-[11px] font-mono opacity-85">
+            <span>Latency: {systemHealth.latencyMs}ms</span>
+            <span>&bull;</span>
+            <span>Sensor: {systemHealth.cameraLifecycle}</span>
+            <span>&bull;</span>
+            <span>Rate: {systemHealth.fps || webcamTelemetry.fps} FPS</span>
+          </div>
         </div>
       </div>
 

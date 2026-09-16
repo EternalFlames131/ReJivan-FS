@@ -1,9 +1,9 @@
 // prototype/public/src/components/ResidentCheckinModal.jsx
-// Interactive Resident Verification Dialog with 30-Second Countdown & Auto-Cancellation
+// Multimodal Resident Verification Dialog with 30-Second Countdown, 4 Proportional Responses & Postural Auto-Cancellation
 
-const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed }) => {
+const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse }) => {
   const [timeLeft, setTimeLeft] = React.useState(30);
-  const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'emergency' | 'picked_up'
+  const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'minor_fall' | 'emergency' | 'device_drop' | 'picked_up' | 'timeout_emergency'
 
   // Reset timer on open
   React.useEffect(() => {
@@ -20,6 +20,13 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
     if (timeLeft <= 0) {
       setResolvedStatus("timeout_emergency");
       if (onEmergencyConfirmed) onEmergencyConfirmed();
+      if (onVerificationResponse) {
+        onVerificationResponse({
+          status: "TIMED_OUT",
+          severity: "CRITICAL",
+          note: "30-second resident verification window expired with zero response. Automatic emergency escalation triggered."
+        });
+      }
       return;
     }
 
@@ -28,24 +35,78 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, timeLeft, resolvedStatus]);
+  }, [isOpen, timeLeft, resolvedStatus, onEmergencyConfirmed, onVerificationResponse]);
 
   if (!isOpen) return null;
 
+  // 1. "I'm Okay (False Alarm)"
   const handleImOkay = () => {
     setResolvedStatus("safe");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "VERIFIED_SAFE",
+        severity: "NORMAL",
+        note: "Resident actively pressed 'I'm Okay'. False alarm logged and suppressed."
+      });
+    }
     setTimeout(() => {
       onClose();
     }, 1800);
   };
 
+  // 2. "I Fell (Minor / No Injury)"
+  const handleMinorFall = () => {
+    setResolvedStatus("minor_fall");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "RESOLVED_WITH_CARE_NOTE",
+        severity: "CAUTION",
+        note: "Resident confirmed minor slip without acute injury. Logged to caregiver timeline; ambulance dispatch avoided."
+      });
+    }
+    setTimeout(() => {
+      onClose();
+    }, 2400);
+  };
+
+  // 3. "I Need Emergency Help"
   const handleNeedHelp = () => {
     setResolvedStatus("emergency");
     if (onEmergencyConfirmed) onEmergencyConfirmed();
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "ASSISTANCE_REQUESTED",
+        severity: "CRITICAL",
+        note: "Resident urgently requested assistance. Activating emergency call chain and 108 dispatch."
+      });
+    }
   };
 
+  // 4. "Device Drop (Phone Dropped)"
+  const handleDeviceDrop = () => {
+    setResolvedStatus("device_drop");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "DEVICE_DROP_RESOLVED",
+        severity: "NORMAL",
+        note: "Impact confirmed as phone/device drop rather than human fall. System returned to nominal monitoring."
+      });
+    }
+    setTimeout(() => {
+      onClose();
+    }, 2000);
+  };
+
+  // 5. Postural Recovery Simulation
   const handleSimulatePickup = () => {
     setResolvedStatus("picked_up");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "RECOVERED_RAPID",
+        severity: "NORMAL",
+        note: "Computer vision confirmed vertical postural recovery within grace window. Alarm auto-suppressed."
+      });
+    }
     setTimeout(() => {
       onClose();
     }, 1800);
@@ -64,7 +125,7 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
             </span>
           </div>
           <span className="text-xs font-mono font-bold bg-white/20 px-2 py-0.5 rounded">
-            15–30s Grace Window
+            30s Grace Window
           </span>
         </div>
 
@@ -89,33 +150,53 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               </div>
 
               <h3 className="text-lg font-bold text-slate-900 mt-3">
-                Did you slip or experience an accidental fall?
+                Did you experience an accidental fall?
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                A sudden downward displacement with high-impact deceleration was observed by room monitoring. Please verify your status to prevent emergency escalation.
+                A sudden downward movement with deceleration impact was observed. Please select your current status to prevent emergency sirens or ambulance calls.
               </p>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+              {/* 4 Proportional Action Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5">
+                {/* 1. I'm Okay */}
                 <button
                   onClick={handleImOkay}
-                  className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-98"
+                  className="w-full py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
                 >
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4" />
                   <span>I'm Okay (False Alarm)</span>
                 </button>
 
+                {/* 2. Minor Slip / No Injury */}
+                <button
+                  onClick={handleMinorFall}
+                  className="w-full py-3 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>I Fell (Minor / No Injury)</span>
+                </button>
+
+                {/* 3. Emergency Assistance */}
                 <button
                   onClick={handleNeedHelp}
-                  className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 animate-pulse"
+                  className="w-full py-3 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 animate-pulse"
                 >
-                  <PhoneCall className="w-5 h-5" />
+                  <PhoneCall className="w-4 h-4" />
                   <span>I Need Emergency Help</span>
+                </button>
+
+                {/* 4. Phone Drop */}
+                <button
+                  onClick={handleDeviceDrop}
+                  className="w-full py-3 px-3 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Device Drop (Phone Dropped)</span>
                 </button>
               </div>
 
               {/* Posture Recovery Option */}
-              <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              <div className="mt-5 pt-3.5 border-t border-slate-100 text-center">
                 <button
                   onClick={handleSimulatePickup}
                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1.5 transition-colors"
@@ -123,7 +204,7 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
                   <span>🔄 Simulate resident stood back up / recovered upright posture</span>
                 </button>
                 <span className="block text-[10px] text-slate-400 mt-0.5">
-                  Vision sentinel auto-cancels false alarms when upright equilibrium is restored within 5s
+                  Vision sentinel auto-cancels alerts when upright equilibrium is restored within 5s
                 </span>
               </div>
             </>
@@ -135,6 +216,26 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               <h4 className="text-base font-bold text-slate-900">Resident Verified Safe</h4>
               <p className="text-xs text-slate-500 mt-1">
                 False alarm suppressed. Event logged to micro-audit trail as Self-Resolved.
+              </p>
+            </div>
+          ) : resolvedStatus === "minor_fall" ? (
+            <div className="py-8 animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-900">Minor Event Logged</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Care note recorded for family & nurse. Emergency sirens and ambulance dispatch avoided.
+              </p>
+            </div>
+          ) : resolvedStatus === "device_drop" ? (
+            <div className="py-8 animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto mb-3">
+                <Smartphone className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-900">Device Drop Suppressed</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Sensor impact attributed to dropped hardware. Fall alarm cancelled.
               </p>
             </div>
           ) : resolvedStatus === "picked_up" ? (

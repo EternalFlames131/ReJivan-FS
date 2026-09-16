@@ -33,6 +33,16 @@ const {
   DEVICE_CATALOGUE, getPatientDevices, deviceConfidenceForVitals,
   getCatalogue, getCatalogueItem,
 } = require("./medical-devices");
+const {
+  EVENT_STATES,
+  PHYSICAL_MECHANISMS,
+  SYSTEM_HEALTH_STATES,
+  RECOVERY_STATUS,
+  VERIFICATION_STATUS,
+  ESCALATION_LEVELS,
+  generateEventId,
+  createCanonicalEvent
+} = require("./canonical-events");
 
 // Alert-rate cap (matches reliability layer constants) — applied DETERMINISTICALLY
 // by alertsFor → same feed for /api/alerts and /api/calls on every server instance.
@@ -552,6 +562,143 @@ app.get("/api/device-health", requireAuth, (req, res) => {
     };
   });
   res.json({ patients: health, offlineSensors: offline });
+});
+
+// ---- Canonical Event Architecture & Decoupled State Machine ---------------
+const CANONICAL_EVENTS_FILE = path.join(DATA_DIR, "canonical_events.json");
+let canonicalEventsStore = [];
+try {
+  if (fs.existsSync(CANONICAL_EVENTS_FILE)) {
+    canonicalEventsStore = JSON.parse(fs.readFileSync(CANONICAL_EVENTS_FILE, "utf8"));
+  }
+} catch (e) {
+  canonicalEventsStore = [];
+}
+
+function persistCanonicalEvents() {
+  try {
+    fs.writeFileSync(CANONICAL_EVENTS_FILE, JSON.stringify(canonicalEventsStore.slice(-200), null, 2));
+  } catch (e) {
+    /* serverless read-only fs fallback */
+  }
+}
+
+app.get("/api/canonical-events", requireAuth, (req, res) => {
+  const ids = ownPatientIds(req.user);
+  const patientId = req.query.patientId;
+  let list = canonicalEventsStore.filter((ev) => ids.has(ev.residentId));
+  if (patientId) {
+    list = list.filter((ev) => ev.residentId === patientId);
+  }
+  list.sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ events: list.slice(0, 50) });
+});
+
+app.post("/api/canonical-events", requireAuth, (req, res) => {
+  const payload = req.body || {};
+  if (!payload.residentId || !ownPatientIds(req.user).has(payload.residentId)) {
+    return res.status(403).json({ error: "forbidden_or_invalid_resident" });
+  }
+
+  // Idempotent deduplication check
+  const existingIndex = canonicalEventsStore.findIndex((ev) => ev.eventId === payload.eventId);
+  let event;
+  if (existingIndex >= 0) {
+    // Update existing event with latest state / kinematics / recovery
+    event = { ...canonicalEventsStore[existingIndex], ...payload };
+    canonicalEventsStore[existingIndex] = event;
+  } else {
+    event = createCanonicalEvent(payload);
+    canonicalEventsStore.push(event);
+  }
+
+  persistCanonicalEvents();
+
+  auditEvent("canonical_event", {
+    eventId: event.eventId,
+    residentId: event.residentId,
+    state: event.state,
+    probableMechanism: event.probableMechanism,
+    detectionConfidence: event.detectionConfidence,
+    mechanismConfidence: event.mechanismConfidence,
+    severityConfidence: event.severityConfidence
+  });
+
+  res.status(existingIndex >= 0 ? 200 : 201).json({ ok: true, event });
+});
+
+app.post("/api/canonical-events/:id/verify", requireAuth, (req, res) => {
+  const eventId = req.params.id;
+  const { status, note } = req.body || {};
+  const ids = ownPatientIds(req.user);
+
+  let event = canonicalEventsStore.find((ev) => ev.eventId === eventId);
+  if (!event || !ids.has(event.residentId)) {
+    return res.status(404).json({ error: "event_not_found" });
+  }
+
+  // State machine transition based on resident verification
+  if (status === "VERIFIED_SAFE" || status === "RESOLVED_WITH_CARE_NOTE") {
+    event.state = EVENT_STATES.RESOLVED;
+    event.verificationStatus = status;
+    event.escalationLevel = ESCALATION_LEVELS.LOCAL_RECORD;
+  } else if (status === "DEVICE_DROP_RESOLVED") {
+    event.state = EVENT_STATES.RESOLVED;
+    event.probableMechanism = PHYSICAL_MECHANISMS.DEVICE_DROP;
+    event.verificationStatus = status;
+    event.escalationLevel = ESCALATION_LEVELS.LOCAL_RECORD;
+  } else if (status === "ASSISTANCE_REQUESTED" || status === "TIMED_OUT") {
+    event.state = EVENT_STATES.ESCALATED;
+    event.verificationStatus = status;
+    event.escalationLevel = ESCALATION_LEVELS.EMERGENCY_DISPATCH;
+  }
+
+  event.endTime = Date.now();
+  event.verificationNote = note || "";
+  persistCanonicalEvents();
+
+  auditEvent("resident_verification", {
+    eventId: event.eventId,
+    residentId: event.residentId,
+    verificationStatus: status,
+    finalState: event.state,
+    escalationLevel: event.escalationLevel
+  });
+
+  res.json({ ok: true, event });
+});
+
+// ---- System Infrastructure Health (Decoupled from Patient Health) -----------
+app.get("/api/system-health", (req, res) => {
+  res.json({
+    ok: true,
+    timestamp: Date.now(),
+    infrastructure: {
+      edgeDaemon: {
+        targetPort: 5050,
+        expectedEngine: "Ultralytics YOLO11-Pose",
+        cudaHardwareTarget: "NVIDIA GeForce GTX 1650 4GB",
+        heartbeatPath: "/api/yolo/heartbeat"
+      },
+      cameraSentinel: {
+        lifecycleModes: ["CAMERA_OFFLINE", "CAMERA_STARTING", "CAMERA_CALIBRATING", "MONITORING"],
+        privacyMode: "ON_DEMAND_RADAR",
+        dpdpCompliant: true,
+        zeroVideoRecordedOrStored: true,
+        activeZones: cameraZones.length
+      },
+      wearablesFleet: {
+        catalogueCount: DEVICE_CATALOGUE.length,
+        supportedApprovals: ["CDSCO Class B", "FDA 510(k)", "CE Mark"],
+        bleSimulationSamplingRateHz: 1.0
+      },
+      persistence: {
+        architecture: "Serverless-Safe Stateless Deterministic Model",
+        canonicalEventsStored: canonicalEventsStore.length,
+        auditLogRetentionEntries: 200
+      }
+    }
+  });
 });
 
 app.get("/api/health", (req, res) => res.json({ ok: true, service: "ReJivan", time: Date.now() }));

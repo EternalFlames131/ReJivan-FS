@@ -1,6 +1,7 @@
 // prototype/movement-engine.js
-// ReJivan Unified Motion Kinematics, Hypothesis Scoring & Counterfactual Reasoning Engine
-// Compatible with both browser (MediaPipe Pose) and local edge hardware (YOLO11-Pose via GTX 1650)
+// ReJivan Unified Motion Kinematics, Hypothesis Scoring, Counterfactual Reasoning & Sensor Fusion Engine
+// Compatible with both browser (MediaPipe / Optical Flow) and edge hardware (YOLO11-Pose via GTX 1650)
+// Architectural flow: OBSERVE -> RECONSTRUCT -> CORROBORATE -> REASON -> VERIFY -> RESPOND
 
 (function (root, factory) {
   if (typeof define === "function" && define.amd) {
@@ -13,8 +14,8 @@
 })(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : this), function () {
   "use strict";
 
-  // Standard 17-point COCO Keypoint Map (Identical between YOLO-Pose & MediaPipe)
-  const KEYPOINTS = {
+  // Standard 17-point COCO Keypoint Map (Identical across YOLO-Pose & MediaPipe)
+  const KEYPOINTS = Object.freeze({
     NOSE: 0,
     LEFT_EYE: 1, RIGHT_EYE: 2,
     LEFT_EAR: 3, RIGHT_EAR: 4,
@@ -24,15 +25,65 @@
     LEFT_HIP: 11, RIGHT_HIP: 12,
     LEFT_KNEE: 13, RIGHT_KNEE: 14,
     LEFT_ANKLE: 15, RIGHT_ANKLE: 16
-  };
+  });
+
+  // Candidate Physical Mechanisms
+  const MECHANISMS = Object.freeze({
+    NORMAL_ACTIVITY: "NORMAL_ACTIVITY",
+    INTENTIONAL_SITTING: "INTENTIONAL_SITTING",
+    INTENTIONAL_LYING: "INTENTIONAL_LYING",
+    KNEELING: "KNEELING",
+    TRIP: "TRIP",
+    LOSS_OF_BALANCE: "LOSS_OF_BALANCE",
+    FALL: "FALL",
+    FALL_WITH_IMMOBILITY: "FALL_WITH_IMMOBILITY",
+    DEVICE_DROP: "DEVICE_DROP",
+    UNKNOWN: "UNKNOWN"
+  });
 
   /**
-   * Calculates the Center of Mass (CoM) and Torso Angle from skeletal landmarks
-   * @param {Array} landmarks - 17 keypoint array [{x, y, z, visibility}, ...]
+   * Personal Baseline Tracker
+   * Maintains running averages of resident normal behavior to evaluate individual deviations
+   */
+  class PersonalBaselineTracker {
+    constructor(initial = {}) {
+      this.typicalWalkingVelocity = initial.typicalWalkingVelocity ?? 0.85; // m/s
+      this.typicalLateralSway = initial.typicalLateralSway ?? 6.5;         // degrees
+      this.typicalSitDurationSec = initial.typicalSitDurationSec ?? 1.8;   // seconds to sit down
+      this.sampleCount = initial.sampleCount ?? 20;
+    }
+
+    update(observation) {
+      if (!observation) return;
+      const alpha = 0.05; // slow moving average
+      if (observation.walkingVelocity && observation.walkingVelocity > 0.2) {
+        this.typicalWalkingVelocity = (1 - alpha) * this.typicalWalkingVelocity + alpha * observation.walkingVelocity;
+      }
+      if (observation.lateralSway && observation.lateralSway >= 0) {
+        this.typicalLateralSway = (1 - alpha) * this.typicalLateralSway + alpha * observation.lateralSway;
+      }
+      this.sampleCount++;
+    }
+
+    getDeviation(currentVelocity, currentSway) {
+      const velDev = currentVelocity ? (currentVelocity - this.typicalWalkingVelocity) / this.typicalWalkingVelocity : 0;
+      const swayDev = currentSway ? (currentSway - this.typicalLateralSway) / this.typicalLateralSway : 0;
+      return {
+        velocityDeviationRatio: Math.round(velDev * 100) / 100,
+        swayDeviationRatio: Math.round(swayDev * 100) / 100,
+        isSignificantSway: swayDev > 1.5
+      };
+    }
+  }
+
+  const defaultBaseline = new PersonalBaselineTracker();
+
+  /**
+   * Calculates Center of Mass (CoM) and Torso Angle from skeletal landmarks
    */
   function analyzePoseGeometry(landmarks) {
     if (!landmarks || landmarks.length < 17) {
-      return { valid: false, reason: "Insufficient keypoint tracking" };
+      return { valid: false, reason: "Insufficient keypoint tracking (<17 points)" };
     }
 
     const lShoulder = landmarks[KEYPOINTS.LEFT_SHOULDER];
@@ -40,24 +91,27 @@
     const lHip = landmarks[KEYPOINTS.LEFT_HIP];
     const rHip = landmarks[KEYPOINTS.RIGHT_HIP];
 
-    // Midpoint of shoulders & hips
-    const shoulderMid = {
+    const hasShoulders = (lShoulder?.visibility ?? 1) > 0.3 && (rShoulder?.visibility ?? 1) > 0.3;
+    const hasHips = (lHip?.visibility ?? 1) > 0.3 && (rHip?.visibility ?? 1) > 0.3;
+
+    if (!hasShoulders && !hasHips) {
+      return { valid: false, reason: "Torso landmarks occluded" };
+    }
+
+    const shoulderMid = hasShoulders ? {
       x: (lShoulder.x + rShoulder.x) / 2,
       y: (lShoulder.y + rShoulder.y) / 2
-    };
-    const hipMid = {
+    } : { x: landmarks[0].x, y: landmarks[0].y + 0.1 };
+
+    const hipMid = hasHips ? {
       x: (lHip.x + rHip.x) / 2,
       y: (lHip.y + rHip.y) / 2
-    };
+    } : { x: shoulderMid.x, y: shoulderMid.y + 0.25 };
 
-    // Torso vector
     const dx = hipMid.x - shoulderMid.x;
-    const dy = hipMid.y - shoulderMid.y; // In screen space, y increases downwards
+    const dy = hipMid.y - shoulderMid.y;
+    const angleFromVertical = Math.abs(Math.atan2(Math.abs(dx), Math.max(Math.abs(dy), 0.001)) * (180 / Math.PI));
 
-    // Angle of torso with vertical axis (0 deg = standing straight up, 90 deg = horizontal lying down)
-    const angleFromVertical = Math.abs(Math.atan2(Math.abs(dx), Math.abs(dy)) * (180 / Math.PI));
-
-    // Approximate Center of Mass
     const com = {
       x: (shoulderMid.x + hipMid.x) / 2,
       y: (shoulderMid.y + hipMid.y) / 2
@@ -69,182 +123,229 @@
       shoulderMid,
       hipMid,
       torsoAngleDegrees: Math.round(angleFromVertical * 10) / 10,
-      isHorizontallyOriented: angleFromVertical > 60
+      isHorizontallyOriented: angleFromVertical > 55
     };
   }
 
   /**
-   * Evaluates Competing Hypotheses for any physical movement event
-   * Compares evidence across Camera Kinematics, Wearable IMU Shock, and Telemetry Vitals
+   * Evaluates Competing Physical Hypotheses with Counterfactuals & Negative Evidence
+   * Across Vision Kinematics, IMU Shock, Room Context, Recovery, and Baseline Deviation
    */
-  function evaluateHypotheses(evidence) {
+  function evaluateHypotheses(evidence = {}, baseline = defaultBaseline) {
     const {
-      downwardVelocity = 0,     // m/s (negative = down)
-      torsoAngle = 10,           // degrees from vertical (0=standing, 90=flat)
-      impactShockG = 1.0,        // accelerometer peak g-force (1.0 = normal, >2.5 = impact)
-      postStillnessSeconds = 0,  // seconds elapsed with motionless posture
-      chairBedProximity = false, // true if near recognized safe resting furniture
-      wristOscillationHz = 0,    // frequency of hand/wrist jitter (3-8 Hz = tremor)
-      deviceLiftedUpright = false// true if smartphone picked back up after drop
+      downwardVelocity = -0.1,     // m/s (negative = downward)
+      torsoAngle = 10,             // degrees from vertical (0=standing, 90=flat)
+      impactShockG = 1.0,          // IMU accelerometer peak g-force (1.0=normal, >2.4=impact)
+      postStillnessSeconds = 0,    // seconds elapsed motionless
+      chairBedProximity = false,   // near recognized furniture
+      bedProximity = false,        // near bed
+      isKneeling = false,          // knees on floor with upright torso
+      wristOscillationHz = 0,      // frequency of tremor/jitter (3-8 Hz)
+      recoveryObserved = false,    // stood back up or upright recovery restored
+      trackingQuality = 0.95,      // 0.0 - 1.0 tracking confidence
+      sensorConflict = false,      // vision and IMU disagree
+      deviceLiftedUpright = false  // phone picked up after drop
     } = evidence;
 
+    const supporting = [];
+    const counter = [];
     const hypotheses = [];
 
-    // H1: Accidental Fall / Mechanical Trip
-    let h1Score = 0;
-    if (downwardVelocity < -1.4) h1Score += 0.35;
-    if (torsoAngle > 60) h1Score += 0.25;
-    if (impactShockG > 2.4) h1Score += 0.30;
-    if (!chairBedProximity) h1Score += 0.10;
-    hypotheses.push({
-      id: "H1",
-      label: "Accidental Fall / Mechanical Trip",
-      mechanism: "Sudden loss of vertical balance followed by deceleration impact on floor",
-      confidence: Math.min(Math.round(h1Score * 100), 99),
-      severity: "CRITICAL"
-    });
-
-    // H2: Controlled Descent / Sitting Down
-    let h2Score = 0;
-    if (downwardVelocity >= -0.8 && downwardVelocity < 0) h2Score += 0.40;
-    if (torsoAngle < 45) h2Score += 0.30;
-    if (impactShockG < 1.4) h2Score += 0.20;
-    if (chairBedProximity) h2Score += 0.10;
-    hypotheses.push({
-      id: "H2",
-      label: "Controlled Sitting / Intentional Descent",
-      mechanism: "Smooth muscular deceleration onto seating furniture without ground shock",
-      confidence: Math.min(Math.round(h2Score * 100), 99),
-      severity: "NORMAL"
-    });
-
-    // H3: Intentional Resting / Lying in Bed
-    let h3Score = 0;
-    if (torsoAngle > 65) h3Score += 0.35;
-    if (downwardVelocity >= -0.6) h3Score += 0.30;
-    if (impactShockG < 1.3) h3Score += 0.20;
-    if (chairBedProximity) h3Score += 0.15;
-    hypotheses.push({
-      id: "H3",
-      label: "Intentional Bed Rest / Supine Sleep",
-      mechanism: "Gradual reclining posture transition into safe sleep zone",
-      confidence: Math.min(Math.round(h3Score * 100), 99),
-      severity: "NORMAL"
-    });
-
-    // H4: Out-of-Bed Transfer / Virtual Tripwire Crossing
-    let h4Score = 0;
-    if (chairBedProximity && torsoAngle < 40) h4Score += 0.45;
-    if (downwardVelocity > -0.6 && downwardVelocity < 0) h4Score += 0.35;
-    if (impactShockG < 1.4) h4Score += 0.20;
-    hypotheses.push({
-      id: "H4",
-      label: "Out-of-Bed Transfer / Tripwire Crossing",
-      mechanism: "Patient exited bed perimeter onto bedside floor while maintaining vertical postural stability",
-      confidence: Math.min(Math.round(h4Score * 100), 99),
-      severity: "CAUTION"
-    });
-
-    // H5: Abnormal Tremor / Shivering Episode
-    let h5Score = 0;
-    if (wristOscillationHz >= 3.0 && wristOscillationHz <= 8.5) h5Score += 0.70;
-    if (torsoAngle < 45) h5Score += 0.20;
-    if (impactShockG < 1.5) h5Score += 0.10;
-    hypotheses.push({
-      id: "H5",
-      label: "Involuntary Tremor / Shivering Movement",
-      mechanism: "Rhythmic musculoskeletal oscillation (3-8 Hz) without postural collapse",
-      confidence: Math.min(Math.round(h5Score * 100), 99),
-      severity: "CONCERNING"
-    });
-
-    // H6: Prolonged Immobility / Post-Event Incapacitation
-    let h6Score = 0;
-    if (postStillnessSeconds > 30) h6Score += 0.45;
-    if (torsoAngle > 60) h6Score += 0.35;
-    if (!chairBedProximity) h6Score += 0.20;
-    hypotheses.push({
-      id: "H6",
-      label: "Prolonged Post-Fall Immobility",
-      mechanism: "Inability to initiate recovery movement following downward event",
-      confidence: Math.min(Math.round(h6Score * 100), 99),
-      severity: "CRITICAL"
-    });
-
-    // Sort by descending confidence score
-    hypotheses.sort((a, b) => b.confidence - a.confidence);
-    const winningHypothesis = hypotheses[0];
-
-    // Counterfactual explanation: Prove why alternative non-emergency explanations were rejected or accepted
-    let counterfactualExplanation = "";
-    if (winningHypothesis.id === "H1" || winningHypothesis.id === "H6") {
-      counterfactualExplanation = `Intentional sitting (H2) ruled out because vertical descent velocity (${downwardVelocity} m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration registered ${impactShockG}g shock. Sleeping (H3) ruled out due to non-bed floor location and sudden acceleration spike.`;
-    } else if (winningHypothesis.id === "H2") {
-      counterfactualExplanation = `Accidental fall (H1) ruled out because descent velocity was controlled (${downwardVelocity} m/s), zero impact shock was recorded (${impactShockG}g), and resident retained upright torso stability.`;
-    } else if (winningHypothesis.id === "H3") {
-      counterfactualExplanation = `Fall (H1) ruled out because transition occurred within recognized bed perimeter with smooth deceleration and sustained rhythmic respiration.`;
-    } else if (winningHypothesis.id === "H4") {
-      counterfactualExplanation = `Fall (H1) ruled out because resident maintained upright postural equilibrium (Torso angle: ${torsoAngle}°) during bed transfer with zero ground impact shock (${impactShockG}g).`;
-    } else if (winningHypothesis.id === "H5") {
-      counterfactualExplanation = `Fall (H1) ruled out; posture remains upright while isolated wrist keypoints display repetitive 3-8 Hz oscillation.`;
+    // Check for UNKNOWN / DEGRADED condition
+    if (trackingQuality < 0.40 || sensorConflict) {
+      hypotheses.push({
+        id: "H_UNKNOWN",
+        mechanism: MECHANISMS.UNKNOWN,
+        label: "Ambiguous Evidence / Sensor Conflict",
+        score: 0.85,
+        confidence: 85,
+        severity: "UNKNOWN",
+        explanation: "Optical tracking quality collapsed or sensor telemetry is contradictory. System enters verification state rather than raising a false emergency."
+      });
+      return {
+        winningHypothesis: hypotheses[0],
+        allHypotheses: hypotheses,
+        detectionConfidence: 30,
+        mechanismConfidence: 20,
+        severityConfidence: 10,
+        supportingEvidence: ["Tracking quality degraded or sensor conflict"],
+        counterEvidence: ["Zero confirmed anatomical collapse"],
+        counterfactualExplanation: "Event classified as UNKNOWN because sensor evidence is ambiguous. Missing data is never treated as confirmed danger."
+      };
     }
 
-    // Engine-First / Gemini-Failsafe Consensus Arbitration
-    // Detects whether the local physics determination is DECISIVE (clear certainty) or AMBIGUOUS (close call)
-    const runnerUp = hypotheses[1] || { confidence: 0 };
-    const confidenceGap = winningHypothesis.confidence - runnerUp.confidence;
-    const isAmbiguous = (winningHypothesis.confidence >= 40 && winningHypothesis.confidence <= 65) || (confidenceGap < 10 && winningHypothesis.confidence < 75);
-
-    let consensus = null;
-    if (isAmbiguous) {
-      // In ambiguous edge cases, system invokes Gemini background arbitration failsafe
-      // Evaluates weighted consensus: 75% local physics + 25% Gemini clinical reasoning
-      const geminiConfidence = Math.min(Math.round(winningHypothesis.confidence * 0.9 + 8), 95);
-      const fusedConfidence = Math.round((winningHypothesis.confidence * 0.75) + (geminiConfidence * 0.25));
-      consensus = {
-        mode: "HYBRID_GEMINI_FAILSAFE_CONSENSUS",
-        isAmbiguous: true,
-        primaryEngineConfidence: winningHypothesis.confidence,
-        geminiConfidence: geminiConfidence,
-        fusedConfidence: fusedConfidence,
-        engineWeight: "75%",
-        geminiWeight: "25%",
-        timeoutSafeguard: "1500ms Active (Local safety policy prioritized)",
-        verdict: fusedConfidence >= 60 ? "VERIFIED_ANOMALY" : "MONITOR_EQUILIBRIUM",
-        sbarSummary: `[Gemini Clinical Synthesis] Ambiguous downward shift observed (ΔV: ${downwardVelocity} m/s, θ: ${torsoAngle}°). Cross-corroborated against ${runnerUp.label}. Synthesized recommendation: Initiate resident verification check; avoid unnecessary 108 escalation unless unresponsiveness persists.`
-      };
+    // Evaluate H1: Fall (Accidental / Uncontrolled)
+    let hFallScore = 0.05;
+    if (downwardVelocity < -1.1) {
+      hFallScore += 0.35;
+      supporting.push(`High downward velocity (${downwardVelocity} m/s)`);
     } else {
-      // Decisive local engine determination - executed in <20ms, zero cloud dependency
-      consensus = {
-        mode: "DECISIVE_LOCAL_ENGINE",
-        isAmbiguous: false,
-        primaryEngineConfidence: winningHypothesis.confidence,
-        geminiConfidence: null,
-        fusedConfidence: winningHypothesis.confidence,
-        engineWeight: "100%",
-        geminiWeight: "0%",
-        timeoutSafeguard: "Bypassed (Zero cloud lag needed)",
-        verdict: winningHypothesis.severity,
-        sbarSummary: `[Local Prajñā Engine] High-confidence kinematic determination (${winningHypothesis.confidence}%). Immediate local response activated without cloud latency.`
-      };
+      counter.push(`Descent velocity within controlled threshold (${downwardVelocity} m/s)`);
+    }
+    if (torsoAngle > 50) {
+      hFallScore += 0.25;
+      supporting.push(`Torso angle indicates collapse (${torsoAngle}°)`);
+    } else {
+      counter.push(`Spine maintained vertical posture (${torsoAngle}°)`);
+    }
+    if (impactShockG > 2.2) {
+      hFallScore += 0.30;
+      supporting.push(`Deceleration ground shock detected (${impactShockG}g)`);
+    } else {
+      counter.push(`Zero impact deceleration shock (${impactShockG}g)`);
+    }
+    // Negative evidence: chair proximity reduces accidental fall
+    if (chairBedProximity || bedProximity) {
+      hFallScore -= 0.30;
+      counter.push("Proximity to recognized seating/bed furniture rules against uncontrolled fall");
+    }
+    if (recoveryObserved) {
+      hFallScore -= 0.35;
+      counter.push("Immediate upright postural recovery observed (<5s)");
+    }
+    hFallScore = Math.max(0.01, Math.min(0.99, hFallScore));
+
+    // Evaluate H2: Controlled Sitting
+    let hSitScore = 0.05;
+    if (downwardVelocity >= -0.85 && downwardVelocity < -0.15) {
+      hSitScore += 0.35;
+      supporting.push("Controlled muscular deceleration during downward transition");
+    }
+    if (torsoAngle < 40) {
+      hSitScore += 0.30;
+      supporting.push(`Upright spinal stability retained (${torsoAngle}°)`);
+    }
+    if (impactShockG < 1.4) {
+      hSitScore += 0.20;
+      supporting.push("Smooth contact with zero ground impact shock");
+    }
+    if (chairBedProximity) {
+      hSitScore += 0.25;
+      supporting.push("Armchair/couch perimeter corroborated");
+    }
+    hSitScore = Math.max(0.01, Math.min(0.99, hSitScore));
+
+    // Evaluate H3: Intentional Lying / Bed Rest
+    let hLyingScore = 0.05;
+    if (bedProximity || chairBedProximity) hLyingScore += 0.40;
+    if (torsoAngle > 60 && downwardVelocity > -0.6) hLyingScore += 0.35;
+    if (impactShockG < 1.3) hLyingScore += 0.20;
+    hLyingScore = Math.max(0.01, Math.min(0.99, hLyingScore));
+
+    // Evaluate H4: Kneeling / Floor Task
+    let hKneelScore = 0.05;
+    if (isKneeling || (torsoAngle < 35 && downwardVelocity > -0.7)) hKneelScore += 0.40;
+    if (impactShockG < 1.4) hKneelScore += 0.25;
+    hKneelScore = Math.max(0.01, Math.min(0.99, hKneelScore));
+
+    // Evaluate H5: Trip with Rapid Recovery
+    let hTripScore = 0.05;
+    if (downwardVelocity < -0.9 && recoveryObserved) hTripScore += 0.65;
+    if (impactShockG > 1.8 && recoveryObserved) hTripScore += 0.25;
+    hTripScore = Math.max(0.01, Math.min(0.99, hTripScore));
+
+    // Evaluate H6: Loss of Balance / Mild Sway
+    let hSwayScore = 0.05;
+    if (torsoAngle >= 25 && torsoAngle <= 45 && downwardVelocity > -0.6) hSwayScore += 0.55;
+    if (impactShockG < 1.5) hSwayScore += 0.25;
+    hSwayScore = Math.max(0.01, Math.min(0.99, hSwayScore));
+
+    // Evaluate H7: Fall with Prolonged Immobility
+    let hImmobileScore = 0.05;
+    if (hFallScore > 0.6 && postStillnessSeconds > 15) hImmobileScore += 0.60;
+    if (torsoAngle > 65 && !recoveryObserved && postStillnessSeconds > 10) hImmobileScore += 0.35;
+    hImmobileScore = Math.max(0.01, Math.min(0.99, hImmobileScore));
+
+    // Evaluate H8: Device Drop (IMU shock without vision collapse)
+    let hDropScore = 0.05;
+    if (impactShockG > 2.8 && torsoAngle < 25 && Math.abs(downwardVelocity) < 0.3) {
+      hDropScore += 0.75;
+      supporting.push("Severe IMU impact shock recorded while resident remains fully upright");
+    }
+    if (deviceLiftedUpright) hDropScore += 0.20;
+    hDropScore = Math.max(0.01, Math.min(0.99, hDropScore));
+
+    // Evaluate H0: Normal Activity
+    let hNormalScore = 0.05;
+    if (Math.abs(downwardVelocity) < 0.25 && torsoAngle < 22 && impactShockG < 1.3) {
+      hNormalScore += 0.85;
+    }
+    hNormalScore = Math.max(0.01, Math.min(0.99, hNormalScore));
+
+    // Build Hypotheses Array
+    hypotheses.push(
+      { id: "H_FALL", mechanism: MECHANISMS.FALL, label: "Accidental Fall / Acute Impact", score: hFallScore, confidence: Math.round(hFallScore * 100), severity: "CRITICAL" },
+      { id: "H_SIT", mechanism: MECHANISMS.INTENTIONAL_SITTING, label: "Controlled Sitting / Intentional Descent", score: hSitScore, confidence: Math.round(hSitScore * 100), severity: "NORMAL" },
+      { id: "H_LYING", mechanism: MECHANISMS.INTENTIONAL_LYING, label: "Intentional Bed Rest / Supine Sleep", score: hLyingScore, confidence: Math.round(hLyingScore * 100), severity: "NORMAL" },
+      { id: "H_KNEEL", mechanism: MECHANISMS.KNEELING, label: "Intentional Kneeling / Controlled Low Posture", score: hKneelScore, confidence: Math.round(hKneelScore * 100), severity: "NORMAL" },
+      { id: "H_TRIP", mechanism: MECHANISMS.TRIP, label: "Stumble / Trip with Rapid Recovery", score: hTripScore, confidence: Math.round(hTripScore * 100), severity: "LOW" },
+      { id: "H_SWAY", mechanism: MECHANISMS.LOSS_OF_BALANCE, label: "Loss of Balance / Postural Sway", score: hSwayScore, confidence: Math.round(hSwayScore * 100), severity: "CAUTION" },
+      { id: "H_IMMOBILE", mechanism: MECHANISMS.FALL_WITH_IMMOBILITY, label: "Fall with Prolonged Post-Impact Immobility", score: hImmobileScore, confidence: Math.round(hImmobileScore * 100), severity: "CRITICAL" },
+      { id: "H_DROP", mechanism: MECHANISMS.DEVICE_DROP, label: "Device Drop / Accelerometer Shock Only", score: hDropScore, confidence: Math.round(hDropScore * 100), severity: "VERIFICATION" },
+      { id: "H_NORMAL", mechanism: MECHANISMS.NORMAL_ACTIVITY, label: "Stable Upright Ambulation / Nominal", score: hNormalScore, confidence: Math.round(hNormalScore * 100), severity: "NORMAL" }
+    );
+
+    hypotheses.sort((a, b) => b.score - a.score);
+    const winningHypothesis = hypotheses[0];
+
+    // Compute the 3 Separate Confidences:
+    // 1. Detection Confidence: certainty that abnormal physical motion happened
+    const detectionConfidence = Math.min(100, Math.round(Math.max(
+      Math.abs(downwardVelocity) / 1.8 * 80,
+      (impactShockG - 1.0) / 2.0 * 85,
+      torsoAngle / 70 * 80
+    )));
+
+    // 2. Mechanism Confidence: certainty that winning hypothesis beats runner-up
+    const runnerUp = hypotheses[1] || { score: 0 };
+    const mechanismConfidence = Math.min(99, Math.round(
+      (winningHypothesis.score / (winningHypothesis.score + runnerUp.score + 0.001)) * 100
+    ));
+
+    // 3. Severity Confidence: certainty of medical danger
+    let severityConfidence = 0;
+    if (winningHypothesis.mechanism === MECHANISMS.FALL_WITH_IMMOBILITY) {
+      severityConfidence = 88;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL) {
+      severityConfidence = recoveryObserved ? 15 : 74;
+    } else if (winningHypothesis.mechanism === MECHANISMS.TRIP) {
+      severityConfidence = 20;
+    } else if (winningHypothesis.mechanism === MECHANISMS.LOSS_OF_BALANCE) {
+      severityConfidence = 35;
+    }
+
+    // Counterfactual Explanation
+    let counterfactualExplanation = "";
+    if (winningHypothesis.mechanism === MECHANISMS.INTENTIONAL_SITTING) {
+      counterfactualExplanation = `Accidental fall ruled out: descent velocity was controlled (${downwardVelocity} m/s), zero impact shock was recorded (${impactShockG}g), and resident maintained upright spinal equilibrium near seating furniture.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.INTENTIONAL_LYING) {
+      counterfactualExplanation = `Fall ruled out: smooth reclining transition within recognized bed perimeter with normal post-transfer respiration and zero ground impact.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.TRIP) {
+      counterfactualExplanation = `Emergency escalation suppressed: physical stumble occurred but upright postural equilibrium was restored within 4 seconds.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.DEVICE_DROP) {
+      counterfactualExplanation = `Physical resident fall ruled out: accelerometer recorded impact spike (${impactShockG}g), but vision tracking confirmed resident retained continuous upright posture (Torso: ${torsoAngle}°).`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL) {
+      counterfactualExplanation = `Intentional sitting ruled out: vertical velocity reached ${downwardVelocity} m/s with impact deceleration shock (${impactShockG}g) and absence of recovery motion.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL_WITH_IMMOBILITY) {
+      counterfactualExplanation = `Severe event corroborated: horizontal collapse followed by >${postStillnessSeconds}s of continuous immobility outside safe rest zones.`;
+    } else {
+      counterfactualExplanation = "Nominal equilibrium maintained. Biomechanical parameters within personal running baseline.";
     }
 
     return {
       winningHypothesis,
       allHypotheses: hypotheses,
-      counterfactualExplanation,
-      consensus,
-      recommendedAction: winningHypothesis.severity === "CRITICAL"
-        ? "INITIATE_VERIFICATION_PROMPT"
-        : winningHypothesis.severity === "CONCERNING"
-          ? "RECORD_ANOMALY_AND_OBSERVE"
-          : "CONTINUE_MONITORING"
+      detectionConfidence,
+      mechanismConfidence,
+      severityConfidence,
+      supportingEvidence: supporting.slice(0, 5),
+      counterEvidence: counter.slice(0, 5),
+      counterfactualExplanation
     };
   }
 
   /**
    * Generates a 30-Second Chronological Reconstruction Timeline
-   * Formats second-by-second kinematic milestones leading up to the incident
    */
   function generateChronologicalTimeline(scenarioType) {
     const now = new Date();
@@ -255,52 +356,54 @@
 
     if (scenarioType === "trip_fall") {
       return [
-        { time: formatTime(28), event: "Steady Ambulation", detail: "Gait velocity 0.82 m/s · Step symmetry 96% · Upright torso 8°" },
-        { time: formatTime(22), event: "Locomotion Deceleration", detail: "Gait velocity drops to 0.39 m/s · Lateral torso sway detected (Δθ: 18°)" },
-        { time: formatTime(18), event: "Rapid Vertical Descent", detail: "Downward hip velocity -1.92 m/s toward floor boundary" },
-        { time: formatTime(17), event: "Deceleration Impact", detail: "Accelerometer shock spike: 3.4g peak · Floor contact confirmed" },
-        { time: formatTime(12), event: "Absence of Recovery Motion", detail: "Post-impact stillness variance < 0.04 over 5 seconds" },
-        { time: formatTime(8), event: "Kinematic Hypothesis Formed", detail: "H1: Accidental Trip & Fall (96% conf) · Controlled sitting ruled out" },
-        { time: formatTime(0), event: "Resident Verification Active", detail: "Audio prompt sounding · 30-second response window open" }
+        { time: formatTime(28), phase: "PRE-EVENT", title: "Steady Ambulation", detail: "Gait velocity 0.82 m/s · Torso vertical 8° · Biomechanics nominal" },
+        { time: formatTime(22), phase: "PRE-EVENT", title: "Locomotion Deceleration", detail: "Gait velocity drops to 0.39 m/s · Lateral torso sway detected (18° deviation)" },
+        { time: formatTime(18), phase: "DESCENT", title: "Rapid Vertical Descent", detail: "Downward velocity -1.92 m/s · Loss of vertical equilibrium" },
+        { time: formatTime(17), phase: "IMPACT", title: "Floor Impact Deceleration", detail: "Impact shock spike 3.4g · Torso angle collapses to 76° on floor" },
+        { time: formatTime(12), phase: "RECOVERY_CHECK", title: "Absence of Postural Recovery", detail: "Zero upright movement detected for 16 seconds on floor perimeter" },
+        { time: formatTime(8), phase: "REASONING", title: "Hypothesis H_FALL Corroborated", detail: "Accidental Fall (96% conf) · Intentional sitting ruled out by -1.92 m/s speed" },
+        { time: formatTime(0), phase: "VERIFY", title: "Resident Verification Active", detail: "Verification prompt sounding · 30-second grace window open" }
       ];
     } else if (scenarioType === "sitting") {
       return [
-        { time: formatTime(25), event: "Approaching Seating Area", detail: "Walking speed 0.65 m/s toward Room 302 armchair" },
-        { time: formatTime(18), event: "Controlled Torso Rotation", detail: "Resident turns toward chair perimeter" },
-        { time: formatTime(12), event: "Smooth Descent", detail: "Descent velocity -0.42 m/s · Smooth muscular flexion" },
-        { time: formatTime(8), event: "Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright (22°)" },
-        { time: formatTime(0), event: "Intentional Rest Confirmed", detail: "Hypothesis H2 confirmed (98% conf) · Fall alarm suppressed" }
+        { time: formatTime(25), phase: "PRE-EVENT", title: "Approaching Seating Area", detail: "Walking speed 0.65 m/s toward living room armchair" },
+        { time: formatTime(18), phase: "PRE-EVENT", title: "Controlled Torso Rotation", detail: "Resident turns toward chair perimeter" },
+        { time: formatTime(12), phase: "DESCENT", title: "Smooth Muscular Deceleration", detail: "Descent velocity -0.42 m/s · Muscular flexion intact" },
+        { time: formatTime(8), phase: "CONTACT", title: "Controlled Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright at 22°" },
+        { time: formatTime(0), phase: "RESOLVED", title: "Intentional Sitting Confirmed", detail: "Hypothesis H_SIT confirmed (98% conf) · Emergency alarm suppressed" }
       ];
     } else if (scenarioType === "bed_exit") {
       return [
-        { time: formatTime(24), event: "Resting in Care Bed", detail: "Supine resting posture behind raised safety rails" },
-        { time: formatTime(18), event: "Leg Swing & Lateral Shift", detail: "Patient swings legs over bed edge into bedside zone" },
-        { time: formatTime(14), event: "Bed-Exit Tripwire Crossed", detail: "Optical floor radar detects perimeter crossing" },
-        { time: formatTime(8), event: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground impact shock (1.08g)" },
-        { time: formatTime(0), event: "Controlled Bed Transfer", detail: "Hypothesis H4 confirmed · Fall alarm safely suppressed" }
+        { time: formatTime(24), phase: "PRE-EVENT", title: "Resting in Care Bed", detail: "Supine resting posture within mattress perimeter" },
+        { time: formatTime(18), phase: "TRANSITION", title: "Leg Swing to Bed Edge", detail: "Patient swings legs over edge into bedside corridor" },
+        { time: formatTime(14), phase: "MONITORING", title: "Bed-Exit Tripwire Crossed", detail: "Optical floor boundary detects bedside transfer" },
+        { time: formatTime(8), phase: "EQUILIBRIUM", title: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground shock (1.08g)" },
+        { time: formatTime(0), phase: "RESOLVED", title: "Controlled Transfer Confirmed", detail: "Transfer nominal · Fall alarm safely suppressed" }
       ];
-    } else if (scenarioType === "tremor") {
+    } else if (scenarioType === "phone_drop") {
       return [
-        { time: formatTime(30), event: "Quiet Rest in Armchair", detail: "Patient seated · Vitals baseline stable (HR 84, SpO2 98%)" },
-        { time: formatTime(22), event: "Upper Extremity Micro-Movement", detail: "Right wrist sensor records rapid oscillatory displacement" },
-        { time: formatTime(15), event: "Spectral Frequency Filtering", detail: "Bandpass filter isolates 5.2 Hz sustained oscillation" },
-        { time: formatTime(8), event: "Posture Stability Check", detail: "Torso remains stable at 24° · No downward displacement" },
-        { time: formatTime(0), event: "Tremor / Shivering Flagged", detail: "Hypothesis H5 logged as Anomaly · Caregiver notified for review" }
+        { time: formatTime(20), phase: "PRE-EVENT", title: "Normal Handling", detail: "Device in hand · Resident standing upright (Torso 10°)" },
+        { time: formatTime(14), phase: "EVENT", title: "Freefall Deceleration", detail: "Smartphone slips · Rapid freefall trajectory" },
+        { time: formatTime(13), phase: "IMPACT", title: "Floor Impact Shock Spike", detail: "Accelerometer records 3.8g shock on hard surface" },
+        { time: formatTime(10), phase: "REASONING", title: "Negative Evidence Disproved Fall", detail: "Vision tracking confirms resident retained upright standing posture" },
+        { time: formatTime(0), phase: "VERIFY", title: "Device Drop Check-in", detail: "Prompt displayed: Device drop auto-detected" }
       ];
-    } else { // acute_collapse
+    } else { // acute_collapse / prolonged immobility
       return [
-        { time: formatTime(30), event: "Pre-Event Physiological Strain", detail: "Vitals show BP 174/106 mmHg & SpO2 88% (Hypertensive crisis)" },
-        { time: formatTime(24), event: "Gait Ataxia & Wall Slump", detail: "Patient sways laterally into wall boundary" },
-        { time: formatTime(19), event: "Incapacitated Descent", detail: "Sudden downward collapse (-2.1 m/s) to floor" },
-        { time: formatTime(18), event: "Ground Impact", detail: "Floor impact shock 2.9g" },
-        { time: formatTime(10), event: "Prolonged Unresponsiveness", detail: "Motionless on floor for >30s · HR elevated to 118 bpm" },
-        { time: formatTime(0), event: "Critical Escalation Initiated", detail: "Verification timed out with zero response · 108 ambulance dispatching" }
+        { time: formatTime(30), phase: "PRE-EVENT", title: "Physiological Drift Observed", detail: "BP 174/106 mmHg & SpO2 88% · Baroreflex compensation failure" },
+        { time: formatTime(24), phase: "PRE-EVENT", title: "Lateral Trunk Sway", detail: "Trunk sway exceeds 25° personal baseline" },
+        { time: formatTime(19), phase: "DESCENT", title: "Incapacitated Vertical Collapse", detail: "Descent velocity -2.14 m/s toward floor boundary" },
+        { time: formatTime(18), phase: "IMPACT", title: "Ground Deceleration Impact", detail: "Floor impact shock 2.95g · Torso collapses horizontally to 84°" },
+        { time: formatTime(10), phase: "IMMOBILITY", title: "Prolonged Post-Impact Stillness", detail: "Zero motion detected for >30 seconds on floor · HR 118 bpm" },
+        { time: formatTime(0), phase: "ESCALATION", title: "Proportional Escalation Initiated", detail: "Verification timed out · Caregiver alerted and ambulance dispatch prepared" }
       ];
     }
   }
 
   return {
     KEYPOINTS,
+    MECHANISMS,
+    PersonalBaselineTracker,
     analyzePoseGeometry,
     evaluateHypotheses,
     generateChronologicalTimeline

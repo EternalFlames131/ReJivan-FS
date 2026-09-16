@@ -295,3 +295,14 @@
   - Upgraded `tools/start_yolo_silent.vbs` to dynamically resolve the project root using `WScript.ScriptFullName` so it runs reliably regardless of working directory.
   - Added one-click management scripts `tools/enable_yolo_startup.ps1` and `tools/disable_yolo_startup.ps1` to configure the silent YOLO background sentinel at Windows boot.
   - Activated and verified `ReJivan YOLO Sentinel.lnk` in the user's Startup folder.
+
+- **2026-09-16 09:12 | Multimodal Elderly-Safety Engine: OBSERVE → RECONSTRUCT → CORROBORATE → REASON → VERIFY → RESPOND:**
+  - **Live Camera False Alert Bug Root-Caused & Eliminated:** Resolved infinite latch bug, initial source latch, track acquisition derivative velocity spikes, desk-framing misclassifications, and browser webcam auto-exposure luminosity transients.
+  - **Formal Camera Lifecycle:** Implemented `CAMERA_OFFLINE` -> `CAMERA_STARTING` -> `CAMERA_CALIBRATING` (30-35 frames) -> `MONITORING` in both `tools/yolo_edge_sentinel.py` and `prototype/public/src/components/CameraZonesView.jsx` with derivative suppression requiring 3-4 consecutive frames.
+  - **Edge YOLO Heartbeat & Watchdog Resilience:** Added `/api/yolo/heartbeat` polling (2.5s beat, 6s timeout). Edge disconnection triggers `EDGE_OFFLINE` / `MONITORING_DEGRADED` in system health without triggering a patient emergency.
+  - **Decoupled Alert Architecture & Canonical Events Contract:** Created `prototype/canonical-events.js` (`v2.1.0`) with 9 physical mechanisms, recovery tracking, idempotent event IDs, and server ingestion (`GET/POST /api/canonical-events`, `POST /api/canonical-events/:id/verify`). Alert engine strictly consumes verified events.
+  - **9-Hypothesis Multimodal Engine & Counterfactual Reasoning (`movement-engine.js`):** Bayesian likelihood scoring comparing Normal Walking, Sitting, Lying, Kneeling, Trip, Loss of Balance, Fall, Fall with Immobility, and Unknown. Evaluates negative evidence (chair proximity, controlled descent, recovery, tracking quality) and outputs 3 distinct confidences (Detection, Mechanism, Severity).
+  - **4-Option Resident Verification Modal (`ResidentCheckinModal.jsx`):** Supports "I'm Okay", "I Fell (Minor / No Injury)", "I Need Emergency Help", and "Device Drop (Phone Dropped)" with 30s countdown and upright recovery auto-cancellation.
+  - **Separate Patient Health vs System Health UI (`CameraZonesView.jsx`):** Two-pillar status grid isolating Clinical Resident Safety from Technical Infrastructure.
+  - **Automated Validation Labs:** `tools/test_fall_kinematics.py` (7/7 unit tests passed) and `tools/test_false_positive_lab.py` (23/23 deterministic scenarios passed with 100% precision). Rebuilt production bundle (`tools/build_web.js` -> 268,449 bytes).
+

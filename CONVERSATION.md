@@ -1424,3 +1424,37 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   2. Upgraded `tools/start_yolo_silent.vbs` with dynamic `WScript.ScriptFullName` parent path resolution so it navigates to the repo root reliably from any invocation directory.
   3. Created `tools/enable_yolo_startup.ps1` and `tools/disable_yolo_startup.ps1` for one-click management of the silent background YOLO service on boot.
   4. Executed `tools/enable_yolo_startup.ps1` and verified `ReJivan YOLO Sentinel.lnk` in `$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup`. Both watchers now run silently and automatically when the PC powers on.
+
+---
+
+## 2026-09-16 (Day 8 — Multimodal Elderly-Safety Engine Architectural Directive)
+
+### What the user requested:
+- Upgrade ReJivan from simple threshold fall detection to a coherent, reliable, explainable multimodal elderly-safety system: **OBSERVE → RECONSTRUCT → CORROBORATE → REASON → VERIFY → RESPOND**.
+- P0 Must Fix: Live-camera automatic false alert bug; camera startup calibration (`CAMERA_OFFLINE` -> `CAMERA_STARTING` -> `CAMERA_CALIBRATING` -> `MONITORING`); edge heartbeat and offline handling (edge offline != patient emergency); decouple alert engine from raw YOLO detections.
+- P1 Core Intelligence: Temporal features window (5-10s pre / 15-30s post); hypothesis engine (competing explanations: walking, sitting, lying, kneeling, trip, loss of balance, fall with immobility); counterfactual negative evidence (chair proximity, controlled descent, recovery); three confidence scores (Detection, Mechanism, Severity); recovery detection engine; multimodal sensor fusion; first-class UNKNOWN state.
+- P2 System Hardening: Canonical event object schema; patient health vs system health separation in UI; serverless persistence resilience; resident verification modal.
+- P3 Demo & Validation: Incident reconstruction timeline view; 23-scenario false-positive test lab; comprehensive technical completion report.
+
+### What was investigated, implemented & verified (100% complete):
+1. **Root-Cause Analysis & Fix for Live-Camera False-Alert Bug:**
+   - Diagnosed 5 underlying bugs in `tools/yolo_edge_sentinel.py` and frontend:
+     * Infinite Latch Bug: `last_high_risk_time = current_time` refreshed continuously on every frame while latched, preventing 4s latch window expiration.
+     * Startup Source: defaulted to `bed_fall_demo` which latched high risk after 9s before webcam was opened.
+     * Velocity Derivative Spikes: first frame person detection evaluated against uninitialized `prev_com_y`, spiking to 30+ m/s.
+     * Desk Framing: desktop laptop camera framed user sitting at desk with torso close to bottom, misclassifying sitting as a floor drop (`com_y > 0.58 * h`).
+     * Browser Optical Differencing Luminance Transients: auto-exposure gain adjustment on camera open produced 80%+ motion difference.
+     * Direct Alert Coupling: `onTriggerAlert(true)` was called directly on raw telemetry.
+2. **Implementation Across Stack:**
+   - `tools/yolo_edge_sentinel.py`: Implemented formal camera lifecycle (`CAMERA_OFFLINE` -> `CAMERA_STARTING` -> `CAMERA_CALIBRATING` -> `MONITORING`), 35-frame spatial baseline calibration, derivative protection requiring 4 valid consecutive frames, upper-body posture synthesis (head-to-shoulder + shoulder tilt), 4s expiring latch with postural recovery auto-clearing (`torso_angle < 24°`), added `/api/yolo/heartbeat` endpoint and canonical event generation in telemetry.
+   - `prototype/canonical-events.js` (NEW): Universal contract module defining `EVENT_STATES`, `PHYSICAL_MECHANISMS` (9 mechanisms), `SYSTEM_HEALTH_STATES`, `RECOVERY_STATUS`, `VERIFICATION_STATUS`, `ESCALATION_LEVELS`, idempotent `generateEventId`, and `createCanonicalEvent`.
+   - `prototype/movement-engine.js`: Full multimodal Bayesian hypothesis arbitration across 9 competing mechanisms, counterfactual negative evidence reasoning (controlled descent velocity, furniture proximity, rapid recovery, tracking quality), independent 3-confidence metrics (Detection, Mechanism, Severity), `PersonalBaselineTracker`, and T-10s to T+30s chronological timeline generator.
+   - `prototype/public/src/components/CameraZonesView.jsx`: Decoupled alert engine from raw observations, added edge heartbeat watchdog poller (2.5s polling, 6s timeout, edge offline != patient emergency), implemented in-browser 30-frame calibration window (`CAMERA_CALIBRATING`), track persistence derivative protection, and two-pillar status dashboard strictly separating Resident Safety Status (Clinical) from System Infrastructure Health (Technical).
+   - `prototype/public/src/components/ResidentCheckinModal.jsx`: Upgraded with 4 distinct proportional options ("I'm Okay", "I Fell (Minor)", "Need Help", "Device Drop") plus upright recovery auto-cancellation.
+   - `prototype/public/src/components/IncidentReconstructionPanel.jsx`: Upgraded with 3 distinct confidence metrics, 9 competing hypotheses, counterfactual negative evidence, and timeline.
+   - `prototype/server.js`: Added canonical event endpoints (`GET/POST /api/canonical-events`, `POST /api/canonical-events/:id/verify`) with idempotent deduplication, file/memory persistence, and `/api/system-health`.
+   - `prototype/public/bundle.jsx`: Rebuilt via `node tools/build_web.js` (268,449 bytes).
+3. **Automated Verification:**
+   - `tools/test_fall_kinematics.py`: 7/7 unit tests passed.
+   - `tools/test_false_positive_lab.py`: 23/23 deterministic scenarios passed (100% precision: 22 false alarms suppressed, 1 genuine fall alerted).
+

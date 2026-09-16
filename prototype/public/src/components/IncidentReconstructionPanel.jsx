@@ -1,16 +1,17 @@
 // prototype/public/src/components/IncidentReconstructionPanel.jsx
-// Multimodal Incident Reconstruction, Hypothesis Engine & 30-Second Timeline Panel
+// Multimodal Incident Reconstruction, 9-Hypothesis Engine, 3 Confidence Scores & 30-Second Timeline Panel
 
 const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) => {
   // Vision Engine Arbitration State: Auto-detects local YOLO hardware or falls back to MediaPipe Wasm
   const [visionEngine, setVisionEngine] = React.useState("mediapipe"); // 'yolo' | 'mediapipe'
   const [yoloHardwareDetected, setYoloHardwareDetected] = React.useState(false);
-  const [activeScenario, setActiveScenario] = React.useState("trip_fall"); // 'trip_fall' | 'sitting' | 'phone_drop' | 'tremor' | 'acute_collapse'
+  const [activeScenario, setActiveScenario] = React.useState("trip_fall"); // 'sitting' | 'bed_exit' | 'tremor' | 'trip_fall' | 'trip_recovery' | 'acute_collapse' | 'phone_drop'
+  const [showAllHypotheses, setShowAllHypotheses] = React.useState(false);
 
   // Probe localhost:5050 for local YOLO daemon on mount
   React.useEffect(() => {
     let isMounted = true;
-    fetch("http://localhost:5050/api/yolo/status", { method: "GET", mode: "cors" })
+    fetch("http://127.0.0.1:5050/api/yolo/status", { method: "GET", mode: "cors" })
       .then((res) => {
         if (res.ok) return res.json();
         throw new Error("Local daemon not responding");
@@ -41,7 +42,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 15,
           chairBedProximity: true,
           wristOscillationHz: 0.4,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "bed_exit":
         return {
@@ -51,7 +53,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 5,
           chairBedProximity: true,
           wristOscillationHz: 0.5,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "tremor":
         return {
@@ -61,7 +64,31 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 0,
           chairBedProximity: true,
           wristOscillationHz: 5.4,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
+        };
+      case "trip_recovery":
+        return {
+          downwardVelocity: -1.45,
+          torsoAngle: 42,
+          impactShockG: 1.85,
+          postStillnessSeconds: 2,
+          chairBedProximity: false,
+          wristOscillationHz: 0.5,
+          deviceLiftedUpright: true,
+          recoveryTimeSeconds: 2.1
+        };
+      case "phone_drop":
+        return {
+          downwardVelocity: -0.10,
+          torsoAngle: 14,
+          impactShockG: 4.80,
+          postStillnessSeconds: 25,
+          chairBedProximity: false,
+          wristOscillationHz: 0.2,
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0,
+          isDeviceDropPattern: true
         };
       case "acute_collapse":
         return {
@@ -71,7 +98,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 48,
           chairBedProximity: false,
           wristOscillationHz: 0.2,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "trip_fall":
       default:
@@ -82,7 +110,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 16,
           chairBedProximity: false,
           wristOscillationHz: 0.5,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
     }
   };
@@ -94,17 +123,22 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
     ? ReJivanMovementEngine.evaluateHypotheses(evidence)
     : {
         winningHypothesis: {
-          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
+          id: activeScenario === "trip_fall" ? "H7" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H3" : activeScenario === "tremor" ? "H1" : "H8",
           label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "bed_exit" ? "Out-of-Bed Transfer / Tripwire Crossing" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
           mechanism: "Loss of balance followed by floor impact shock",
           confidence: 96,
           severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "bed_exit" ? "CAUTION" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
         },
+        confidenceScores: {
+          detectionConfidence: 94,
+          mechanismConfidence: 92,
+          severityConfidence: activeScenario === "acute_collapse" ? 95 : 78
+        },
         counterfactualExplanation: activeScenario === "sitting"
           ? "Accidental fall ruled out because descent velocity was controlled (-0.42 m/s), zero impact shock was recorded (1.08g), and resident retained upright torso stability."
           : activeScenario === "bed_exit"
           ? "Accidental fall ruled out because resident maintained upright postural balance during transfer with zero floor impact shock."
-          : "Intentional sitting (H2) ruled out because vertical descent velocity (-1.92 m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration reached 3.42g.",
+          : "Intentional sitting (H2) ruled out because vertical descent velocity exceeded controlled thresholds and high impact deceleration was registered.",
         allHypotheses: []
       };
 
@@ -119,6 +153,12 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
         { time: "14:31:52", event: "Resident Verification Active", detail: "30-second grace window initiated" }
       ];
 
+  const confScores = engineResult.confidenceScores || {
+    detectionConfidence: engineResult.winningHypothesis.confidence || 92,
+    mechanismConfidence: 90,
+    severityConfidence: engineResult.winningHypothesis.severity === "CRITICAL" ? 95 : 50
+  };
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
       {/* Header with Dual Vision Engine Priority Arbitration */}
@@ -130,13 +170,13 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                Multimodal Incident Reconstruction & Event Reasoning
+                Multimodal Incident Reconstruction &amp; Event Reasoning
                 <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   Observe &rarr; Reason &rarr; Verify
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Evaluates physical kinematics, competing hypotheses, and counterfactuals before triggering escalation.
+                Evaluates physical kinematics across 9 competing hypotheses, counterfactuals, and negative evidence before proportional escalation.
               </p>
             </div>
           </div>
@@ -187,7 +227,7 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           <CheckCircle2 className={`w-4 h-4 ${visionEngine === "yolo" ? "text-emerald-600" : "text-blue-600"}`} />
           {visionEngine === "yolo" ? (
             <span>
-              <strong>Primary Vision Engine Active:</strong> YOLO11-Pose · Local NVIDIA GeForce GTX 1650 4GB GPU Acceleration (58.4 FPS · 184MB VRAM)
+              <strong>Primary Vision Engine Active:</strong> YOLO11-Pose · Local NVIDIA GeForce GTX 1650 4GB GPU Acceleration (58 FPS · 184MB VRAM)
             </span>
           ) : (
             <span>
@@ -200,17 +240,17 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
         </span>
       </div>
 
-      {/* Evaluator 5-Scenario Interactive Switcher */}
+      {/* Evaluator Interactive Scenarios Switcher */}
       <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/30">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Interactive Evaluator Scenarios (Click to Test Logic):
           </span>
           <span className="text-[11px] text-slate-400 font-medium">
-            Test how ReJivan proves or rejects emergencies
+            Observes movement &bull; Compares 9 Hypotheses &bull; Proves / Rejects False Alarms
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
           <button
             onClick={() => setActiveScenario("sitting")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
@@ -234,9 +274,9 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🛏️ 2. Out-of-Bed Transfer</span>
+              <span>🛏️ 2. Bed Transfer</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Tripwire crossed · Safe stance</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Perimeter transition</p>
           </button>
 
           <button
@@ -248,23 +288,39 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🟣 3. Tremor / Shiver</span>
+              <span>🟣 3. Tremor / Jitter</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">5.4 Hz wrist jitter</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">5.4 Hz oscillation</p>
           </button>
 
           <button
-            onClick={() => setActiveScenario("trip_fall")}
+            onClick={() => setActiveScenario("trip_recovery")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
-              activeScenario === "trip_fall"
-                ? "bg-rose-50 border-rose-300 text-rose-900 shadow-xs ring-1 ring-rose-400"
+              activeScenario === "trip_recovery"
+                ? "bg-teal-50 border-teal-300 text-teal-900 shadow-xs ring-1 ring-teal-400"
                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>⚠️ 4. Trip & Fall</span>
+              <span>🔄 4. Rapid Recovery</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Deceleration impact</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Stood up in &lt;3s (Auto-cancel)</p>
+          </button>
+
+          <button
+            onClick={() => setActiveScenario("phone_drop")}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
+              activeScenario === "phone_drop"
+                ? "bg-slate-800 border-slate-900 text-white shadow-xs ring-1 ring-slate-700"
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold">
+              <span>📱 5. Device Drop</span>
+            </div>
+            <p className={`text-[10px] mt-0.5 line-clamp-1 ${activeScenario === "phone_drop" ? "text-slate-300" : "text-slate-500"}`}>
+              4.8g shock · Torso stays 14°
+            </p>
           </button>
 
           <button
@@ -276,19 +332,53 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🚨 5. Collapse & Void</span>
+              <span>🚨 6. Fall Collapse</span>
             </div>
             <p className={`text-[10px] mt-0.5 line-clamp-1 ${activeScenario === "acute_collapse" ? "text-red-100" : "text-slate-500"}`}>
-              Immobility &gt;45s · 108 Call
+              Floor immobility &gt;30s
             </p>
           </button>
         </div>
       </div>
 
-      {/* Grid: Left Column (Winning Hypothesis & Metrics) + Right Column (30s Timeline) */}
+      {/* Grid: Left Column (Hypotheses, 3 Confidences & Counterfactuals) + Right Column (30s Timeline) */}
       <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 7 Columns: Hypothesis & Counterfactual Reasoning */}
+        {/* Left 7 Columns: Winning Hypothesis & 3 Distinct Confidence Metrics */}
         <div className="lg:col-span-7 space-y-4">
+          
+          {/* 3 Independent Confidence Scores Card */}
+          <div className="bg-slate-900 text-white p-4 rounded-xl shadow-xs">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+              <span>Three Independent Clinical Confidence Metrics</span>
+              <span className="font-mono text-emerald-400">Prajñā Kinematic Engine</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Detection Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xl font-extrabold font-mono text-emerald-400">{confScores.detectionConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Observation certainty</span>
+              </div>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Mechanism Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xl font-extrabold font-mono text-blue-400">{confScores.mechanismConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Physical explanation</span>
+              </div>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Severity Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className={`text-xl font-extrabold font-mono ${
+                    confScores.severityConfidence > 75 ? "text-rose-400" : confScores.severityConfidence > 40 ? "text-amber-400" : "text-slate-300"
+                  }`}>{confScores.severityConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Risk &amp; immobility level</span>
+              </div>
+            </div>
+          </div>
+
           {/* Winning Hypothesis Card */}
           <div className={`p-4 rounded-xl border ${
             engineResult.winningHypothesis.severity === "CRITICAL"
@@ -311,10 +401,10 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
                       ? "bg-amber-600 text-white"
                       : "bg-emerald-600 text-white"
                   }`}>
-                    {engineResult.winningHypothesis.id} · {engineResult.winningHypothesis.severity}
+                    {engineResult.winningHypothesis.id} &bull; {engineResult.winningHypothesis.severity}
                   </span>
                   <span className="text-xs font-bold text-slate-700">
-                    Confidence: {engineResult.winningHypothesis.confidence}%
+                    Posterior Probability: {engineResult.winningHypothesis.confidence}%
                   </span>
                 </div>
                 <h4 className="text-base font-bold text-slate-900 mt-1.5">
@@ -370,11 +460,42 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 mb-1.5">
               <ShieldAlert className="w-4 h-4 text-blue-600" />
-              <span>Counterfactual Reasoning (Why False Positives Are Suppressed):</span>
+              <span>Counterfactual Reasoning &amp; Negative Evidence:</span>
             </div>
             <p className="text-xs text-slate-700 leading-relaxed font-sans">
               {engineResult.counterfactualExplanation}
             </p>
+          </div>
+
+          {/* Toggle All 9 Competing Hypotheses View */}
+          <div>
+            <button
+              onClick={() => setShowAllHypotheses(!showAllHypotheses)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              <span>{showAllHypotheses ? "▲ Hide 9 Competing Hypotheses Breakdown" : "▼ Inspect All 9 Competing Physical Hypotheses"}</span>
+            </button>
+
+            {showAllHypotheses && engineResult.allHypotheses && (
+              <div className="mt-3 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200 animate-in fade-in">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Candidate Hypothesis Evaluation</span>
+                  <span>Posterior Score</span>
+                </div>
+                {engineResult.allHypotheses.map((hypo, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-slate-200/60 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${idx === 0 ? "bg-emerald-500" : "bg-slate-300"}`} />
+                      <span className="font-semibold text-slate-800">{hypo.id}: {hypo.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3 font-mono text-[11px]">
+                      <span className="text-slate-500">{hypo.severity}</span>
+                      <span className={`font-bold ${idx === 0 ? "text-emerald-700" : "text-slate-600"}`}>{hypo.confidence}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -384,16 +505,16 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-blue-600" />
-                <span>30-Second Pre-Event Timeline</span>
+                <span>30-Second Kinematic Reconstruction (T-10s to T+30s)</span>
               </h4>
-              <span className="text-[10px] font-mono text-slate-400">10Hz Telemetry Buffer</span>
+              <span className="text-[10px] font-mono text-slate-400">10Hz Buffer</span>
             </div>
 
             <div className="space-y-3 relative pl-4 border-l-2 border-slate-200 ml-1.5">
               {timeline.map((item, idx) => (
                 <div key={idx} className="relative group">
                   <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 bg-white ${
-                    idx === timeline.length - 1 ? "border-rose-600 bg-rose-600" : "border-slate-400"
+                    item.phase === "impact" || idx === 3 ? "border-rose-600 bg-rose-600" : (item.phase === "recovery" ? "border-teal-500 bg-teal-500" : "border-slate-400")
                   }`} />
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-xs font-bold text-slate-800">{item.event}</span>

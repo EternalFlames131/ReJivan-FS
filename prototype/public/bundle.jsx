@@ -3,8 +3,9 @@
 
 // --- START: prototype\movement-engine.js ---
 // prototype/movement-engine.js
-// ReJivan Unified Motion Kinematics, Hypothesis Scoring & Counterfactual Reasoning Engine
-// Compatible with both browser (MediaPipe Pose) and local edge hardware (YOLO11-Pose via GTX 1650)
+// ReJivan Unified Motion Kinematics, Hypothesis Scoring, Counterfactual Reasoning & Sensor Fusion Engine
+// Compatible with both browser (MediaPipe / Optical Flow) and edge hardware (YOLO11-Pose via GTX 1650)
+// Architectural flow: OBSERVE -> RECONSTRUCT -> CORROBORATE -> REASON -> VERIFY -> RESPOND
 
 (function (root, factory) {
   if (typeof define === "function" && define.amd) {
@@ -17,8 +18,8 @@
 })(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : this), function () {
   "use strict";
 
-  // Standard 17-point COCO Keypoint Map (Identical between YOLO-Pose & MediaPipe)
-  const KEYPOINTS = {
+  // Standard 17-point COCO Keypoint Map (Identical across YOLO-Pose & MediaPipe)
+  const KEYPOINTS = Object.freeze({
     NOSE: 0,
     LEFT_EYE: 1, RIGHT_EYE: 2,
     LEFT_EAR: 3, RIGHT_EAR: 4,
@@ -28,15 +29,65 @@
     LEFT_HIP: 11, RIGHT_HIP: 12,
     LEFT_KNEE: 13, RIGHT_KNEE: 14,
     LEFT_ANKLE: 15, RIGHT_ANKLE: 16
-  };
+  });
+
+  // Candidate Physical Mechanisms
+  const MECHANISMS = Object.freeze({
+    NORMAL_ACTIVITY: "NORMAL_ACTIVITY",
+    INTENTIONAL_SITTING: "INTENTIONAL_SITTING",
+    INTENTIONAL_LYING: "INTENTIONAL_LYING",
+    KNEELING: "KNEELING",
+    TRIP: "TRIP",
+    LOSS_OF_BALANCE: "LOSS_OF_BALANCE",
+    FALL: "FALL",
+    FALL_WITH_IMMOBILITY: "FALL_WITH_IMMOBILITY",
+    DEVICE_DROP: "DEVICE_DROP",
+    UNKNOWN: "UNKNOWN"
+  });
 
   /**
-   * Calculates the Center of Mass (CoM) and Torso Angle from skeletal landmarks
-   * @param {Array} landmarks - 17 keypoint array [{x, y, z, visibility}, ...]
+   * Personal Baseline Tracker
+   * Maintains running averages of resident normal behavior to evaluate individual deviations
+   */
+  class PersonalBaselineTracker {
+    constructor(initial = {}) {
+      this.typicalWalkingVelocity = initial.typicalWalkingVelocity ?? 0.85; // m/s
+      this.typicalLateralSway = initial.typicalLateralSway ?? 6.5;         // degrees
+      this.typicalSitDurationSec = initial.typicalSitDurationSec ?? 1.8;   // seconds to sit down
+      this.sampleCount = initial.sampleCount ?? 20;
+    }
+
+    update(observation) {
+      if (!observation) return;
+      const alpha = 0.05; // slow moving average
+      if (observation.walkingVelocity && observation.walkingVelocity > 0.2) {
+        this.typicalWalkingVelocity = (1 - alpha) * this.typicalWalkingVelocity + alpha * observation.walkingVelocity;
+      }
+      if (observation.lateralSway && observation.lateralSway >= 0) {
+        this.typicalLateralSway = (1 - alpha) * this.typicalLateralSway + alpha * observation.lateralSway;
+      }
+      this.sampleCount++;
+    }
+
+    getDeviation(currentVelocity, currentSway) {
+      const velDev = currentVelocity ? (currentVelocity - this.typicalWalkingVelocity) / this.typicalWalkingVelocity : 0;
+      const swayDev = currentSway ? (currentSway - this.typicalLateralSway) / this.typicalLateralSway : 0;
+      return {
+        velocityDeviationRatio: Math.round(velDev * 100) / 100,
+        swayDeviationRatio: Math.round(swayDev * 100) / 100,
+        isSignificantSway: swayDev > 1.5
+      };
+    }
+  }
+
+  const defaultBaseline = new PersonalBaselineTracker();
+
+  /**
+   * Calculates Center of Mass (CoM) and Torso Angle from skeletal landmarks
    */
   function analyzePoseGeometry(landmarks) {
     if (!landmarks || landmarks.length < 17) {
-      return { valid: false, reason: "Insufficient keypoint tracking" };
+      return { valid: false, reason: "Insufficient keypoint tracking (<17 points)" };
     }
 
     const lShoulder = landmarks[KEYPOINTS.LEFT_SHOULDER];
@@ -44,24 +95,27 @@
     const lHip = landmarks[KEYPOINTS.LEFT_HIP];
     const rHip = landmarks[KEYPOINTS.RIGHT_HIP];
 
-    // Midpoint of shoulders & hips
-    const shoulderMid = {
+    const hasShoulders = (lShoulder?.visibility ?? 1) > 0.3 && (rShoulder?.visibility ?? 1) > 0.3;
+    const hasHips = (lHip?.visibility ?? 1) > 0.3 && (rHip?.visibility ?? 1) > 0.3;
+
+    if (!hasShoulders && !hasHips) {
+      return { valid: false, reason: "Torso landmarks occluded" };
+    }
+
+    const shoulderMid = hasShoulders ? {
       x: (lShoulder.x + rShoulder.x) / 2,
       y: (lShoulder.y + rShoulder.y) / 2
-    };
-    const hipMid = {
+    } : { x: landmarks[0].x, y: landmarks[0].y + 0.1 };
+
+    const hipMid = hasHips ? {
       x: (lHip.x + rHip.x) / 2,
       y: (lHip.y + rHip.y) / 2
-    };
+    } : { x: shoulderMid.x, y: shoulderMid.y + 0.25 };
 
-    // Torso vector
     const dx = hipMid.x - shoulderMid.x;
-    const dy = hipMid.y - shoulderMid.y; // In screen space, y increases downwards
+    const dy = hipMid.y - shoulderMid.y;
+    const angleFromVertical = Math.abs(Math.atan2(Math.abs(dx), Math.max(Math.abs(dy), 0.001)) * (180 / Math.PI));
 
-    // Angle of torso with vertical axis (0 deg = standing straight up, 90 deg = horizontal lying down)
-    const angleFromVertical = Math.abs(Math.atan2(Math.abs(dx), Math.abs(dy)) * (180 / Math.PI));
-
-    // Approximate Center of Mass
     const com = {
       x: (shoulderMid.x + hipMid.x) / 2,
       y: (shoulderMid.y + hipMid.y) / 2
@@ -73,182 +127,229 @@
       shoulderMid,
       hipMid,
       torsoAngleDegrees: Math.round(angleFromVertical * 10) / 10,
-      isHorizontallyOriented: angleFromVertical > 60
+      isHorizontallyOriented: angleFromVertical > 55
     };
   }
 
   /**
-   * Evaluates Competing Hypotheses for any physical movement event
-   * Compares evidence across Camera Kinematics, Wearable IMU Shock, and Telemetry Vitals
+   * Evaluates Competing Physical Hypotheses with Counterfactuals & Negative Evidence
+   * Across Vision Kinematics, IMU Shock, Room Context, Recovery, and Baseline Deviation
    */
-  function evaluateHypotheses(evidence) {
+  function evaluateHypotheses(evidence = {}, baseline = defaultBaseline) {
     const {
-      downwardVelocity = 0,     // m/s (negative = down)
-      torsoAngle = 10,           // degrees from vertical (0=standing, 90=flat)
-      impactShockG = 1.0,        // accelerometer peak g-force (1.0 = normal, >2.5 = impact)
-      postStillnessSeconds = 0,  // seconds elapsed with motionless posture
-      chairBedProximity = false, // true if near recognized safe resting furniture
-      wristOscillationHz = 0,    // frequency of hand/wrist jitter (3-8 Hz = tremor)
-      deviceLiftedUpright = false// true if smartphone picked back up after drop
+      downwardVelocity = -0.1,     // m/s (negative = downward)
+      torsoAngle = 10,             // degrees from vertical (0=standing, 90=flat)
+      impactShockG = 1.0,          // IMU accelerometer peak g-force (1.0=normal, >2.4=impact)
+      postStillnessSeconds = 0,    // seconds elapsed motionless
+      chairBedProximity = false,   // near recognized furniture
+      bedProximity = false,        // near bed
+      isKneeling = false,          // knees on floor with upright torso
+      wristOscillationHz = 0,      // frequency of tremor/jitter (3-8 Hz)
+      recoveryObserved = false,    // stood back up or upright recovery restored
+      trackingQuality = 0.95,      // 0.0 - 1.0 tracking confidence
+      sensorConflict = false,      // vision and IMU disagree
+      deviceLiftedUpright = false  // phone picked up after drop
     } = evidence;
 
+    const supporting = [];
+    const counter = [];
     const hypotheses = [];
 
-    // H1: Accidental Fall / Mechanical Trip
-    let h1Score = 0;
-    if (downwardVelocity < -1.4) h1Score += 0.35;
-    if (torsoAngle > 60) h1Score += 0.25;
-    if (impactShockG > 2.4) h1Score += 0.30;
-    if (!chairBedProximity) h1Score += 0.10;
-    hypotheses.push({
-      id: "H1",
-      label: "Accidental Fall / Mechanical Trip",
-      mechanism: "Sudden loss of vertical balance followed by deceleration impact on floor",
-      confidence: Math.min(Math.round(h1Score * 100), 99),
-      severity: "CRITICAL"
-    });
-
-    // H2: Controlled Descent / Sitting Down
-    let h2Score = 0;
-    if (downwardVelocity >= -0.8 && downwardVelocity < 0) h2Score += 0.40;
-    if (torsoAngle < 45) h2Score += 0.30;
-    if (impactShockG < 1.4) h2Score += 0.20;
-    if (chairBedProximity) h2Score += 0.10;
-    hypotheses.push({
-      id: "H2",
-      label: "Controlled Sitting / Intentional Descent",
-      mechanism: "Smooth muscular deceleration onto seating furniture without ground shock",
-      confidence: Math.min(Math.round(h2Score * 100), 99),
-      severity: "NORMAL"
-    });
-
-    // H3: Intentional Resting / Lying in Bed
-    let h3Score = 0;
-    if (torsoAngle > 65) h3Score += 0.35;
-    if (downwardVelocity >= -0.6) h3Score += 0.30;
-    if (impactShockG < 1.3) h3Score += 0.20;
-    if (chairBedProximity) h3Score += 0.15;
-    hypotheses.push({
-      id: "H3",
-      label: "Intentional Bed Rest / Supine Sleep",
-      mechanism: "Gradual reclining posture transition into safe sleep zone",
-      confidence: Math.min(Math.round(h3Score * 100), 99),
-      severity: "NORMAL"
-    });
-
-    // H4: Out-of-Bed Transfer / Virtual Tripwire Crossing
-    let h4Score = 0;
-    if (chairBedProximity && torsoAngle < 40) h4Score += 0.45;
-    if (downwardVelocity > -0.6 && downwardVelocity < 0) h4Score += 0.35;
-    if (impactShockG < 1.4) h4Score += 0.20;
-    hypotheses.push({
-      id: "H4",
-      label: "Out-of-Bed Transfer / Tripwire Crossing",
-      mechanism: "Patient exited bed perimeter onto bedside floor while maintaining vertical postural stability",
-      confidence: Math.min(Math.round(h4Score * 100), 99),
-      severity: "CAUTION"
-    });
-
-    // H5: Abnormal Tremor / Shivering Episode
-    let h5Score = 0;
-    if (wristOscillationHz >= 3.0 && wristOscillationHz <= 8.5) h5Score += 0.70;
-    if (torsoAngle < 45) h5Score += 0.20;
-    if (impactShockG < 1.5) h5Score += 0.10;
-    hypotheses.push({
-      id: "H5",
-      label: "Involuntary Tremor / Shivering Movement",
-      mechanism: "Rhythmic musculoskeletal oscillation (3-8 Hz) without postural collapse",
-      confidence: Math.min(Math.round(h5Score * 100), 99),
-      severity: "CONCERNING"
-    });
-
-    // H6: Prolonged Immobility / Post-Event Incapacitation
-    let h6Score = 0;
-    if (postStillnessSeconds > 30) h6Score += 0.45;
-    if (torsoAngle > 60) h6Score += 0.35;
-    if (!chairBedProximity) h6Score += 0.20;
-    hypotheses.push({
-      id: "H6",
-      label: "Prolonged Post-Fall Immobility",
-      mechanism: "Inability to initiate recovery movement following downward event",
-      confidence: Math.min(Math.round(h6Score * 100), 99),
-      severity: "CRITICAL"
-    });
-
-    // Sort by descending confidence score
-    hypotheses.sort((a, b) => b.confidence - a.confidence);
-    const winningHypothesis = hypotheses[0];
-
-    // Counterfactual explanation: Prove why alternative non-emergency explanations were rejected or accepted
-    let counterfactualExplanation = "";
-    if (winningHypothesis.id === "H1" || winningHypothesis.id === "H6") {
-      counterfactualExplanation = `Intentional sitting (H2) ruled out because vertical descent velocity (${downwardVelocity} m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration registered ${impactShockG}g shock. Sleeping (H3) ruled out due to non-bed floor location and sudden acceleration spike.`;
-    } else if (winningHypothesis.id === "H2") {
-      counterfactualExplanation = `Accidental fall (H1) ruled out because descent velocity was controlled (${downwardVelocity} m/s), zero impact shock was recorded (${impactShockG}g), and resident retained upright torso stability.`;
-    } else if (winningHypothesis.id === "H3") {
-      counterfactualExplanation = `Fall (H1) ruled out because transition occurred within recognized bed perimeter with smooth deceleration and sustained rhythmic respiration.`;
-    } else if (winningHypothesis.id === "H4") {
-      counterfactualExplanation = `Fall (H1) ruled out because resident maintained upright postural equilibrium (Torso angle: ${torsoAngle}°) during bed transfer with zero ground impact shock (${impactShockG}g).`;
-    } else if (winningHypothesis.id === "H5") {
-      counterfactualExplanation = `Fall (H1) ruled out; posture remains upright while isolated wrist keypoints display repetitive 3-8 Hz oscillation.`;
+    // Check for UNKNOWN / DEGRADED condition
+    if (trackingQuality < 0.40 || sensorConflict) {
+      hypotheses.push({
+        id: "H_UNKNOWN",
+        mechanism: MECHANISMS.UNKNOWN,
+        label: "Ambiguous Evidence / Sensor Conflict",
+        score: 0.85,
+        confidence: 85,
+        severity: "UNKNOWN",
+        explanation: "Optical tracking quality collapsed or sensor telemetry is contradictory. System enters verification state rather than raising a false emergency."
+      });
+      return {
+        winningHypothesis: hypotheses[0],
+        allHypotheses: hypotheses,
+        detectionConfidence: 30,
+        mechanismConfidence: 20,
+        severityConfidence: 10,
+        supportingEvidence: ["Tracking quality degraded or sensor conflict"],
+        counterEvidence: ["Zero confirmed anatomical collapse"],
+        counterfactualExplanation: "Event classified as UNKNOWN because sensor evidence is ambiguous. Missing data is never treated as confirmed danger."
+      };
     }
 
-    // Engine-First / Gemini-Failsafe Consensus Arbitration
-    // Detects whether the local physics determination is DECISIVE (clear certainty) or AMBIGUOUS (close call)
-    const runnerUp = hypotheses[1] || { confidence: 0 };
-    const confidenceGap = winningHypothesis.confidence - runnerUp.confidence;
-    const isAmbiguous = (winningHypothesis.confidence >= 40 && winningHypothesis.confidence <= 65) || (confidenceGap < 10 && winningHypothesis.confidence < 75);
-
-    let consensus = null;
-    if (isAmbiguous) {
-      // In ambiguous edge cases, system invokes Gemini background arbitration failsafe
-      // Evaluates weighted consensus: 75% local physics + 25% Gemini clinical reasoning
-      const geminiConfidence = Math.min(Math.round(winningHypothesis.confidence * 0.9 + 8), 95);
-      const fusedConfidence = Math.round((winningHypothesis.confidence * 0.75) + (geminiConfidence * 0.25));
-      consensus = {
-        mode: "HYBRID_GEMINI_FAILSAFE_CONSENSUS",
-        isAmbiguous: true,
-        primaryEngineConfidence: winningHypothesis.confidence,
-        geminiConfidence: geminiConfidence,
-        fusedConfidence: fusedConfidence,
-        engineWeight: "75%",
-        geminiWeight: "25%",
-        timeoutSafeguard: "1500ms Active (Local safety policy prioritized)",
-        verdict: fusedConfidence >= 60 ? "VERIFIED_ANOMALY" : "MONITOR_EQUILIBRIUM",
-        sbarSummary: `[Gemini Clinical Synthesis] Ambiguous downward shift observed (ΔV: ${downwardVelocity} m/s, θ: ${torsoAngle}°). Cross-corroborated against ${runnerUp.label}. Synthesized recommendation: Initiate resident verification check; avoid unnecessary 108 escalation unless unresponsiveness persists.`
-      };
+    // Evaluate H1: Fall (Accidental / Uncontrolled)
+    let hFallScore = 0.05;
+    if (downwardVelocity < -1.1) {
+      hFallScore += 0.35;
+      supporting.push(`High downward velocity (${downwardVelocity} m/s)`);
     } else {
-      // Decisive local engine determination - executed in <20ms, zero cloud dependency
-      consensus = {
-        mode: "DECISIVE_LOCAL_ENGINE",
-        isAmbiguous: false,
-        primaryEngineConfidence: winningHypothesis.confidence,
-        geminiConfidence: null,
-        fusedConfidence: winningHypothesis.confidence,
-        engineWeight: "100%",
-        geminiWeight: "0%",
-        timeoutSafeguard: "Bypassed (Zero cloud lag needed)",
-        verdict: winningHypothesis.severity,
-        sbarSummary: `[Local Prajñā Engine] High-confidence kinematic determination (${winningHypothesis.confidence}%). Immediate local response activated without cloud latency.`
-      };
+      counter.push(`Descent velocity within controlled threshold (${downwardVelocity} m/s)`);
+    }
+    if (torsoAngle > 50) {
+      hFallScore += 0.25;
+      supporting.push(`Torso angle indicates collapse (${torsoAngle}°)`);
+    } else {
+      counter.push(`Spine maintained vertical posture (${torsoAngle}°)`);
+    }
+    if (impactShockG > 2.2) {
+      hFallScore += 0.30;
+      supporting.push(`Deceleration ground shock detected (${impactShockG}g)`);
+    } else {
+      counter.push(`Zero impact deceleration shock (${impactShockG}g)`);
+    }
+    // Negative evidence: chair proximity reduces accidental fall
+    if (chairBedProximity || bedProximity) {
+      hFallScore -= 0.30;
+      counter.push("Proximity to recognized seating/bed furniture rules against uncontrolled fall");
+    }
+    if (recoveryObserved) {
+      hFallScore -= 0.35;
+      counter.push("Immediate upright postural recovery observed (<5s)");
+    }
+    hFallScore = Math.max(0.01, Math.min(0.99, hFallScore));
+
+    // Evaluate H2: Controlled Sitting
+    let hSitScore = 0.05;
+    if (downwardVelocity >= -0.85 && downwardVelocity < -0.15) {
+      hSitScore += 0.35;
+      supporting.push("Controlled muscular deceleration during downward transition");
+    }
+    if (torsoAngle < 40) {
+      hSitScore += 0.30;
+      supporting.push(`Upright spinal stability retained (${torsoAngle}°)`);
+    }
+    if (impactShockG < 1.4) {
+      hSitScore += 0.20;
+      supporting.push("Smooth contact with zero ground impact shock");
+    }
+    if (chairBedProximity) {
+      hSitScore += 0.25;
+      supporting.push("Armchair/couch perimeter corroborated");
+    }
+    hSitScore = Math.max(0.01, Math.min(0.99, hSitScore));
+
+    // Evaluate H3: Intentional Lying / Bed Rest
+    let hLyingScore = 0.05;
+    if (bedProximity || chairBedProximity) hLyingScore += 0.40;
+    if (torsoAngle > 60 && downwardVelocity > -0.6) hLyingScore += 0.35;
+    if (impactShockG < 1.3) hLyingScore += 0.20;
+    hLyingScore = Math.max(0.01, Math.min(0.99, hLyingScore));
+
+    // Evaluate H4: Kneeling / Floor Task
+    let hKneelScore = 0.05;
+    if (isKneeling || (torsoAngle < 35 && downwardVelocity > -0.7)) hKneelScore += 0.40;
+    if (impactShockG < 1.4) hKneelScore += 0.25;
+    hKneelScore = Math.max(0.01, Math.min(0.99, hKneelScore));
+
+    // Evaluate H5: Trip with Rapid Recovery
+    let hTripScore = 0.05;
+    if (downwardVelocity < -0.9 && recoveryObserved) hTripScore += 0.65;
+    if (impactShockG > 1.8 && recoveryObserved) hTripScore += 0.25;
+    hTripScore = Math.max(0.01, Math.min(0.99, hTripScore));
+
+    // Evaluate H6: Loss of Balance / Mild Sway
+    let hSwayScore = 0.05;
+    if (torsoAngle >= 25 && torsoAngle <= 45 && downwardVelocity > -0.6) hSwayScore += 0.55;
+    if (impactShockG < 1.5) hSwayScore += 0.25;
+    hSwayScore = Math.max(0.01, Math.min(0.99, hSwayScore));
+
+    // Evaluate H7: Fall with Prolonged Immobility
+    let hImmobileScore = 0.05;
+    if (hFallScore > 0.6 && postStillnessSeconds > 15) hImmobileScore += 0.60;
+    if (torsoAngle > 65 && !recoveryObserved && postStillnessSeconds > 10) hImmobileScore += 0.35;
+    hImmobileScore = Math.max(0.01, Math.min(0.99, hImmobileScore));
+
+    // Evaluate H8: Device Drop (IMU shock without vision collapse)
+    let hDropScore = 0.05;
+    if (impactShockG > 2.8 && torsoAngle < 25 && Math.abs(downwardVelocity) < 0.3) {
+      hDropScore += 0.75;
+      supporting.push("Severe IMU impact shock recorded while resident remains fully upright");
+    }
+    if (deviceLiftedUpright) hDropScore += 0.20;
+    hDropScore = Math.max(0.01, Math.min(0.99, hDropScore));
+
+    // Evaluate H0: Normal Activity
+    let hNormalScore = 0.05;
+    if (Math.abs(downwardVelocity) < 0.25 && torsoAngle < 22 && impactShockG < 1.3) {
+      hNormalScore += 0.85;
+    }
+    hNormalScore = Math.max(0.01, Math.min(0.99, hNormalScore));
+
+    // Build Hypotheses Array
+    hypotheses.push(
+      { id: "H_FALL", mechanism: MECHANISMS.FALL, label: "Accidental Fall / Acute Impact", score: hFallScore, confidence: Math.round(hFallScore * 100), severity: "CRITICAL" },
+      { id: "H_SIT", mechanism: MECHANISMS.INTENTIONAL_SITTING, label: "Controlled Sitting / Intentional Descent", score: hSitScore, confidence: Math.round(hSitScore * 100), severity: "NORMAL" },
+      { id: "H_LYING", mechanism: MECHANISMS.INTENTIONAL_LYING, label: "Intentional Bed Rest / Supine Sleep", score: hLyingScore, confidence: Math.round(hLyingScore * 100), severity: "NORMAL" },
+      { id: "H_KNEEL", mechanism: MECHANISMS.KNEELING, label: "Intentional Kneeling / Controlled Low Posture", score: hKneelScore, confidence: Math.round(hKneelScore * 100), severity: "NORMAL" },
+      { id: "H_TRIP", mechanism: MECHANISMS.TRIP, label: "Stumble / Trip with Rapid Recovery", score: hTripScore, confidence: Math.round(hTripScore * 100), severity: "LOW" },
+      { id: "H_SWAY", mechanism: MECHANISMS.LOSS_OF_BALANCE, label: "Loss of Balance / Postural Sway", score: hSwayScore, confidence: Math.round(hSwayScore * 100), severity: "CAUTION" },
+      { id: "H_IMMOBILE", mechanism: MECHANISMS.FALL_WITH_IMMOBILITY, label: "Fall with Prolonged Post-Impact Immobility", score: hImmobileScore, confidence: Math.round(hImmobileScore * 100), severity: "CRITICAL" },
+      { id: "H_DROP", mechanism: MECHANISMS.DEVICE_DROP, label: "Device Drop / Accelerometer Shock Only", score: hDropScore, confidence: Math.round(hDropScore * 100), severity: "VERIFICATION" },
+      { id: "H_NORMAL", mechanism: MECHANISMS.NORMAL_ACTIVITY, label: "Stable Upright Ambulation / Nominal", score: hNormalScore, confidence: Math.round(hNormalScore * 100), severity: "NORMAL" }
+    );
+
+    hypotheses.sort((a, b) => b.score - a.score);
+    const winningHypothesis = hypotheses[0];
+
+    // Compute the 3 Separate Confidences:
+    // 1. Detection Confidence: certainty that abnormal physical motion happened
+    const detectionConfidence = Math.min(100, Math.round(Math.max(
+      Math.abs(downwardVelocity) / 1.8 * 80,
+      (impactShockG - 1.0) / 2.0 * 85,
+      torsoAngle / 70 * 80
+    )));
+
+    // 2. Mechanism Confidence: certainty that winning hypothesis beats runner-up
+    const runnerUp = hypotheses[1] || { score: 0 };
+    const mechanismConfidence = Math.min(99, Math.round(
+      (winningHypothesis.score / (winningHypothesis.score + runnerUp.score + 0.001)) * 100
+    ));
+
+    // 3. Severity Confidence: certainty of medical danger
+    let severityConfidence = 0;
+    if (winningHypothesis.mechanism === MECHANISMS.FALL_WITH_IMMOBILITY) {
+      severityConfidence = 88;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL) {
+      severityConfidence = recoveryObserved ? 15 : 74;
+    } else if (winningHypothesis.mechanism === MECHANISMS.TRIP) {
+      severityConfidence = 20;
+    } else if (winningHypothesis.mechanism === MECHANISMS.LOSS_OF_BALANCE) {
+      severityConfidence = 35;
+    }
+
+    // Counterfactual Explanation
+    let counterfactualExplanation = "";
+    if (winningHypothesis.mechanism === MECHANISMS.INTENTIONAL_SITTING) {
+      counterfactualExplanation = `Accidental fall ruled out: descent velocity was controlled (${downwardVelocity} m/s), zero impact shock was recorded (${impactShockG}g), and resident maintained upright spinal equilibrium near seating furniture.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.INTENTIONAL_LYING) {
+      counterfactualExplanation = `Fall ruled out: smooth reclining transition within recognized bed perimeter with normal post-transfer respiration and zero ground impact.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.TRIP) {
+      counterfactualExplanation = `Emergency escalation suppressed: physical stumble occurred but upright postural equilibrium was restored within 4 seconds.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.DEVICE_DROP) {
+      counterfactualExplanation = `Physical resident fall ruled out: accelerometer recorded impact spike (${impactShockG}g), but vision tracking confirmed resident retained continuous upright posture (Torso: ${torsoAngle}°).`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL) {
+      counterfactualExplanation = `Intentional sitting ruled out: vertical velocity reached ${downwardVelocity} m/s with impact deceleration shock (${impactShockG}g) and absence of recovery motion.`;
+    } else if (winningHypothesis.mechanism === MECHANISMS.FALL_WITH_IMMOBILITY) {
+      counterfactualExplanation = `Severe event corroborated: horizontal collapse followed by >${postStillnessSeconds}s of continuous immobility outside safe rest zones.`;
+    } else {
+      counterfactualExplanation = "Nominal equilibrium maintained. Biomechanical parameters within personal running baseline.";
     }
 
     return {
       winningHypothesis,
       allHypotheses: hypotheses,
-      counterfactualExplanation,
-      consensus,
-      recommendedAction: winningHypothesis.severity === "CRITICAL"
-        ? "INITIATE_VERIFICATION_PROMPT"
-        : winningHypothesis.severity === "CONCERNING"
-          ? "RECORD_ANOMALY_AND_OBSERVE"
-          : "CONTINUE_MONITORING"
+      detectionConfidence,
+      mechanismConfidence,
+      severityConfidence,
+      supportingEvidence: supporting.slice(0, 5),
+      counterEvidence: counter.slice(0, 5),
+      counterfactualExplanation
     };
   }
 
   /**
    * Generates a 30-Second Chronological Reconstruction Timeline
-   * Formats second-by-second kinematic milestones leading up to the incident
    */
   function generateChronologicalTimeline(scenarioType) {
     const now = new Date();
@@ -259,52 +360,54 @@
 
     if (scenarioType === "trip_fall") {
       return [
-        { time: formatTime(28), event: "Steady Ambulation", detail: "Gait velocity 0.82 m/s · Step symmetry 96% · Upright torso 8°" },
-        { time: formatTime(22), event: "Locomotion Deceleration", detail: "Gait velocity drops to 0.39 m/s · Lateral torso sway detected (Δθ: 18°)" },
-        { time: formatTime(18), event: "Rapid Vertical Descent", detail: "Downward hip velocity -1.92 m/s toward floor boundary" },
-        { time: formatTime(17), event: "Deceleration Impact", detail: "Accelerometer shock spike: 3.4g peak · Floor contact confirmed" },
-        { time: formatTime(12), event: "Absence of Recovery Motion", detail: "Post-impact stillness variance < 0.04 over 5 seconds" },
-        { time: formatTime(8), event: "Kinematic Hypothesis Formed", detail: "H1: Accidental Trip & Fall (96% conf) · Controlled sitting ruled out" },
-        { time: formatTime(0), event: "Resident Verification Active", detail: "Audio prompt sounding · 30-second response window open" }
+        { time: formatTime(28), phase: "PRE-EVENT", title: "Steady Ambulation", detail: "Gait velocity 0.82 m/s · Torso vertical 8° · Biomechanics nominal" },
+        { time: formatTime(22), phase: "PRE-EVENT", title: "Locomotion Deceleration", detail: "Gait velocity drops to 0.39 m/s · Lateral torso sway detected (18° deviation)" },
+        { time: formatTime(18), phase: "DESCENT", title: "Rapid Vertical Descent", detail: "Downward velocity -1.92 m/s · Loss of vertical equilibrium" },
+        { time: formatTime(17), phase: "IMPACT", title: "Floor Impact Deceleration", detail: "Impact shock spike 3.4g · Torso angle collapses to 76° on floor" },
+        { time: formatTime(12), phase: "RECOVERY_CHECK", title: "Absence of Postural Recovery", detail: "Zero upright movement detected for 16 seconds on floor perimeter" },
+        { time: formatTime(8), phase: "REASONING", title: "Hypothesis H_FALL Corroborated", detail: "Accidental Fall (96% conf) · Intentional sitting ruled out by -1.92 m/s speed" },
+        { time: formatTime(0), phase: "VERIFY", title: "Resident Verification Active", detail: "Verification prompt sounding · 30-second grace window open" }
       ];
     } else if (scenarioType === "sitting") {
       return [
-        { time: formatTime(25), event: "Approaching Seating Area", detail: "Walking speed 0.65 m/s toward Room 302 armchair" },
-        { time: formatTime(18), event: "Controlled Torso Rotation", detail: "Resident turns toward chair perimeter" },
-        { time: formatTime(12), event: "Smooth Descent", detail: "Descent velocity -0.42 m/s · Smooth muscular flexion" },
-        { time: formatTime(8), event: "Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright (22°)" },
-        { time: formatTime(0), event: "Intentional Rest Confirmed", detail: "Hypothesis H2 confirmed (98% conf) · Fall alarm suppressed" }
+        { time: formatTime(25), phase: "PRE-EVENT", title: "Approaching Seating Area", detail: "Walking speed 0.65 m/s toward living room armchair" },
+        { time: formatTime(18), phase: "PRE-EVENT", title: "Controlled Torso Rotation", detail: "Resident turns toward chair perimeter" },
+        { time: formatTime(12), phase: "DESCENT", title: "Smooth Muscular Deceleration", detail: "Descent velocity -0.42 m/s · Muscular flexion intact" },
+        { time: formatTime(8), phase: "CONTACT", title: "Controlled Seated Contact", detail: "Zero impact shock (1.08g) · Torso remains upright at 22°" },
+        { time: formatTime(0), phase: "RESOLVED", title: "Intentional Sitting Confirmed", detail: "Hypothesis H_SIT confirmed (98% conf) · Emergency alarm suppressed" }
       ];
     } else if (scenarioType === "bed_exit") {
       return [
-        { time: formatTime(24), event: "Resting in Care Bed", detail: "Supine resting posture behind raised safety rails" },
-        { time: formatTime(18), event: "Leg Swing & Lateral Shift", detail: "Patient swings legs over bed edge into bedside zone" },
-        { time: formatTime(14), event: "Bed-Exit Tripwire Crossed", detail: "Optical floor radar detects perimeter crossing" },
-        { time: formatTime(8), event: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground impact shock (1.08g)" },
-        { time: formatTime(0), event: "Controlled Bed Transfer", detail: "Hypothesis H4 confirmed · Fall alarm safely suppressed" }
+        { time: formatTime(24), phase: "PRE-EVENT", title: "Resting in Care Bed", detail: "Supine resting posture within mattress perimeter" },
+        { time: formatTime(18), phase: "TRANSITION", title: "Leg Swing to Bed Edge", detail: "Patient swings legs over edge into bedside corridor" },
+        { time: formatTime(14), phase: "MONITORING", title: "Bed-Exit Tripwire Crossed", detail: "Optical floor boundary detects bedside transfer" },
+        { time: formatTime(8), phase: "EQUILIBRIUM", title: "Upright Weight Bearing", detail: "Torso stabilizes at 16° vertical · Zero ground shock (1.08g)" },
+        { time: formatTime(0), phase: "RESOLVED", title: "Controlled Transfer Confirmed", detail: "Transfer nominal · Fall alarm safely suppressed" }
       ];
-    } else if (scenarioType === "tremor") {
+    } else if (scenarioType === "phone_drop") {
       return [
-        { time: formatTime(30), event: "Quiet Rest in Armchair", detail: "Patient seated · Vitals baseline stable (HR 84, SpO2 98%)" },
-        { time: formatTime(22), event: "Upper Extremity Micro-Movement", detail: "Right wrist sensor records rapid oscillatory displacement" },
-        { time: formatTime(15), event: "Spectral Frequency Filtering", detail: "Bandpass filter isolates 5.2 Hz sustained oscillation" },
-        { time: formatTime(8), event: "Posture Stability Check", detail: "Torso remains stable at 24° · No downward displacement" },
-        { time: formatTime(0), event: "Tremor / Shivering Flagged", detail: "Hypothesis H5 logged as Anomaly · Caregiver notified for review" }
+        { time: formatTime(20), phase: "PRE-EVENT", title: "Normal Handling", detail: "Device in hand · Resident standing upright (Torso 10°)" },
+        { time: formatTime(14), phase: "EVENT", title: "Freefall Deceleration", detail: "Smartphone slips · Rapid freefall trajectory" },
+        { time: formatTime(13), phase: "IMPACT", title: "Floor Impact Shock Spike", detail: "Accelerometer records 3.8g shock on hard surface" },
+        { time: formatTime(10), phase: "REASONING", title: "Negative Evidence Disproved Fall", detail: "Vision tracking confirms resident retained upright standing posture" },
+        { time: formatTime(0), phase: "VERIFY", title: "Device Drop Check-in", detail: "Prompt displayed: Device drop auto-detected" }
       ];
-    } else { // acute_collapse
+    } else { // acute_collapse / prolonged immobility
       return [
-        { time: formatTime(30), event: "Pre-Event Physiological Strain", detail: "Vitals show BP 174/106 mmHg & SpO2 88% (Hypertensive crisis)" },
-        { time: formatTime(24), event: "Gait Ataxia & Wall Slump", detail: "Patient sways laterally into wall boundary" },
-        { time: formatTime(19), event: "Incapacitated Descent", detail: "Sudden downward collapse (-2.1 m/s) to floor" },
-        { time: formatTime(18), event: "Ground Impact", detail: "Floor impact shock 2.9g" },
-        { time: formatTime(10), event: "Prolonged Unresponsiveness", detail: "Motionless on floor for >30s · HR elevated to 118 bpm" },
-        { time: formatTime(0), event: "Critical Escalation Initiated", detail: "Verification timed out with zero response · 108 ambulance dispatching" }
+        { time: formatTime(30), phase: "PRE-EVENT", title: "Physiological Drift Observed", detail: "BP 174/106 mmHg & SpO2 88% · Baroreflex compensation failure" },
+        { time: formatTime(24), phase: "PRE-EVENT", title: "Lateral Trunk Sway", detail: "Trunk sway exceeds 25° personal baseline" },
+        { time: formatTime(19), phase: "DESCENT", title: "Incapacitated Vertical Collapse", detail: "Descent velocity -2.14 m/s toward floor boundary" },
+        { time: formatTime(18), phase: "IMPACT", title: "Ground Deceleration Impact", detail: "Floor impact shock 2.95g · Torso collapses horizontally to 84°" },
+        { time: formatTime(10), phase: "IMMOBILITY", title: "Prolonged Post-Impact Stillness", detail: "Zero motion detected for >30 seconds on floor · HR 118 bpm" },
+        { time: formatTime(0), phase: "ESCALATION", title: "Proportional Escalation Initiated", detail: "Verification timed out · Caregiver alerted and ambulance dispatch prepared" }
       ];
     }
   }
 
   return {
     KEYPOINTS,
+    MECHANISMS,
+    PersonalBaselineTracker,
     analyzePoseGeometry,
     evaluateHypotheses,
     generateChronologicalTimeline
@@ -2374,18 +2477,19 @@ const PatientTimeline = () => {
 
 // --- START: prototype\public\src\components\IncidentReconstructionPanel.jsx ---
 // prototype/public/src/components/IncidentReconstructionPanel.jsx
-// Multimodal Incident Reconstruction, Hypothesis Engine & 30-Second Timeline Panel
+// Multimodal Incident Reconstruction, 9-Hypothesis Engine, 3 Confidence Scores & 30-Second Timeline Panel
 
 const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) => {
   // Vision Engine Arbitration State: Auto-detects local YOLO hardware or falls back to MediaPipe Wasm
   const [visionEngine, setVisionEngine] = React.useState("mediapipe"); // 'yolo' | 'mediapipe'
   const [yoloHardwareDetected, setYoloHardwareDetected] = React.useState(false);
-  const [activeScenario, setActiveScenario] = React.useState("trip_fall"); // 'trip_fall' | 'sitting' | 'phone_drop' | 'tremor' | 'acute_collapse'
+  const [activeScenario, setActiveScenario] = React.useState("trip_fall"); // 'sitting' | 'bed_exit' | 'tremor' | 'trip_fall' | 'trip_recovery' | 'acute_collapse' | 'phone_drop'
+  const [showAllHypotheses, setShowAllHypotheses] = React.useState(false);
 
   // Probe localhost:5050 for local YOLO daemon on mount
   React.useEffect(() => {
     let isMounted = true;
-    fetch("http://localhost:5050/api/yolo/status", { method: "GET", mode: "cors" })
+    fetch("http://127.0.0.1:5050/api/yolo/status", { method: "GET", mode: "cors" })
       .then((res) => {
         if (res.ok) return res.json();
         throw new Error("Local daemon not responding");
@@ -2416,7 +2520,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 15,
           chairBedProximity: true,
           wristOscillationHz: 0.4,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "bed_exit":
         return {
@@ -2426,7 +2531,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 5,
           chairBedProximity: true,
           wristOscillationHz: 0.5,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "tremor":
         return {
@@ -2436,7 +2542,31 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 0,
           chairBedProximity: true,
           wristOscillationHz: 5.4,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
+        };
+      case "trip_recovery":
+        return {
+          downwardVelocity: -1.45,
+          torsoAngle: 42,
+          impactShockG: 1.85,
+          postStillnessSeconds: 2,
+          chairBedProximity: false,
+          wristOscillationHz: 0.5,
+          deviceLiftedUpright: true,
+          recoveryTimeSeconds: 2.1
+        };
+      case "phone_drop":
+        return {
+          downwardVelocity: -0.10,
+          torsoAngle: 14,
+          impactShockG: 4.80,
+          postStillnessSeconds: 25,
+          chairBedProximity: false,
+          wristOscillationHz: 0.2,
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0,
+          isDeviceDropPattern: true
         };
       case "acute_collapse":
         return {
@@ -2446,7 +2576,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 48,
           chairBedProximity: false,
           wristOscillationHz: 0.2,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
       case "trip_fall":
       default:
@@ -2457,7 +2588,8 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           postStillnessSeconds: 16,
           chairBedProximity: false,
           wristOscillationHz: 0.5,
-          deviceLiftedUpright: false
+          deviceLiftedUpright: false,
+          recoveryTimeSeconds: 0
         };
     }
   };
@@ -2469,17 +2601,22 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
     ? ReJivanMovementEngine.evaluateHypotheses(evidence)
     : {
         winningHypothesis: {
-          id: activeScenario === "trip_fall" ? "H1" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H4" : activeScenario === "tremor" ? "H5" : "H6",
+          id: activeScenario === "trip_fall" ? "H7" : activeScenario === "sitting" ? "H2" : activeScenario === "bed_exit" ? "H3" : activeScenario === "tremor" ? "H1" : "H8",
           label: activeScenario === "trip_fall" ? "Accidental Fall / Mechanical Trip" : activeScenario === "sitting" ? "Controlled Sitting / Intentional Descent" : activeScenario === "bed_exit" ? "Out-of-Bed Transfer / Tripwire Crossing" : activeScenario === "tremor" ? "Involuntary Tremor / Shivering Movement" : "Prolonged Post-Fall Immobility",
           mechanism: "Loss of balance followed by floor impact shock",
           confidence: 96,
           severity: activeScenario === "sitting" ? "NORMAL" : activeScenario === "bed_exit" ? "CAUTION" : activeScenario === "tremor" ? "CONCERNING" : "CRITICAL"
         },
+        confidenceScores: {
+          detectionConfidence: 94,
+          mechanismConfidence: 92,
+          severityConfidence: activeScenario === "acute_collapse" ? 95 : 78
+        },
         counterfactualExplanation: activeScenario === "sitting"
           ? "Accidental fall ruled out because descent velocity was controlled (-0.42 m/s), zero impact shock was recorded (1.08g), and resident retained upright torso stability."
           : activeScenario === "bed_exit"
           ? "Accidental fall ruled out because resident maintained upright postural balance during transfer with zero floor impact shock."
-          : "Intentional sitting (H2) ruled out because vertical descent velocity (-1.92 m/s) exceeded the controlled threshold (-0.8 m/s) and impact deceleration reached 3.42g.",
+          : "Intentional sitting (H2) ruled out because vertical descent velocity exceeded controlled thresholds and high impact deceleration was registered.",
         allHypotheses: []
       };
 
@@ -2494,6 +2631,12 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
         { time: "14:31:52", event: "Resident Verification Active", detail: "30-second grace window initiated" }
       ];
 
+  const confScores = engineResult.confidenceScores || {
+    detectionConfidence: engineResult.winningHypothesis.confidence || 92,
+    mechanismConfidence: 90,
+    severityConfidence: engineResult.winningHypothesis.severity === "CRITICAL" ? 95 : 50
+  };
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden">
       {/* Header with Dual Vision Engine Priority Arbitration */}
@@ -2505,13 +2648,13 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                Multimodal Incident Reconstruction & Event Reasoning
+                Multimodal Incident Reconstruction &amp; Event Reasoning
                 <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   Observe &rarr; Reason &rarr; Verify
                 </span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Evaluates physical kinematics, competing hypotheses, and counterfactuals before triggering escalation.
+                Evaluates physical kinematics across 9 competing hypotheses, counterfactuals, and negative evidence before proportional escalation.
               </p>
             </div>
           </div>
@@ -2562,7 +2705,7 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           <CheckCircle2 className={`w-4 h-4 ${visionEngine === "yolo" ? "text-emerald-600" : "text-blue-600"}`} />
           {visionEngine === "yolo" ? (
             <span>
-              <strong>Primary Vision Engine Active:</strong> YOLO11-Pose · Local NVIDIA GeForce GTX 1650 4GB GPU Acceleration (58.4 FPS · 184MB VRAM)
+              <strong>Primary Vision Engine Active:</strong> YOLO11-Pose · Local NVIDIA GeForce GTX 1650 4GB GPU Acceleration (58 FPS · 184MB VRAM)
             </span>
           ) : (
             <span>
@@ -2575,17 +2718,17 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
         </span>
       </div>
 
-      {/* Evaluator 5-Scenario Interactive Switcher */}
+      {/* Evaluator Interactive Scenarios Switcher */}
       <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/30">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Interactive Evaluator Scenarios (Click to Test Logic):
           </span>
           <span className="text-[11px] text-slate-400 font-medium">
-            Test how ReJivan proves or rejects emergencies
+            Observes movement &bull; Compares 9 Hypotheses &bull; Proves / Rejects False Alarms
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
           <button
             onClick={() => setActiveScenario("sitting")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
@@ -2609,9 +2752,9 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🛏️ 2. Out-of-Bed Transfer</span>
+              <span>🛏️ 2. Bed Transfer</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Tripwire crossed · Safe stance</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Perimeter transition</p>
           </button>
 
           <button
@@ -2623,23 +2766,39 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🟣 3. Tremor / Shiver</span>
+              <span>🟣 3. Tremor / Jitter</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">5.4 Hz wrist jitter</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">5.4 Hz oscillation</p>
           </button>
 
           <button
-            onClick={() => setActiveScenario("trip_fall")}
+            onClick={() => setActiveScenario("trip_recovery")}
             className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
-              activeScenario === "trip_fall"
-                ? "bg-rose-50 border-rose-300 text-rose-900 shadow-xs ring-1 ring-rose-400"
+              activeScenario === "trip_recovery"
+                ? "bg-teal-50 border-teal-300 text-teal-900 shadow-xs ring-1 ring-teal-400"
                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>⚠️ 4. Trip & Fall</span>
+              <span>🔄 4. Rapid Recovery</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Deceleration impact</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">Stood up in &lt;3s (Auto-cancel)</p>
+          </button>
+
+          <button
+            onClick={() => setActiveScenario("phone_drop")}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold text-left transition-all border ${
+              activeScenario === "phone_drop"
+                ? "bg-slate-800 border-slate-900 text-white shadow-xs ring-1 ring-slate-700"
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold">
+              <span>📱 5. Device Drop</span>
+            </div>
+            <p className={`text-[10px] mt-0.5 line-clamp-1 ${activeScenario === "phone_drop" ? "text-slate-300" : "text-slate-500"}`}>
+              4.8g shock · Torso stays 14°
+            </p>
           </button>
 
           <button
@@ -2651,19 +2810,53 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             }`}
           >
             <div className="flex items-center gap-1.5 font-bold">
-              <span>🚨 5. Collapse & Void</span>
+              <span>🚨 6. Fall Collapse</span>
             </div>
             <p className={`text-[10px] mt-0.5 line-clamp-1 ${activeScenario === "acute_collapse" ? "text-red-100" : "text-slate-500"}`}>
-              Immobility &gt;45s · 108 Call
+              Floor immobility &gt;30s
             </p>
           </button>
         </div>
       </div>
 
-      {/* Grid: Left Column (Winning Hypothesis & Metrics) + Right Column (30s Timeline) */}
+      {/* Grid: Left Column (Hypotheses, 3 Confidences & Counterfactuals) + Right Column (30s Timeline) */}
       <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left 7 Columns: Hypothesis & Counterfactual Reasoning */}
+        {/* Left 7 Columns: Winning Hypothesis & 3 Distinct Confidence Metrics */}
         <div className="lg:col-span-7 space-y-4">
+          
+          {/* 3 Independent Confidence Scores Card */}
+          <div className="bg-slate-900 text-white p-4 rounded-xl shadow-xs">
+            <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+              <span>Three Independent Clinical Confidence Metrics</span>
+              <span className="font-mono text-emerald-400">Prajñā Kinematic Engine</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Detection Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xl font-extrabold font-mono text-emerald-400">{confScores.detectionConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Observation certainty</span>
+              </div>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Mechanism Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xl font-extrabold font-mono text-blue-400">{confScores.mechanismConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Physical explanation</span>
+              </div>
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Severity Conf.</span>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className={`text-xl font-extrabold font-mono ${
+                    confScores.severityConfidence > 75 ? "text-rose-400" : confScores.severityConfidence > 40 ? "text-amber-400" : "text-slate-300"
+                  }`}>{confScores.severityConfidence}%</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Risk &amp; immobility level</span>
+              </div>
+            </div>
+          </div>
+
           {/* Winning Hypothesis Card */}
           <div className={`p-4 rounded-xl border ${
             engineResult.winningHypothesis.severity === "CRITICAL"
@@ -2686,10 +2879,10 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
                       ? "bg-amber-600 text-white"
                       : "bg-emerald-600 text-white"
                   }`}>
-                    {engineResult.winningHypothesis.id} · {engineResult.winningHypothesis.severity}
+                    {engineResult.winningHypothesis.id} &bull; {engineResult.winningHypothesis.severity}
                   </span>
                   <span className="text-xs font-bold text-slate-700">
-                    Confidence: {engineResult.winningHypothesis.confidence}%
+                    Posterior Probability: {engineResult.winningHypothesis.confidence}%
                   </span>
                 </div>
                 <h4 className="text-base font-bold text-slate-900 mt-1.5">
@@ -2745,11 +2938,42 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 mb-1.5">
               <ShieldAlert className="w-4 h-4 text-blue-600" />
-              <span>Counterfactual Reasoning (Why False Positives Are Suppressed):</span>
+              <span>Counterfactual Reasoning &amp; Negative Evidence:</span>
             </div>
             <p className="text-xs text-slate-700 leading-relaxed font-sans">
               {engineResult.counterfactualExplanation}
             </p>
+          </div>
+
+          {/* Toggle All 9 Competing Hypotheses View */}
+          <div>
+            <button
+              onClick={() => setShowAllHypotheses(!showAllHypotheses)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              <span>{showAllHypotheses ? "▲ Hide 9 Competing Hypotheses Breakdown" : "▼ Inspect All 9 Competing Physical Hypotheses"}</span>
+            </button>
+
+            {showAllHypotheses && engineResult.allHypotheses && (
+              <div className="mt-3 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200 animate-in fade-in">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Candidate Hypothesis Evaluation</span>
+                  <span>Posterior Score</span>
+                </div>
+                {engineResult.allHypotheses.map((hypo, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-slate-200/60 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${idx === 0 ? "bg-emerald-500" : "bg-slate-300"}`} />
+                      <span className="font-semibold text-slate-800">{hypo.id}: {hypo.label}</span>
+                    </div>
+                    <div className="flex items-center gap-3 font-mono text-[11px]">
+                      <span className="text-slate-500">{hypo.severity}</span>
+                      <span className={`font-bold ${idx === 0 ? "text-emerald-700" : "text-slate-600"}`}>{hypo.confidence}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -2759,16 +2983,16 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-blue-600" />
-                <span>30-Second Pre-Event Timeline</span>
+                <span>30-Second Kinematic Reconstruction (T-10s to T+30s)</span>
               </h4>
-              <span className="text-[10px] font-mono text-slate-400">10Hz Telemetry Buffer</span>
+              <span className="text-[10px] font-mono text-slate-400">10Hz Buffer</span>
             </div>
 
             <div className="space-y-3 relative pl-4 border-l-2 border-slate-200 ml-1.5">
               {timeline.map((item, idx) => (
                 <div key={idx} className="relative group">
                   <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 bg-white ${
-                    idx === timeline.length - 1 ? "border-rose-600 bg-rose-600" : "border-slate-400"
+                    item.phase === "impact" || idx === 3 ? "border-rose-600 bg-rose-600" : (item.phase === "recovery" ? "border-teal-500 bg-teal-500" : "border-slate-400")
                   }`} />
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-xs font-bold text-slate-800">{item.event}</span>
@@ -2796,11 +3020,11 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
 
 // --- START: prototype\public\src\components\ResidentCheckinModal.jsx ---
 // prototype/public/src/components/ResidentCheckinModal.jsx
-// Interactive Resident Verification Dialog with 30-Second Countdown & Auto-Cancellation
+// Multimodal Resident Verification Dialog with 30-Second Countdown, 4 Proportional Responses & Postural Auto-Cancellation
 
-const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed }) => {
+const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse }) => {
   const [timeLeft, setTimeLeft] = React.useState(30);
-  const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'emergency' | 'picked_up'
+  const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'minor_fall' | 'emergency' | 'device_drop' | 'picked_up' | 'timeout_emergency'
 
   // Reset timer on open
   React.useEffect(() => {
@@ -2817,6 +3041,13 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
     if (timeLeft <= 0) {
       setResolvedStatus("timeout_emergency");
       if (onEmergencyConfirmed) onEmergencyConfirmed();
+      if (onVerificationResponse) {
+        onVerificationResponse({
+          status: "TIMED_OUT",
+          severity: "CRITICAL",
+          note: "30-second resident verification window expired with zero response. Automatic emergency escalation triggered."
+        });
+      }
       return;
     }
 
@@ -2825,24 +3056,78 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, timeLeft, resolvedStatus]);
+  }, [isOpen, timeLeft, resolvedStatus, onEmergencyConfirmed, onVerificationResponse]);
 
   if (!isOpen) return null;
 
+  // 1. "I'm Okay (False Alarm)"
   const handleImOkay = () => {
     setResolvedStatus("safe");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "VERIFIED_SAFE",
+        severity: "NORMAL",
+        note: "Resident actively pressed 'I'm Okay'. False alarm logged and suppressed."
+      });
+    }
     setTimeout(() => {
       onClose();
     }, 1800);
   };
 
+  // 2. "I Fell (Minor / No Injury)"
+  const handleMinorFall = () => {
+    setResolvedStatus("minor_fall");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "RESOLVED_WITH_CARE_NOTE",
+        severity: "CAUTION",
+        note: "Resident confirmed minor slip without acute injury. Logged to caregiver timeline; ambulance dispatch avoided."
+      });
+    }
+    setTimeout(() => {
+      onClose();
+    }, 2400);
+  };
+
+  // 3. "I Need Emergency Help"
   const handleNeedHelp = () => {
     setResolvedStatus("emergency");
     if (onEmergencyConfirmed) onEmergencyConfirmed();
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "ASSISTANCE_REQUESTED",
+        severity: "CRITICAL",
+        note: "Resident urgently requested assistance. Activating emergency call chain and 108 dispatch."
+      });
+    }
   };
 
+  // 4. "Device Drop (Phone Dropped)"
+  const handleDeviceDrop = () => {
+    setResolvedStatus("device_drop");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "DEVICE_DROP_RESOLVED",
+        severity: "NORMAL",
+        note: "Impact confirmed as phone/device drop rather than human fall. System returned to nominal monitoring."
+      });
+    }
+    setTimeout(() => {
+      onClose();
+    }, 2000);
+  };
+
+  // 5. Postural Recovery Simulation
   const handleSimulatePickup = () => {
     setResolvedStatus("picked_up");
+    if (onVerificationResponse) {
+      onVerificationResponse({
+        status: "RECOVERED_RAPID",
+        severity: "NORMAL",
+        note: "Computer vision confirmed vertical postural recovery within grace window. Alarm auto-suppressed."
+      });
+    }
     setTimeout(() => {
       onClose();
     }, 1800);
@@ -2861,7 +3146,7 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
             </span>
           </div>
           <span className="text-xs font-mono font-bold bg-white/20 px-2 py-0.5 rounded">
-            15–30s Grace Window
+            30s Grace Window
           </span>
         </div>
 
@@ -2886,33 +3171,53 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               </div>
 
               <h3 className="text-lg font-bold text-slate-900 mt-3">
-                Did you slip or experience an accidental fall?
+                Did you experience an accidental fall?
               </h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                A sudden downward displacement with high-impact deceleration was observed by room monitoring. Please verify your status to prevent emergency escalation.
+                A sudden downward movement with deceleration impact was observed. Please select your current status to prevent emergency sirens or ambulance calls.
               </p>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+              {/* 4 Proportional Action Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5">
+                {/* 1. I'm Okay */}
                 <button
                   onClick={handleImOkay}
-                  className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-98"
+                  className="w-full py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
                 >
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4" />
                   <span>I'm Okay (False Alarm)</span>
                 </button>
 
+                {/* 2. Minor Slip / No Injury */}
+                <button
+                  onClick={handleMinorFall}
+                  className="w-full py-3 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>I Fell (Minor / No Injury)</span>
+                </button>
+
+                {/* 3. Emergency Assistance */}
                 <button
                   onClick={handleNeedHelp}
-                  className="w-full py-3.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 animate-pulse"
+                  className="w-full py-3 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-98 animate-pulse"
                 >
-                  <PhoneCall className="w-5 h-5" />
+                  <PhoneCall className="w-4 h-4" />
                   <span>I Need Emergency Help</span>
+                </button>
+
+                {/* 4. Phone Drop */}
+                <button
+                  onClick={handleDeviceDrop}
+                  className="w-full py-3 px-3 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Device Drop (Phone Dropped)</span>
                 </button>
               </div>
 
               {/* Posture Recovery Option */}
-              <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              <div className="mt-5 pt-3.5 border-t border-slate-100 text-center">
                 <button
                   onClick={handleSimulatePickup}
                   className="text-xs text-blue-600 hover:text-blue-800 font-semibold inline-flex items-center gap-1.5 transition-colors"
@@ -2920,7 +3225,7 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
                   <span>🔄 Simulate resident stood back up / recovered upright posture</span>
                 </button>
                 <span className="block text-[10px] text-slate-400 mt-0.5">
-                  Vision sentinel auto-cancels false alarms when upright equilibrium is restored within 5s
+                  Vision sentinel auto-cancels alerts when upright equilibrium is restored within 5s
                 </span>
               </div>
             </>
@@ -2932,6 +3237,26 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed 
               <h4 className="text-base font-bold text-slate-900">Resident Verified Safe</h4>
               <p className="text-xs text-slate-500 mt-1">
                 False alarm suppressed. Event logged to micro-audit trail as Self-Resolved.
+              </p>
+            </div>
+          ) : resolvedStatus === "minor_fall" ? (
+            <div className="py-8 animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3">
+                <ShieldAlert className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-900">Minor Event Logged</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Care note recorded for family & nurse. Emergency sirens and ambulance dispatch avoided.
+              </p>
+            </div>
+          ) : resolvedStatus === "device_drop" ? (
+            <div className="py-8 animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center mx-auto mb-3">
+                <Smartphone className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-bold text-slate-900">Device Drop Suppressed</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Sensor impact attributed to dropped hardware. Fall alarm cancelled.
               </p>
             </div>
           ) : resolvedStatus === "picked_up" ? (
@@ -2992,6 +3317,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
   const [localYoloInfo, setLocalYoloInfo] = React.useState(null);
   const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(true);
   const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
+
+  // Formal System Infrastructure Health State (Strictly separated from Patient Health)
+  const [systemHealth, setSystemHealth] = React.useState({
+    edgeStatus: "EDGE_OFFLINE", // 'EDGE_ONLINE' | 'EDGE_DEGRADED' | 'EDGE_OFFLINE'
+    cameraLifecycle: "CAMERA_OFFLINE", // 'CAMERA_OFFLINE' | 'CAMERA_STARTING' | 'CAMERA_CALIBRATING' | 'MONITORING'
+    calibrationProgress: 0, // 0 to 100%
+    lastHeartbeat: null,
+    latencyMs: 18,
+    trackedPersons: 0,
+    fps: 0,
+    degradedReason: null
+  });
 
   // Local Device Webcam & In-Browser Demo States
   const [activeVideoSource, setActiveVideoSource] = React.useState("bed_fall_demo"); // 'bed_fall_demo' or 'webcam'
@@ -3078,6 +3415,57 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     };
   }, []);
 
+  // Dedicated Edge Sentinel Heartbeat & Watchdog (Every 2.5s)
+  React.useEffect(() => {
+    let isCancelled = false;
+    const checkHeartbeat = async () => {
+      try {
+        const res = await fetch(`${YOLO_API_BASE}/api/yolo/heartbeat`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(1200) : undefined,
+        });
+        if (res.ok && !isCancelled) {
+          const hb = await res.json();
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: hb.edge_status || "EDGE_ONLINE",
+            cameraLifecycle: hb.camera_status || (hb.camera_active ? "MONITORING" : "CAMERA_OFFLINE"),
+            lastHeartbeat: Date.now(),
+            latencyMs: hb.latency_ms || 18,
+            trackedPersons: hb.tracked_persons || 0,
+            fps: Math.round(hb.fps || 0),
+            degradedReason: null
+          }));
+        } else if (!isCancelled) {
+          // Graceful edge degradation: System Health changes, Patient Health remains NOMINAL (never trigger alert on edge offline!)
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: "EDGE_OFFLINE",
+            cameraLifecycle: "CAMERA_OFFLINE",
+            degradedReason: "Edge sentinel unreachable. In-browser computer vision active."
+          }));
+        }
+      } catch (e) {
+        if (!isCancelled) {
+          setSystemHealth((prev) => ({
+            ...prev,
+            edgeStatus: "EDGE_OFFLINE",
+            cameraLifecycle: "CAMERA_OFFLINE",
+            degradedReason: "Edge sentinel offline. Universal browser fallback active."
+          }));
+        }
+      }
+    };
+
+    checkHeartbeat();
+    const hbInterval = setInterval(checkHeartbeat, 2500);
+    return () => {
+      isCancelled = true;
+      clearInterval(hbInterval);
+    };
+  }, []);
+
   // Live High-Frequency Telemetry Stream from Local YOLO Daemon
   React.useEffect(() => {
     if (!localYoloActive || hardwareStreamPaused) return;
@@ -3091,8 +3479,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         if (res.ok && !isCancelled) {
           const data = await res.json();
           setWebcamTelemetry((prev) => {
-            const isDanger = data.risk_level === "HIGH_RISK";
-            const isCaution = data.risk_level === "CAUTION";
             return {
               ...prev,
               fps: Math.round(data.fps || (localYoloInfo && localYoloInfo.fps) || 24),
@@ -3108,10 +3494,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             };
           });
 
+          // Decoupled Alert Architecture: Consumes Canonical Event and initiates Resident Checkin
           if (data.risk_level === "HIGH_RISK") {
-            if (onTriggerAlert) onTriggerAlert(true);
-            if (onTriggerVerification && !dropSimTimerRef.current) {
-              onTriggerVerification("trip_fall");
+            const canonical = data.canonical_event;
+            // Negative evidence check: Rapid postural recovery auto-cancels alert
+            if (canonical && canonical.recoveryStatus === "RECOVERED_RAPID") {
+              // Upright recovery confirmed, alarm suppressed
+            } else if (onTriggerVerification && !dropSimTimerRef.current) {
+              const mechanism = canonical?.probableMechanism || "trip_fall";
+              onTriggerVerification(mechanism);
               dropSimTimerRef.current = setTimeout(() => {
                 dropSimTimerRef.current = null;
               }, 6000);
@@ -3168,7 +3559,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
       if (!demoAlarmLatchedRef.current) {
         demoAlarmLatchedRef.current = true;
-        if (onTriggerAlert) onTriggerAlert(true);
         if (onTriggerVerification && !dropSimTimerRef.current) {
           onTriggerVerification("trip_fall");
           dropSimTimerRef.current = setTimeout(() => {
@@ -3365,6 +3755,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let frameCount = 0;
     let lastFpsCheck = Date.now();
     let currentFps = 30;
+    let calibrationFrames = 0;
+    const CALIBRATION_TOTAL = 30;
+    let trackPersistence = 0;
 
     // Small analysis off-screen canvas for high-performance optical flow
     const sampleW = 64;
@@ -3402,6 +3795,44 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           currentFps = frameCount;
           frameCount = 0;
           lastFpsCheck = now;
+        }
+
+        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (30 frames)
+        if (calibrationFrames < CALIBRATION_TOTAL) {
+          calibrationFrames++;
+          const progress = Math.round((calibrationFrames / CALIBRATION_TOTAL) * 100);
+          setSystemHealth((prev) => ({
+            ...prev,
+            cameraLifecycle: "CAMERA_CALIBRATING",
+            calibrationProgress: progress
+          }));
+
+          // Render clean frame and calibration HUD banner
+          if (privacyRadarOnly) {
+            ctx.fillStyle = "#090D16";
+            ctx.fillRect(0, 0, width, height);
+          } else {
+            ctx.drawImage(video, 0, 0, width, height);
+          }
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.fillRect(20, 20, width - 40, 48);
+          ctx.strokeStyle = "#38BDF8";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(20, 20, width - 40, 48);
+          ctx.fillStyle = "#38BDF8";
+          ctx.font = "bold 13px monospace";
+          ctx.fillText(`CALIBRATING SENSOR: Establishing optical baseline... (${progress}%)`, 36, 49);
+
+          animFrameRef.current = requestAnimationFrame(render);
+          return;
+        } else if (calibrationFrames === CALIBRATION_TOTAL) {
+          calibrationFrames++;
+          setSystemHealth((prev) => ({
+            ...prev,
+            cameraLifecycle: "MONITORING",
+            calibrationProgress: 100
+          }));
         }
 
         // 1. Draw Clean Camera Frame OR DPDP Privacy Radar Grid
@@ -3445,7 +3876,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
         if (prevFrameDataRef.current) {
           const prev = prevFrameDataRef.current;
-          const totalSamplePixels = sampleW * sampleH;
 
           for (let i = 0; i < data.length; i += 4) {
             // Luminance = 0.299R + 0.587G + 0.114B
@@ -3473,7 +3903,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         const totalPixels = sampleW * sampleH;
         const motionPercent = Math.min(Math.round((diffPixels / totalPixels) * 100), 100);
 
-        // 3. Compute Real Motion Centroid & Downward Velocity
+        // 3. Compute Real Motion Centroid & Downward Velocity (with Track Persistence & Derivative Protection)
         let downwardVelocity = -0.1;
         let isRapidDrop = false;
 
@@ -3481,7 +3911,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           const centroidX = (sumX / diffPixels) * (width / sampleW);
           const centroidY = (sumY / diffPixels) * (height / sampleH);
 
-          if (prevCentroidYRef.current !== null) {
+          // Require 3 consecutive stable frames to eliminate track reacquisition velocity spikes
+          if (prevCentroidYRef.current !== null && trackPersistence >= 3) {
             const dy = centroidY - prevCentroidYRef.current;
             // Negative velocity = downward motion in m/s
             downwardVelocity = -Math.round((dy / (height * 0.35) / dt) * 10) / 10;
@@ -3490,6 +3921,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             }
           }
           prevCentroidYRef.current = centroidY;
+          trackPersistence++;
 
           // Smooth tracking bounding box over the real moving area
           const targetBox = {
@@ -3508,6 +3940,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             activeBox.w += (targetBox.w - activeBox.w) * 0.3;
             activeBox.h += (targetBox.h - activeBox.h) * 0.3;
           }
+        } else {
+          trackPersistence = 0;
+          prevCentroidYRef.current = null;
         }
 
         // 4. Render Dynamic Motion Reticle & Brackets (Follows actual moving body, NO static cartoons)
@@ -3599,7 +4034,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       consensusSummary: "[Gemini Clinical Synthesis] Sudden high-velocity floor impact observed (-1.94 m/s). Resident verification prompt initiated."
     }));
 
-    if (onTriggerAlert) onTriggerAlert(true);
     if (onTriggerVerification) {
       onTriggerVerification("trip_fall");
     }
@@ -3720,7 +4154,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           <button
             onClick={() => {
               setSimulatedAlert(!simulatedAlert);
-              if (onTriggerAlert) onTriggerAlert(!simulatedAlert);
+              if (!simulatedAlert && onTriggerVerification) {
+                onTriggerVerification("trip_fall");
+              }
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
               simulatedAlert
@@ -3733,49 +4169,100 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
       </div>
 
-      {/* Alert Banner alongside the feed */}
-      <div
-        className={`p-4 rounded-xl border transition-all ${
-          simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-            ? "bg-rose-50 border-rose-300 text-rose-950 shadow-sm"
-            : webcamTelemetry.riskLevel === "CAUTION"
-            ? "bg-amber-50 border-amber-300 text-amber-950 shadow-sm"
-            : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
-        }`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK" ? (
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 animate-bounce" />
-            ) : webcamTelemetry.riskLevel === "CAUTION" ? (
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            )}
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider">
-                {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-                  ? "Alert: Acute Fall / Sudden Downward Impact Detected"
-                  : webcamTelemetry.riskLevel === "CAUTION"
-                  ? "Caution: Transitioning / Reclined Body Posture"
-                  : "Continuous Fall & Motion Sentinel Active"}
-              </span>
-              <p className="text-xs mt-0.5 text-slate-700">
-                {(isWebcamActive || (localYoloActive && !hardwareStreamPaused))
-                  ? webcamTelemetry.consensusSummary
-                  : simulatedAlert
-                  ? "Patient rose rapidly from living room armchair. Radar monitoring stability for 30s before family alert escalation."
-                  : "Motion sentinel active: Zero fall risk detected. Resident resting safely in room perimeter."}
-              </p>
-            </div>
-          </div>
-          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-700 shrink-0">
-            {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
-              ? "Critical Fall Event"
+      {/* Two-Pillar Telemetry Grid: Separate Patient Health from System Health */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Pillar 1: Patient Safety & Biomechanics Status */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+              ? "bg-rose-50 border-rose-300 text-rose-950 shadow-xs"
               : webcamTelemetry.riskLevel === "CAUTION"
-              ? "Caution: Low Posture"
-              : "Sentinel Status: Nominal"}
-          </span>
+              ? "bg-amber-50 border-amber-300 text-amber-950 shadow-xs"
+              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK" ? (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 animate-bounce" />
+              ) : webcamTelemetry.riskLevel === "CAUTION" ? (
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              )}
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                  Resident Safety Status (Clinical)
+                </span>
+                <span className="text-xs font-bold text-slate-900">
+                  {simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+                    ? "Suspected Incident &bull; Verification Window Active"
+                    : webcamTelemetry.riskLevel === "CAUTION"
+                    ? "Postural Transition &bull; Monitoring Equilibrium"
+                    : "Patient Nominal &bull; Upright &amp; Stable"}
+                </span>
+              </div>
+            </div>
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              simulatedAlert || webcamTelemetry.riskLevel === "HIGH_RISK"
+                ? "bg-rose-600 text-white"
+                : webcamTelemetry.riskLevel === "CAUTION"
+                ? "bg-amber-500 text-white"
+                : "bg-emerald-600 text-white"
+            }`}>
+              {webcamTelemetry.riskLevel}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
+            {webcamTelemetry.consensusSummary}
+          </p>
+        </div>
+
+        {/* Pillar 2: System Health & Edge Sentinel Infrastructure Status */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            systemHealth.edgeStatus === "EDGE_ONLINE" && systemHealth.cameraLifecycle === "MONITORING"
+              ? "bg-slate-900 text-white border-slate-800"
+              : systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
+              ? "bg-sky-950 text-sky-100 border-sky-800"
+              : "bg-slate-100 text-slate-800 border-slate-300"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Activity className={`w-4 h-4 shrink-0 ${
+                systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
+              }`} />
+              <div>
+                <span className={`text-[10px] uppercase font-bold tracking-wider block ${
+                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-slate-400" : "text-slate-500"
+                }`}>
+                  System Health &amp; Sentinel Infrastructure
+                </span>
+                <span className="text-xs font-bold">
+                  {systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
+                    ? `Camera Calibrating (${systemHealth.calibrationProgress}%)`
+                    : systemHealth.edgeStatus === "EDGE_ONLINE"
+                    ? "Edge GPU Online &bull; Local Daemon Active"
+                    : "Edge Offline &bull; Browser AI Active (Degraded)"}
+                </span>
+              </div>
+            </div>
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              systemHealth.edgeStatus === "EDGE_ONLINE"
+                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
+            }`}>
+              {systemHealth.edgeStatus}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-2 text-[11px] font-mono opacity-85">
+            <span>Latency: {systemHealth.latencyMs}ms</span>
+            <span>&bull;</span>
+            <span>Sensor: {systemHealth.cameraLifecycle}</span>
+            <span>&bull;</span>
+            <span>Rate: {systemHealth.fps || webcamTelemetry.fps} FPS</span>
+          </div>
         </div>
       </div>
 
