@@ -1653,6 +1653,29 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   - Port 5050: Ultralytics YOLO-Pose Edge Sentinel (PID 5936) listening on NVIDIA GeForce GTX 1650 CUDA.
 - Roadmap status: Track 1 (Real-Time Edge Vision & Consensus Engine) is 100% complete and verified. Next available priorities: Track 2 Task 2.1 ("Add Patient" flow for newly registered accounts) and Track 3 (Competition Deliverables: Problem Statement PDF, 6–7 Slide Pitch Deck, Video Script for HSC 2027 deadline 15 October 2026).
 
+---
+
+## 2026-09-16 (Day 8 — Purge Old PDFs & Build Unified Features + Recommended Fixes Document)
+
+### What the user asked:
+- "remove all the pdf files in @docs folder and make a new one specifing what more features are added and the list of fixes you suggest is needed"
+
+### Plan & Execution:
+1. **Purge Existing PDFs in `docs/`:**
+   - Remove `ReJivan_Comprehensive_Project_Briefing.pdf`
+   - Remove `ReJivan_Concept_Document_v1.1.pdf`
+   - Remove `ReJivan_Implementation_Audit_And_ChatGPT_Consultation.pdf`
+2. **Harmonize Hooks & Scripts:**
+   - Update `.githooks/pre-commit` and `tools/build_pdf.ps1` so git commits target the new unified document name rather than resurrecting `ReJivan_Concept_Document_v1.1.pdf`.
+3. **Draft Rich HTML Document Source (`docs/source/ReJivan_Features_And_Recommended_Fixes.html`):**
+   - Executive Summary & Regional Context (Andaman & Nicobar Islands, GB Pant Hospital, UT level HSC 2027).
+   - Complete Catalog of Added Features (RPM Telemetry & Physiological Drift, Dual-Vision Edge YOLO on GTX 1650 + In-Browser Optical Fallback, Multimodal Kinetic Hypothesis Engine, Bed-Fall Clinical Demonstration, 30s Resident Verification, Continuous 17-Keypoint Tracking & Debounced Watchdog, 3-Tier Emergency Call Ladder, Native Android App with Two-Way Sync).
+   - Thorough Tabular Comparison of Real vs Simulated Architecture.
+   - Comprehensive Prioritized Engineering Fixes & Recommendations (Add Patient registration flow, Database persistence on cloud, Android physical field tests, and Competition presentation deliverables).
+4. **Compile & Verify PDF:**
+   - Render via Edge Headless with professional typography, clean page breaks, print CSS, and run `tools/verify_pdf.py` to ensure 100% verification.
+
+
 
 
 
