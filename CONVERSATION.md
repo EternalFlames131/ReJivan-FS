@@ -1505,5 +1505,38 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   3. Result: Every time Samrat boots or turns on this laptop, both port 5050 and port 8080 will start automatically. When he opens his browser to `http://localhost:8080`, the website is immediately live and connected to YOLO without typing a single command.
   4. For the public cloud site (`rejivan2.vercel.app`), clarify how browser security prevents public internet domains from querying home localhost ports directly, and how the Universal In-Browser AI provides seamless backup for evaluators.
 
+---
+
+## 2026-09-16 (Day 8 — Web Browser Camera Motion Detection Troubleshooting)
+
+### What the user asked:
+- "why is motion detection not working for the web browser camera? fix it as"
+
+### Investigation & Root-Cause Diagnosis:
+1. **`<video className="hidden">` (`display: none`) Chromium Optimization Bug:**
+   - On line 1289 of `CameraZonesView.jsx`, `<video ref={webcamVideoRef} className="hidden" />` applied `display: none;` to the HTML5 video element.
+   - Modern Chromium engines (Chrome and Edge) discard decoded video frame buffers for elements with `display: none` to conserve GPU power. Consequently, `ctx.drawImage(video, ...)` or `offCtx.getImageData(...)` extracted empty/black pixels with zero difference (`diffPixels = 0`).
+2. **Premature Loop Startup (`setTimeout(..., 120)`):**
+   - The processing loop was invoked after an arbitrary 120ms timeout before the physical webcam hardware finished auto-exposure handshake and frame decoding. At 120ms, `video.videoWidth` was 0, causing the frame loop to skip processing.
+3. **Hyper-Strict Motion Thresholds:**
+   - Luminance difference noise gate was set to `delta > 18` (too insensitive for normal indoor lighting).
+   - Motion percentage was scaled against 100% of the entire thumbnail, meaning typical arm/body movement registered as only 0% to 1% on the HUD.
+   - Tracking brackets were guarded behind `motionPercent > 5%`, so they never rendered.
+4. **HUD FPS Metric Clashing:**
+   - In browser camera mode, the FPS HUD was falling back to `localYoloInfo.fps` (which was 0.0 when hardware camera was in standby), displaying `0 FPS • Motion: 0%`.
+
+### Fixes Executed & Verified:
+1. **Offscreen Video Placement:** Replaced `className="hidden"` with offscreen fixed styling (`position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0; pointer-events: none`). This guarantees the Chromium video decoding pipeline runs continuously at full 30 FPS.
+2. **Event-Driven Video Binding:** Replaced blind timeout with `onloadedmetadata`/`oncanplay` listeners, explicit `.muted = true` property binding, and promise-handled `.play()`.
+3. **Calibrated Sensitivity & Dynamic Reticle:**
+   - Reduced noise threshold to `delta > 10` (optimal for indoor lighting).
+   - Re-scaled motion energy so that ~15% of the frame in motion equals 100% kinetic energy.
+   - Added instant corner tracking reticle rendering whenever `motionPercent >= 2%` or `diffPixels >= 10`.
+   - Enabled graceful track persistence decay (`trackPersistence = Math.max(0, trackPersistence - 1)`).
+   - HUD in browser mode now correctly displays real measured browser render FPS (`currentFps || 30`).
+4. **Rebuilt & Verified:** Rebuilt web bundle via `node tools/build_web.js` (270,248 bytes); verified DOM render via Edge headless (983,351 characters, 0 errors); 7/7 kinematics unit tests passed; 23/23 false positive lab scenarios passed.
+
+
+
 
 

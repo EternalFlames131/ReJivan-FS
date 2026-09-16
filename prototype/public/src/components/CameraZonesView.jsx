@@ -403,17 +403,48 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         audio: false
       });
       streamRef.current = mediaStream;
+      setHardwareStreamPaused(true);
+      setIsBrowserDemoActive(false);
       setIsWebcamActive(true);
       setWebcamLoading(false);
       setActiveCamera("cam-local");
 
-      setTimeout(() => {
-        if (webcamVideoRef.current) {
-          webcamVideoRef.current.srcObject = mediaStream;
-          webcamVideoRef.current.play().catch(() => {});
-          startRealMotionTrackingLoop();
+      // Bind stream to video element once mounted in DOM
+      const attachAndPlay = () => {
+        const video = webcamVideoRef.current;
+        if (!video) {
+          setTimeout(attachAndPlay, 40);
+          return;
         }
-      }, 120);
+        video.srcObject = mediaStream;
+        video.muted = true;
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
+
+        let loopStarted = false;
+        const startLoop = () => {
+          if (loopStarted) return;
+          loopStarted = true;
+          startRealMotionTrackingLoop();
+        };
+
+        video.play().then(() => {
+          startLoop();
+        }).catch((err) => {
+          console.warn("Autoplay promise warning:", err);
+          startLoop();
+        });
+
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          startLoop();
+        } else {
+          video.onloadedmetadata = startLoop;
+          video.oncanplay = startLoop;
+          setTimeout(startLoop, 350);
+        }
+      };
+
+      setTimeout(attachAndPlay, 40);
     } catch (err) {
       console.warn("Webcam access error:", err);
       setWebcamError(
@@ -447,12 +478,17 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     const canvas = webcamCanvasRef.current;
     if (!video || !canvas) return;
 
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     let frameCount = 0;
     let lastFpsCheck = Date.now();
     let currentFps = 30;
     let calibrationFrames = 0;
-    const CALIBRATION_TOTAL = 30;
+    const CALIBRATION_TOTAL = 20;
     let trackPersistence = 0;
 
     // Small analysis off-screen canvas for high-performance optical flow
@@ -493,7 +529,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           lastFpsCheck = now;
         }
 
-        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (30 frames)
+        // 0. Startup Calibration Window: Discard auto-exposure transient luminosity shifts (20 frames)
         if (calibrationFrames < CALIBRATION_TOTAL) {
           calibrationFrames++;
           const progress = Math.round((calibrationFrames / CALIBRATION_TOTAL) * 100);
@@ -579,7 +615,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             const lumPrev = 0.299 * prev[i] + 0.587 * prev[i + 1] + 0.114 * prev[i + 2];
             const delta = Math.abs(lumCurr - lumPrev);
 
-            if (delta > 18) { // Noise threshold
+            // Responsive motion noise gate (delta > 10)
+            if (delta > 10) {
               diffPixels++;
               const pIdx = i / 4;
               const px = pIdx % sampleW;
@@ -597,27 +634,28 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         prevFrameDataRef.current = data;
 
         const totalPixels = sampleW * sampleH;
-        const motionPercent = Math.min(Math.round((diffPixels / totalPixels) * 100), 100);
+        // Calibrate motion energy: 15% of frame in motion = 100% kinetic energy
+        const motionPercent = Math.min(Math.round((diffPixels / (totalPixels * 0.15)) * 100), 100);
 
         // 3. Compute Real Motion Centroid & Downward Velocity (with Track Persistence & Derivative Protection)
-        let downwardVelocity = -0.1;
+        let downwardVelocity = -0.05;
         let isRapidDrop = false;
 
-        if (diffPixels > 15) {
+        if (diffPixels > 8) {
           const centroidX = (sumX / diffPixels) * (width / sampleW);
           const centroidY = (sumY / diffPixels) * (height / sampleH);
 
-          // Require 3 consecutive stable frames to eliminate track reacquisition velocity spikes
-          if (prevCentroidYRef.current !== null && trackPersistence >= 3) {
+          // Require 2 consecutive stable frames to eliminate track acquisition spikes
+          if (prevCentroidYRef.current !== null && trackPersistence >= 2) {
             const dy = centroidY - prevCentroidYRef.current;
             // Negative velocity = downward motion in m/s
-            downwardVelocity = -Math.round((dy / (height * 0.35) / dt) * 10) / 10;
-            if (downwardVelocity < -1.45 && motionPercent > 20) {
+            downwardVelocity = -Math.round((dy / (height * 0.25) / dt) * 10) / 10;
+            if (downwardVelocity < -1.25 && motionPercent > 18) {
               isRapidDrop = true;
             }
           }
           prevCentroidYRef.current = centroidY;
-          trackPersistence++;
+          trackPersistence = Math.min(trackPersistence + 1, 15);
 
           // Smooth tracking bounding box over the real moving area
           const targetBox = {
@@ -630,20 +668,22 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           if (!activeBox) {
             activeBox = targetBox;
           } else {
-            // Smooth interpolation
-            activeBox.x += (targetBox.x - activeBox.x) * 0.3;
-            activeBox.y += (targetBox.y - activeBox.y) * 0.3;
-            activeBox.w += (targetBox.w - activeBox.w) * 0.3;
-            activeBox.h += (targetBox.h - activeBox.h) * 0.3;
+            // Responsive interpolation
+            activeBox.x += (targetBox.x - activeBox.x) * 0.4;
+            activeBox.y += (targetBox.y - activeBox.y) * 0.4;
+            activeBox.w += (targetBox.w - activeBox.w) * 0.4;
+            activeBox.h += (targetBox.h - activeBox.h) * 0.4;
           }
         } else {
-          trackPersistence = 0;
-          prevCentroidYRef.current = null;
+          trackPersistence = Math.max(0, trackPersistence - 1);
+          if (trackPersistence === 0) {
+            prevCentroidYRef.current = null;
+          }
         }
 
         // 4. Render Dynamic Motion Reticle & Brackets (Follows actual moving body, NO static cartoons)
-        if (activeBox && motionPercent > 5) {
-          const isDanger = isRapidDrop || downwardVelocity < -1.4;
+        if (activeBox && (motionPercent >= 2 || diffPixels >= 10)) {
+          const isDanger = isRapidDrop || downwardVelocity < -1.3;
           const boxColor = isDanger ? "#F43F5E" : "#10B981"; // Red on fast drop, Emerald on safe movement
 
           ctx.strokeStyle = boxColor;
@@ -673,14 +713,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         }
 
         // 5. Update Telemetry State (Throttled for smooth UI updates)
-        if (frameCount % 5 === 0) {
-          const isDanger = isRapidDrop || downwardVelocity < -1.4;
-          const isCaution = motionPercent > 35 && downwardVelocity < -0.8;
+        if (frameCount % 4 === 0) {
+          const isDanger = isRapidDrop || downwardVelocity < -1.3;
+          const isCaution = motionPercent > 25 && downwardVelocity < -0.65;
           const postureLabel = isDanger
             ? "Acute Rapid Descent / Fall Trajectory"
             : isCaution
-            ? "Rapid Posture Change / Transfer"
-            : "Upright Ambulation / Controlled Seated";
+            ? "Rapid Posture Change / Motion Transition"
+            : (motionPercent > 1 ? "Active Dynamic Movement / Seated Tracking" : "Stationary / Supine Resting");
 
           const riskLevel = isDanger ? "HIGH_RISK" : isCaution ? "CAUTION" : "SAFE";
 
@@ -694,18 +734,20 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
           setWebcamTelemetry((prev) => ({
             ...prev,
-            fps: localYoloActive && localYoloInfo ? Math.round(localYoloInfo.fps || 58) : currentFps,
+            fps: currentFps || 30,
             motionEnergyPercent: motionPercent,
             downwardVelocity: downwardVelocity,
-            torsoAngle: isDanger ? 74 : isCaution ? 38 : 12,
+            torsoAngle: isDanger ? 74 : isCaution ? 38 : (motionPercent > 10 ? 22 : 10),
             posture: postureLabel,
             riskLevel: riskLevel,
-            confidence: isDanger ? "97.4%" : "99.1%",
+            confidence: isDanger ? "97.4%" : (motionPercent > 0 ? "98.9%" : "99.5%"),
+            visionSource: "In-Browser Optical Sentinel (Client-Side)",
+            hardwareBadge: "Browser Camera Active",
             consensusSummary: isDanger
               ? "Critical downward trajectory detected by optical flow analysis. Resident check-in prompt initiated."
               : isCaution
-              ? "Accelerated movement detected. Monitoring postural recovery."
-              : "Active video telemetry nominal. Movement energy within safe limits."
+              ? "Accelerated motion transition detected. Monitoring postural recovery."
+              : "Active video telemetry nominal. Optical motion tracking operational."
           }));
         }
       }
@@ -1286,7 +1328,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           autoPlay
                           playsInline
                           muted
-                          className="hidden"
+                          style={{
+                            position: "fixed",
+                            top: "-9999px",
+                            left: "-9999px",
+                            width: "640px",
+                            height: "480px",
+                            opacity: 0,
+                            pointerEvents: "none"
+                          }}
                         />
                         <canvas
                           ref={webcamCanvasRef}

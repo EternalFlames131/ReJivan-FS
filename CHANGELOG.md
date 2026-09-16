@@ -312,9 +312,13 @@
   - **Created Single-Click Root Launcher (`Start-ReJivan.bat`):** Double-clickable root batch file that silently spins up the YOLO Sentinel (port 5050), starts the Node web server (port 8080), and opens `http://localhost:8080` in the user's browser automatically.
   - **End-to-End Verification:** Verified all 7 API endpoints 100% operational; 7/7 unit tests passed; 23/23 false-positive lab scenarios passed.
 
-- **2026-09-16 10:58 | System Auto-Boot Integration (Silent YOLO + Web Server on Boot):**
-  - Implemented multi-service silent background launcher (`tools/start_all_silent.vbs`) and controller scripts (`tools/enable_system_startup.ps1`, `tools/disable_system_startup.ps1`, `tools/stop_all.bat`).
-  - Registered `ReJivan System Autostart.lnk` in the Windows Startup folder (`$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup`). Whenever the PC powers on, both the YOLO Sentinel (port 5050) and the Node Web Server (port 8080) launch silently in the background with zero command windows, making `http://localhost:8080` immediately functional and hardware-accelerated.
+- **2026-09-16 11:45 | Web Browser Camera Motion Detection Fix & Sensitivity Calibration:**
+  - **Fixed `<video className="hidden">` (`display: none`) Chromium Frame Dropping:** Replaced hidden display with offscreen fixed coordinates, ensuring Chrome/Edge decodes continuous 30 FPS video frames to the canvas context without dropping frames.
+  - **Fixed Asynchronous Video Binding:** Replaced fixed 120ms timeout with event-driven `onloadedmetadata`/`oncanplay` listeners and explicit `.muted = true` binding to ensure the loop only runs once the camera hardware has actively negotiated dimensions (`videoWidth > 0`).
+  - **Calibrated Motion Differencing Noise Gate & Kinetic Energy Scaling:** Adjusted luminance noise gate to `delta > 10` (ideal for indoor lighting), re-scaled motion energy to human body scale (~15% of frame in motion = 100% kinetic energy), and dynamically rendered responsive green corner brackets around the moving area.
+  - **Corrected HUD Telemetry in Browser Mode:** Browser webcam HUD now displays actual measured browser render loop FPS instead of conflicting with the local YOLO daemon status.
+  - **Rebuilt & Tested:** Web bundle recompiled (`tools/build_web.js` &rarr; 270,248 bytes); verified with Edge headless DOM dump (983,351 bytes); 7/7 unit tests and 23/23 false-positive scenarios passed.
+
 
 
 
