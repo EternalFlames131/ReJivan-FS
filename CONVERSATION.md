@@ -1555,11 +1555,33 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 4. **No Post-Descent Immobility / Postural Recovery Corroboration:**
    - In real falls, rapid drop is followed by impact and stillness. Normal hand gestures or sitting shifts are immediately followed by upright stability or continuous motion.
 
-### Engineering Solution in Progress:
-1. Increase auto-exposure calibration window to 50 frames (~1.6s).
-2. Implement multi-frame sustained descent corroborator (require >= 3 consecutive frames of downward velocity < -1.1 m/s).
-3. Enforce spatial floor boundary check (`centroidY > height * 0.52`) and bounding box scale filter (`targetBox.h > height * 0.38`).
-4. Replace raw instantaneous trigger with post-descent confirmation window and postural recovery auto-cancellation.
+### Engineering Solution Executed & Verified:
+1. Increased auto-exposure calibration window to 50 frames (~1.6s).
+2. Implemented multi-frame sustained descent corroborator (requiring >= 3 consecutive frames of downward velocity < -1.05 m/s with 0.65/0.35 EMA filter).
+3. Enforced spatial floor boundary check (`normCentroidY > 0.52`) and bounding box scale filter (`normBoxH > 0.35` or `motionPercent > 28%`).
+4. Added post-descent immobility confirmation window and 3.0s postural recovery auto-cancellation.
+5. Recompiled web bundle (`node tools/build_web.js`), passed 7/7 kinematics unit tests and 23/23 false-positive scenarios. Auto-pushed commit 8e15e53 to GitHub and auto-deployed to Vercel.
+
+---
+
+## 2026-09-16 (Day 8 — Vision Engine Clarification: MediaPipe vs Optical Differencing vs YOLO Ultralytics)
+
+### What the user asked:
+- "still browser camera is not perfect, is it using media pipe? if yes then why is not using YOLO Ultralytics?"
+
+### Technical Facts & Architectural Reality:
+1. **Is the browser camera using MediaPipe?**
+   - **No.** The in-browser camera (`handleStartWebcam`) uses a custom client-side **optical motion differencing engine** (HTML5 Canvas pixel analysis calculating luminance delta, centroid trajectories, and downward velocity).
+   - MediaPipe Pose is a concept referenced in our architecture documentation and the Incident Reconstruction panel, but the actual JavaScript webcam feed was running pixel differencing, NOT the full Google MediaPipe Pose WebAssembly neural network.
+2. **Why is the browser camera not using YOLO Ultralytics?**
+   - **YOLO Ultralytics is a Python neural network (PyTorch / CUDA C++).** Web browsers (Chrome, Edge) strictly cannot execute native Python code or load `.pt` PyTorch model weights directly inside a webpage sandbox.
+   - For this reason, ReJivan is architected with **two distinct camera pipelines**:
+     - **Pipeline 1: Edge Hardware YOLO Sentinel (Ultralytics YOLO11-Pose):** Runs locally in Python on port 5050 with full 17 COCO skeletal keypoints.
+     - **Pipeline 2: In-Browser Universal Camera:** Runs inside the browser sandbox using JavaScript so evaluators without Python can still test the system.
+3. **The Root Confusion in the UI:**
+   - On the dashboard, there are multiple buttons: "Play Hospital Bed-Fall Demo", "Start Live Webcam" (which activates the real YOLO Sentinel on port 5050), and "Use Browser Camera Instead" (which runs the lightweight JavaScript differencing).
+   - When the user clicked "Use Browser Camera Instead" (or visited `rejivan2.vercel.app` where port 5050 is blocked by browser security), they were using Pipeline 2 (pixel differencing), which does not have skeletal joint tracking.
+   - For real AI skeleton pose tracking with YOLO, the user must click **"Start Live Webcam"** on `http://localhost:8080`!
 
 
 

@@ -322,7 +322,10 @@
   - **Multi-Frame Sustained Descent Corroboration:** Replaced single-frame derivative threshold with multi-frame corroborator requiring $\ge 3$ consecutive frames of downward motion with low-pass exponential smoothing (0.65/0.35 EMA filter).
   - **Spatial Floor-Level Boundary & Scale Gating:** Enforced floor boundary (`normCentroidY > 0.52`) and human body bounding box scale (`normBoxH > 0.35` or `motionPercent > 28%`), mathematically rejecting isolated arm/hand motions and desk work.
   - **Auto-Exposure Calibration & Postural Recovery:** Extended startup calibration to 50 frames (~1.6s) to completely suppress camera auto-exposure transients, and added postural recovery auto-cancellation within 3.0s if upright posture is restored.
-  - **Rebuilt & 100% Tested:** Web bundle recompiled via `node tools/build_web.js` (274,914 bytes); 7/7 kinematics unit tests passed (`test_fall_kinematics.py`); 23/23 false positive scenarios passed with 100% precision (`test_false_positive_lab.py`).
+- **2026-09-16 13:35 | Vision Engine Architecture Clarification & Camera UI Unification:**
+  - **Clarified MediaPipe vs Optical Differencing vs YOLO Ultralytics:** (1) The browser camera uses lightweight client-side optical differencing, not Google MediaPipe; (2) Ultralytics YOLO-Pose is a native Python/CUDA model running locally on port 5050 and cannot run directly inside a browser JavaScript sandbox; (3) When testing on `http://localhost:8080`, clicking "Start Live Webcam (Ultralytics YOLO-Pose)" activates the real 17-keypoint neural network on the physical webcam.
+  - **Relabeled UI Buttons in `CameraZonesView.jsx`:** Explicitly distinguished the green hardware YOLO button (`Start Live Webcam (Ultralytics YOLO-Pose)`) from the browser fallback button (`Browser Optical Tracker (No Python Fallback)`), eliminating evaluator confusion between the two distinct pipelines.
+  - **Rebuilt Bundle:** Recompiled via `node tools/build_web.js` (275,292 bytes).
 
 
 

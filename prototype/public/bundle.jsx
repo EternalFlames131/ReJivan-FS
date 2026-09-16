@@ -4890,10 +4890,11 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                                   e.stopPropagation();
                                   handleStartDemoStream("webcam");
                                 }}
-                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2"
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2 ring-2 ring-emerald-400/40"
+                                title="Run real Ultralytics YOLO11-Pose model on your physical camera with 17-point body skeleton tracking"
                               >
                                 <Camera className="w-4 h-4" />
-                                <span>Start Live Webcam</span>
+                                <span>Start Live Webcam (Ultralytics YOLO-Pose)</span>
                               </button>
                               <button
                                 onClick={(e) => {
@@ -4915,14 +4916,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               handleStartWebcam();
                             }}
                             disabled={webcamLoading}
-                            className={`px-4 py-2 rounded-lg ${localYoloActive ? "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800" : "bg-blue-600 hover:bg-blue-500 text-white"} font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2`}
+                            className={`px-4 py-2 rounded-lg ${localYoloActive ? "bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 hover:text-slate-200" : "bg-blue-600 hover:bg-blue-500 text-white"} font-semibold text-xs transition-all shadow-md inline-flex items-center gap-2`}
+                            title="Lightweight client-side optical motion differencing (runs inside browser without Python)"
                           >
                             {webcamLoading ? (
                               <span>Starting Camera...</span>
                             ) : (
                               <>
                                 <Camera className="w-4 h-4" />
-                                <span>{localYoloActive ? "Use Browser Camera Instead" : "Turn On My Camera"}</span>
+                                <span>{localYoloActive ? "Browser Optical Tracker (No Python Fallback)" : "Turn On Browser Camera (Optical Tracker)"}</span>
                               </>
                             )}
                           </button>
