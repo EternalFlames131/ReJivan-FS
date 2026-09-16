@@ -1490,4 +1490,20 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - 7/7 kinematics unit tests passed (`tools/test_fall_kinematics.py`).
    - 23/23 false-positive test lab scenarios passed (`tools/test_false_positive_lab.py`).
 
+---
+
+## 2026-09-16 (Day 8 — Auto-Boot on System Online & Full Website Functionality Inquiry)
+
+### What the user asked:
+- "is it possible to make it such that when ever this system is online the yolo automatically runs on this system and make the website fuctinal"
+
+### Analysis & Technical Solution:
+- **YES! Absolutely possible.**
+- To achieve 100% hands-free autonomy when the PC boots:
+  1. **Background Silent Multi-Service Launcher (`tools/start_all_silent.vbs`):** Starts both the Ultralytics YOLO-Pose Sentinel daemon on port 5050 AND the Node Express Web Server on port 8080 silently in the background with zero command windows.
+  2. **Windows Startup Folder Shortcut:** Install `ReJivan Full System.lnk` into `$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup`.
+  3. Result: Every time Samrat boots or turns on this laptop, both port 5050 and port 8080 will start automatically. When he opens his browser to `http://localhost:8080`, the website is immediately live and connected to YOLO without typing a single command.
+  4. For the public cloud site (`rejivan2.vercel.app`), clarify how browser security prevents public internet domains from querying home localhost ports directly, and how the Universal In-Browser AI provides seamless backup for evaluators.
+
+
 

@@ -312,5 +312,10 @@
   - **Created Single-Click Root Launcher (`Start-ReJivan.bat`):** Double-clickable root batch file that silently spins up the YOLO Sentinel (port 5050), starts the Node web server (port 8080), and opens `http://localhost:8080` in the user's browser automatically.
   - **End-to-End Verification:** Verified all 7 API endpoints 100% operational; 7/7 unit tests passed; 23/23 false-positive lab scenarios passed.
 
+- **2026-09-16 10:58 | System Auto-Boot Integration (Silent YOLO + Web Server on Boot):**
+  - Implemented multi-service silent background launcher (`tools/start_all_silent.vbs`) and controller scripts (`tools/enable_system_startup.ps1`, `tools/disable_system_startup.ps1`, `tools/stop_all.bat`).
+  - Registered `ReJivan System Autostart.lnk` in the Windows Startup folder (`$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup`). Whenever the PC powers on, both the YOLO Sentinel (port 5050) and the Node Web Server (port 8080) launch silently in the background with zero command windows, making `http://localhost:8080` immediately functional and hardware-accelerated.
+
+
 
 
