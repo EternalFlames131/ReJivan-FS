@@ -9,6 +9,7 @@ import os
 import time
 import json
 import math
+import base64
 import threading
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -1022,6 +1023,76 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        # Browser Camera Frame Inference Endpoint (Enables Browser Webcam to run on YOLO Ultralytics)
+        if self.path == "/api/yolo/process_frame":
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                raw_bytes = self.rfile.read(content_len) if content_len > 0 else None
+                if not raw_bytes:
+                    raise ValueError("Empty body")
+
+                # Handle base64 JSON if sent from browser
+                if raw_bytes.startswith(b"{"):
+                    req = json.loads(raw_bytes.decode("utf-8"))
+                    b64_str = req.get("image", "")
+                    if "," in b64_str:
+                        b64_str = b64_str.split(",", 1)[1]
+                    raw_bytes = base64.b64decode(b64_str)
+
+                nparr = np.frombuffer(raw_bytes, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    raise ValueError("Failed to decode image frame")
+
+                h_img, w_img = frame.shape[:2]
+                results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
+                r = results[0]
+
+                persons_count = len(r.boxes) if r.boxes is not None else 0
+                if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
+                    primary_kp = r.keypoints.data[0].cpu().numpy()
+                    kinematics = compute_kinematics(primary_kp, w_img, h_img, time.time())
+                    boxes = r.boxes.xyxy.cpu().numpy()
+                    primary_box = boxes[0].tolist() if len(boxes) > 0 else None
+
+                    resp = {
+                        "ok": True,
+                        "person_detected": True,
+                        "keypoints": primary_kp.tolist(),
+                        "bbox": primary_box,
+                        "torso_angle": kinematics.get("torso_angle", 0.0),
+                        "downward_velocity": kinematics.get("downward_velocity", 0.0),
+                        "posture": kinematics.get("posture", "Upright Ambulation"),
+                        "risk_level": kinematics.get("risk_level", "SAFE"),
+                        "confidence": kinematics.get("confidence", 95.0),
+                        "consensus_summary": kinematics.get("hypothesis", {}).get("mechanism", "YOLO Pose tracking nominal.")
+                    }
+                else:
+                    resp = {
+                        "ok": True,
+                        "person_detected": False,
+                        "keypoints": [],
+                        "bbox": None,
+                        "torso_angle": 0.0,
+                        "downward_velocity": 0.0,
+                        "posture": "Scanning Perimeter (No Person Detected)",
+                        "risk_level": "SAFE",
+                        "confidence": 98.0,
+                        "consensus_summary": "Subject out of frame or occluded. Perimeter nominal."
+                    }
+
+                self.send_response(200)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(resp).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
+
         # Video Source Selection Endpoint (Webcam vs Bed Fall Demo Video)
         if self.path == "/api/yolo/source":
             try:

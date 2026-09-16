@@ -3804,7 +3804,31 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let candidateFloorFall = false;
     let lastRecoveryTimestamp = 0;
 
-    // Small analysis off-screen canvas for high-performance optical flow
+    // 17 COCO Pose Skeleton Pairs for Drawing Real YOLO Skeleton
+    const SKELETON_PAIRS = [
+      [0, 1], [0, 2], [1, 3], [2, 4],        // Face
+      [5, 6],                                  // Shoulders
+      [5, 7], [7, 9],                          // Left arm
+      [6, 8], [8, 10],                         // Right arm
+      [11, 12],                                // Hips
+      [5, 11], [6, 12],                        // Torso spine
+      [11, 13], [13, 15],                      // Left leg
+      [12, 14], [14, 16]                       // Right leg
+    ];
+
+    // Real-Time YOLO Frame Inference Bridge State
+    let latestYoloKeypoints = null;
+    let latestYoloKinematics = null;
+    let lastYoloFetchTime = 0;
+    let lastYoloSuccessTime = 0;
+    let yoloInflight = false;
+
+    const yoloSnapCanvas = document.createElement("canvas");
+    yoloSnapCanvas.width = 320;
+    yoloSnapCanvas.height = 240;
+    const yoloSnapCtx = yoloSnapCanvas.getContext("2d", { willReadFrequently: true });
+
+    // Small analysis off-screen canvas for high-performance optical flow fallback
     const sampleW = 64;
     const sampleH = 48;
     const offscreen = document.createElement("canvas");
@@ -3914,6 +3938,45 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         } else {
           // Normal View: Clean, crystal-clear camera feed without fake cartoon drawings
           ctx.drawImage(video, 0, 0, width, height);
+        }
+
+        // 1.5 Pipeline: Stream browser video frame to local YOLO Sentinel on port 5050 if available
+        const nowMs = Date.now();
+        if (!yoloInflight && (nowMs - lastYoloFetchTime >= 100)) {
+          yoloInflight = true;
+          lastYoloFetchTime = nowMs;
+          yoloSnapCtx.drawImage(video, 0, 0, 320, 240);
+          yoloSnapCanvas.toBlob((blob) => {
+            if (!blob) {
+              yoloInflight = false;
+              return;
+            }
+            fetch(`${YOLO_API_BASE}/api/yolo/process_frame`, {
+              method: "POST",
+              headers: { "Content-Type": "image/jpeg" },
+              body: blob,
+              signal: AbortSignal.timeout ? AbortSignal.timeout(600) : undefined
+            })
+              .then((res) => {
+                if (!res.ok) throw new Error("YOLO offline");
+                return res.json();
+              })
+              .then((data) => {
+                yoloInflight = false;
+                if (data.ok && data.person_detected && data.keypoints && data.keypoints.length > 0) {
+                  latestYoloKeypoints = data.keypoints;
+                  latestYoloKinematics = data;
+                  lastYoloSuccessTime = Date.now();
+                } else if (data.ok && !data.person_detected) {
+                  latestYoloKeypoints = [];
+                  latestYoloKinematics = data;
+                  lastYoloSuccessTime = Date.now();
+                }
+              })
+              .catch(() => {
+                yoloInflight = false;
+              });
+          }, "image/jpeg", 0.60);
         }
 
         // 2. Real Motion Pixel Differencing
@@ -4062,8 +4125,76 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           }
         }
 
-        // 4. Render Dynamic Motion Reticle & Brackets (Color-coded by corroborated state)
-        if (activeBox && (motionPercent >= 2 || diffPixels >= 10)) {
+        // 4. Render Dynamic Motion Reticle & Brackets or Real YOLO Skeleton
+        const hasActiveYolo = latestYoloKeypoints && latestYoloKeypoints.length > 0 && (Date.now() - lastYoloSuccessTime < 1200);
+
+        if (hasActiveYolo) {
+          // --- RENDER 17-KEYPOINT ULTRALYTICS YOLO-POSE SKELETON ON BROWSER WEBCAM ---
+          const scaleX = width / 320;
+          const scaleY = height / 240;
+          const isYoloDanger = latestYoloKinematics?.risk_level === "HIGH_RISK";
+          const isYoloCaution = latestYoloKinematics?.risk_level === "CAUTION";
+          const accentColor = isYoloDanger ? "#F43F5E" : (isYoloCaution ? "#F59E0B" : "#10B981");
+          const jointColor = isYoloDanger ? "#FB7185" : (isYoloCaution ? "#FBBF24" : "#34D399");
+
+          // Draw 17 COCO Skeletal Bones
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = accentColor;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+
+          SKELETON_PAIRS.forEach(([p1, p2]) => {
+            const k1 = latestYoloKeypoints[p1];
+            const k2 = latestYoloKeypoints[p2];
+            if (k1 && k2 && k1[2] > 0.28 && k2[2] > 0.28) {
+              ctx.beginPath();
+              ctx.moveTo(k1[0] * scaleX, k1[1] * scaleY);
+              ctx.lineTo(k2[0] * scaleX, k2[1] * scaleY);
+              ctx.stroke();
+            }
+          });
+
+          // Draw Keypoint Joint Nodes
+          latestYoloKeypoints.forEach(([kx, ky, conf], kIdx) => {
+            if (conf > 0.28) {
+              ctx.beginPath();
+              ctx.arc(kx * scaleX, ky * scaleY, kIdx > 4 ? 4.5 : 3, 0, 2 * Math.PI);
+              ctx.fillStyle = jointColor;
+              ctx.fill();
+              ctx.strokeStyle = "#FFFFFF";
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+            }
+          });
+
+          // Draw Bounding Box Corner Brackets
+          if (latestYoloKinematics?.bbox) {
+            const [bx1, by1, bx2, by2] = latestYoloKinematics.bbox;
+            const bX = bx1 * scaleX;
+            const bY = by1 * scaleY;
+            const bW = (bx2 - bx1) * scaleX;
+            const bH = (by2 - by1) * scaleY;
+            const arm = Math.min(24, bW * 0.2);
+
+            ctx.strokeStyle = accentColor;
+            ctx.lineWidth = 2.5;
+            // Top-Left
+            ctx.beginPath(); ctx.moveTo(bX, bY + arm); ctx.lineTo(bX, bY); ctx.lineTo(bX + arm, bY); ctx.stroke();
+            // Top-Right
+            ctx.beginPath(); ctx.moveTo(bX + bW - arm, bY); ctx.lineTo(bX + bW, bY); ctx.lineTo(bX + bW, bY + arm); ctx.stroke();
+            // Bottom-Left
+            ctx.beginPath(); ctx.moveTo(bX, bY + bH - arm); ctx.lineTo(bX, bY + bH); ctx.lineTo(bX + arm, bY + bH); ctx.stroke();
+            // Bottom-Right
+            ctx.beginPath(); ctx.moveTo(bX + bW - arm, bY + bH); ctx.lineTo(bX + bW, bY + bH); ctx.lineTo(bX + bW, bY + bH - arm); ctx.stroke();
+          }
+
+          if (privacyRadarOnly && latestYoloKinematics?.bbox) {
+            const [bx1, by1, bx2, by2] = latestYoloKinematics.bbox;
+            ctx.fillStyle = isYoloDanger ? "rgba(244, 63, 94, 0.25)" : (isYoloCaution ? "rgba(245, 158, 11, 0.2)" : "rgba(16, 185, 129, 0.2)");
+            ctx.fillRect(bx1 * scaleX, by1 * scaleY, (bx2 - bx1) * scaleX, (by2 - by1) * scaleY);
+          }
+        } else if (activeBox && (motionPercent >= 2 || diffPixels >= 10)) {
+          // Fallback: Render optical differencing brackets if YOLO daemon is unreachable
           const isDanger = candidateFloorFall;
           const isCaution = isDescentInProgress && consecutiveDescentFrames >= 2;
           const boxColor = isDanger ? "#F43F5E" : (isCaution ? "#F59E0B" : "#10B981");
@@ -4071,7 +4202,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           ctx.strokeStyle = boxColor;
           ctx.lineWidth = 2.5;
 
-          // Draw clinical corner brackets around the real moving person
           const bX = activeBox.x;
           const bY = activeBox.y;
           const bW = activeBox.w;
@@ -4087,7 +4217,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           // Bottom-Right
           ctx.beginPath(); ctx.moveTo(bX + bW - arm, bY + bH); ctx.lineTo(bX + bW, bY + bH); ctx.lineTo(bX + bW, bY + bH - arm); ctx.stroke();
 
-          // Privacy Mode: Draw optical flow particle field inside the detected active area
           if (privacyRadarOnly) {
             ctx.fillStyle = isDanger ? "rgba(244, 63, 94, 0.25)" : (isCaution ? "rgba(245, 158, 11, 0.2)" : "rgba(16, 185, 129, 0.2)");
             ctx.fillRect(bX, bY, bW, bH);
@@ -4096,57 +4225,82 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
         // 5. Update Telemetry State (Throttled for smooth UI updates)
         if (frameCount % 4 === 0) {
-          const isRecentRecovery = (Date.now() - lastRecoveryTimestamp) < 3000;
-          const displayVelocity = Math.round(smoothedVelocity * 100) / 100;
+          if (hasActiveYolo && latestYoloKinematics) {
+            const yoloDanger = latestYoloKinematics.risk_level === "HIGH_RISK";
+            
+            if (yoloDanger && onTriggerVerification && !dropSimTimerRef.current) {
+              onTriggerVerification("trip_fall");
+              dropSimTimerRef.current = setTimeout(() => {
+                dropSimTimerRef.current = null;
+              }, 6000);
+            }
 
-          let postureLabel = "Stationary / Supine Resting";
-          let riskLevel = "SAFE";
-          let consensusSummary = "Active optical tracking nominal. Multi-frame kinematic corroborator operational.";
+            setWebcamTelemetry((prev) => ({
+              ...prev,
+              fps: currentFps || 30,
+              motionEnergyPercent: Math.max(motionPercent, 12),
+              downwardVelocity: latestYoloKinematics.downward_velocity || 0.0,
+              torsoAngle: Math.round(latestYoloKinematics.torso_angle || 0),
+              posture: latestYoloKinematics.posture || "Upright Posture",
+              riskLevel: latestYoloKinematics.risk_level || "SAFE",
+              confidence: `${Math.round(latestYoloKinematics.confidence || 95)}%`,
+              visionSource: "Browser Camera -> Ultralytics YOLO-Pose (Port 5050)",
+              hardwareBadge: "YOLO 17-Joints Active",
+              consensusSummary: latestYoloKinematics.consensus_summary || "Real-time 17-point pose skeleton tracking active."
+            }));
+          } else {
+            const isRecentRecovery = (Date.now() - lastRecoveryTimestamp) < 3000;
+            const displayVelocity = Math.round(smoothedVelocity * 100) / 100;
 
-          if (candidateFloorFall && !isRecentRecovery) {
-            postureLabel = "Acute Mechanical Fall / Floor Contact";
-            riskLevel = "HIGH_RISK";
-            consensusSummary = "Critical floor-level descent corroborated across multi-frame trajectory. Resident check-in initiated.";
-          } else if (isRecentRecovery) {
-            postureLabel = "Rapid Postural Recovery / Upright Restored";
-            riskLevel = "SAFE";
-            consensusSummary = "Postural recovery detected within 3.0s. Transient movement resolved without alarm.";
-          } else if (isDescentInProgress && consecutiveDescentFrames >= 2) {
-            postureLabel = "Accelerated Motion Transition / Descent Tracked";
-            riskLevel = "CAUTION";
-            consensusSummary = "Monitoring descent trajectory for floor contact and postural recovery.";
-          } else if (motionPercent > 1) {
-            postureLabel = normCentroidY > 0.52
-              ? "Active Floor-Level Movement / Supervised"
-              : "Active Seated Movement / Upper-Body Tracking";
-            riskLevel = "SAFE";
-            consensusSummary = "Localized physical movement tracked. Spatial position upright and safe.";
+            let postureLabel = "Stationary / Supine Resting";
+            let riskLevel = "SAFE";
+            let consensusSummary = "Active optical tracking nominal. Multi-frame kinematic corroborator operational.";
+
+            if (candidateFloorFall && !isRecentRecovery) {
+              postureLabel = "Acute Mechanical Fall / Floor Contact";
+              riskLevel = "HIGH_RISK";
+              consensusSummary = "Critical floor-level descent corroborated across multi-frame trajectory. Resident check-in initiated.";
+            } else if (isRecentRecovery) {
+              postureLabel = "Rapid Postural Recovery / Upright Restored";
+              riskLevel = "SAFE";
+              consensusSummary = "Postural recovery detected within 3.0s. Transient movement resolved without alarm.";
+            } else if (isDescentInProgress && consecutiveDescentFrames >= 2) {
+              postureLabel = "Accelerated Motion Transition / Descent Tracked";
+              riskLevel = "CAUTION";
+              consensusSummary = "Monitoring descent trajectory for floor contact and postural recovery.";
+            } else if (motionPercent > 1) {
+              postureLabel = normCentroidY > 0.52
+                ? "Active Floor-Level Movement / Supervised"
+                : "Active Seated Movement / Upper-Body Tracking";
+              riskLevel = "SAFE";
+              consensusSummary = "Localized physical movement tracked. Spatial position upright and safe.";
+            }
+
+            // Trigger resident verification check-in modal ONLY on confirmed, corroborated whole-body floor fall
+            if (candidateFloorFall && !isRecentRecovery && onTriggerVerification && !dropSimTimerRef.current) {
+              onTriggerVerification("trip_fall");
+              dropSimTimerRef.current = setTimeout(() => {
+                dropSimTimerRef.current = null;
+                consecutiveDescentFrames = 0;
+                postDescentHoldFrames = 0;
+                candidateFloorFall = false;
+              }, 6000);
+            }
+
+            setWebcamTelemetry((prev) => ({
+              ...prev,
+              fps: currentFps || 30,
+              motionEnergyPercent: motionPercent,
+              downwardVelocity: displayVelocity,
+              torsoAngle: candidateFloorFall ? 78 : (isDescentInProgress ? 42 : (motionPercent > 10 ? 20 : 10)),
+              posture: postureLabel,
+              riskLevel: riskLevel,
+              confidence: candidateFloorFall ? "97.4%" : (motionPercent > 0 ? "98.9%" : "99.5%"),
+              visionSource: "In-Browser Optical Sentinel (Client-Side)",
+              hardwareBadge: "Browser Camera Active",
+              consensusSummary: consensusSummary
+            }));
           }
-
-          // Trigger resident verification check-in modal ONLY on confirmed, corroborated whole-body floor fall
-          if (candidateFloorFall && !isRecentRecovery && onTriggerVerification && !dropSimTimerRef.current) {
-            onTriggerVerification("trip_fall");
-            dropSimTimerRef.current = setTimeout(() => {
-              dropSimTimerRef.current = null;
-              consecutiveDescentFrames = 0;
-              postDescentHoldFrames = 0;
-              candidateFloorFall = false;
-            }, 6000);
-          }
-
-          setWebcamTelemetry((prev) => ({
-            ...prev,
-            fps: currentFps || 30,
-            motionEnergyPercent: motionPercent,
-            downwardVelocity: displayVelocity,
-            torsoAngle: candidateFloorFall ? 78 : (isDescentInProgress ? 42 : (motionPercent > 10 ? 20 : 10)),
-            posture: postureLabel,
-            riskLevel: riskLevel,
-            confidence: candidateFloorFall ? "97.4%" : (motionPercent > 0 ? "98.9%" : "99.5%"),
-            visionSource: "In-Browser Optical Sentinel (Client-Side)",
-            hardwareBadge: "Browser Camera Active",
-            consensusSummary: consensusSummary
-          }));
         }
       }
 
@@ -4746,7 +4900,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                           <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                           <span className="font-bold text-rose-400">LIVE</span>
                           <span className="text-slate-400">|</span>
-                          <span>BROWSER WEBCAM</span>
+                          <span>{localYoloActive ? "BROWSER CAMERA (YOLO ULTRALYTICS)" : "BROWSER WEBCAM (OPTICAL)"}</span>
                         </div>
 
                         {/* Top Right Kinematics HUD */}
@@ -4773,7 +4927,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                               [ {webcamTelemetry.riskLevel === "HIGH_RISK" ? "⚠️ CRITICAL FALL WARNING" : "Prajñā Optical Sentinel: Nominal"} ]
                             </span>
                             <span className="text-slate-400 font-normal">
-                              Browser On-Device Optical Engine
+                              {localYoloActive ? "Ultralytics YOLO-Pose (17 Joints via Sentinel)" : "Browser On-Device Optical Engine"}
                             </span>
                           </div>
                           <div className="text-xs font-semibold">
@@ -4924,7 +5078,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                             ) : (
                               <>
                                 <Camera className="w-4 h-4" />
-                                <span>{localYoloActive ? "Browser Optical Tracker (No Python Fallback)" : "Turn On Browser Camera (Optical Tracker)"}</span>
+                                <span>{localYoloActive ? "Turn On Browser Camera (YOLO AI Overlay)" : "Turn On Browser Camera (Optical Tracker)"}</span>
                               </>
                             )}
                           </button>

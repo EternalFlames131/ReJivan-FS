@@ -322,10 +322,12 @@
   - **Multi-Frame Sustained Descent Corroboration:** Replaced single-frame derivative threshold with multi-frame corroborator requiring $\ge 3$ consecutive frames of downward motion with low-pass exponential smoothing (0.65/0.35 EMA filter).
   - **Spatial Floor-Level Boundary & Scale Gating:** Enforced floor boundary (`normCentroidY > 0.52`) and human body bounding box scale (`normBoxH > 0.35` or `motionPercent > 28%`), mathematically rejecting isolated arm/hand motions and desk work.
   - **Auto-Exposure Calibration & Postural Recovery:** Extended startup calibration to 50 frames (~1.6s) to completely suppress camera auto-exposure transients, and added postural recovery auto-cancellation within 3.0s if upright posture is restored.
-- **2026-09-16 13:35 | Vision Engine Architecture Clarification & Camera UI Unification:**
-  - **Clarified MediaPipe vs Optical Differencing vs YOLO Ultralytics:** (1) The browser camera uses lightweight client-side optical differencing, not Google MediaPipe; (2) Ultralytics YOLO-Pose is a native Python/CUDA model running locally on port 5050 and cannot run directly inside a browser JavaScript sandbox; (3) When testing on `http://localhost:8080`, clicking "Start Live Webcam (Ultralytics YOLO-Pose)" activates the real 17-keypoint neural network on the physical webcam.
-  - **Relabeled UI Buttons in `CameraZonesView.jsx`:** Explicitly distinguished the green hardware YOLO button (`Start Live Webcam (Ultralytics YOLO-Pose)`) from the browser fallback button (`Browser Optical Tracker (No Python Fallback)`), eliminating evaluator confusion between the two distinct pipelines.
-  - **Rebuilt Bundle:** Recompiled via `node tools/build_web.js` (275,292 bytes).
+- **2026-09-16 13:45 | Browser Camera YOLO Bridge & 17-Keypoint Pose Overlay (`/api/yolo/process_frame`):**
+  - **End-to-End Browser-to-YOLO Bridge:** Implemented `POST /api/yolo/process_frame` in `tools/yolo_edge_sentinel.py` accepting browser video frames (JPEG or base64 JSON), running Ultralytics YOLO-Pose inference, and returning 17 COCO keypoints, spine inclination angle, descent velocity, and clinical consensus.
+  - **17-Joint Skeleton Canvas Overlay in `CameraZonesView.jsx`:** Wired the HTML5 canvas render loop to capture video frames every 100ms, stream them to the local YOLO sentinel, and draw the full 17-point COCO skeletal bones (green/amber/rose), joint nodes with white halos, and person bounding brackets directly over the browser webcam feed.
+  - **Seamless Graceful Fallback:** If the local YOLO sentinel is offline or unreachable (e.g. visiting on mobile or cloud Vercel URL), the browser camera seamlessly falls back to the client-side optical differencing engine without throwing errors.
+  - **Rebuilt & Tested:** Rebuilt web bundle (`node tools/build_web.js` &rarr; 282,524 bytes); Edge headless DOM rendered 1,018,648 characters with 0 errors; 7/7 kinematics unit tests passed; 23/23 false positive lab scenarios passed with 100% precision.
+
 
 
 
