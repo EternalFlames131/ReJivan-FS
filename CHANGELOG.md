@@ -289,3 +289,9 @@
   - Consolidated the camera vision interface in `prototype/public/src/components/CameraZonesView.jsx` by removing the two legacy simulated static cards (`cam-1` and `cam-2`), leaving a single, focused, responsive Clinical Vision Sentinel (`max-w-4xl mx-auto`).
   - Preserved all 4 operational camera modes: Hardware Ultralytics YOLO daemon on `127.0.0.1:5050` (NVIDIA GTX 1650 CUDA), universal in-browser bed-fall demonstration video, local device webcam with real optical flow differencing, and DPDP Act 2023 on-demand privacy radar mode.
   - Fixed JSX balance and recompiled web bundle (`node tools/build_web.js` &rarr; 244,739 bytes). Validated Babel transformation with zero errors.
+
+- **2026-09-16 08:48 | Windows Auto-Start Shortcut Remediation & YOLO Startup Automation:**
+  - Repointed `ReJivan AutoSave.lnk` in the Windows Startup folder to the active `rejivan FS\tools\autosaver.ps1` path (remedying the broken link caused by the folder rename from `SanjivanAI`).
+  - Upgraded `tools/start_yolo_silent.vbs` to dynamically resolve the project root using `WScript.ScriptFullName` so it runs reliably regardless of working directory.
+  - Added one-click management scripts `tools/enable_yolo_startup.ps1` and `tools/disable_yolo_startup.ps1` to configure the silent YOLO background sentinel at Windows boot.
+  - Activated and verified `ReJivan YOLO Sentinel.lnk` in the user's Startup folder.

@@ -1396,3 +1396,31 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Fixed missing outer wrapper closing tag in `CameraZonesView.jsx`.
    - Recompiled production bundle via `node tools/build_web.js` (244,739 bytes).
    - Validated complete JSX transformation through Babel (`prototype/public/vendor/babel.min.js`), confirming zero syntax errors or unclosed tags.
+
+---
+
+## 2026-09-15 (Day 7 — YOLO Auto-Start on Boot & Internet Independence Inquiry)
+
+### What the user asked:
+- "can yolo automatically set its base up on device boot and internet connection without manual commands?"
+
+### Clarifications & Architecture Provided:
+1. **Local Offline Autonomy:**
+   - YOLO Ultralytics, PyTorch CUDA, and kinematics engines are fully installed on local laptop hardware. They execute without needing any internet connection.
+2. **Silent Windows Boot Automation:**
+   - Explained how a silent Windows Startup shortcut triggers `tools/start_yolo_silent.vbs` without opening any command prompt or terminal window.
+3. **Browser Sandbox & Hardware Gateway:**
+   - A public website cannot trigger local executables without client approval due to browser sandbox security. ReJivan's local bridge (`127.0.0.1:5050`) auto-discovers the local sentinel when present, and seamlessly falls back to the in-browser AI vision engine when absent.
+
+---
+
+## 2026-09-16 (Day 8 — Auto-Start Shortcut Remediation & Startup Integration)
+
+### What was resumed / performed:
+- Session resumed via standard session-open protocol (reading `CONVERSATION.md` and `CONTEXT.md`).
+- Diagnosed that when the project directory was renamed to `rejivan FS`, the previously registered `ReJivan AutoSave.lnk` in the Windows Startup folder still pointed at the deprecated `SanjivanAI` path.
+- **Fixed & Verified:**
+  1. Updated `ReJivan AutoSave.lnk` to point to `C:\Users\samra\OneDrive\Desktop\rejivan FS\tools\autosaver.ps1`.
+  2. Upgraded `tools/start_yolo_silent.vbs` with dynamic `WScript.ScriptFullName` parent path resolution so it navigates to the repo root reliably from any invocation directory.
+  3. Created `tools/enable_yolo_startup.ps1` and `tools/disable_yolo_startup.ps1` for one-click management of the silent background YOLO service on boot.
+  4. Executed `tools/enable_yolo_startup.ps1` and verified `ReJivan YOLO Sentinel.lnk` in `$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup`. Both watchers now run silently and automatically when the PC powers on.
