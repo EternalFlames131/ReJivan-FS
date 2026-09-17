@@ -1856,5 +1856,26 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 ### What the user asked:
 - "why is the website not running at all?"
 
-### In Progress:
-- Investigating local Node server (port 8080), background processes, Vercel cloud deployment (`rejivan2.vercel.app`), browser console/Babel errors, and bundle integrity.
+### Root Cause Diagnosed & Fixed:
+1. **The Issue:**
+   - Both the local Node server (`http://localhost:8080`) and Vercel cloud deployment (`https://rejivan2.vercel.app`) were healthy and returning HTTP 200 OK (`{"ok":true,"service":"ReJivan"}`).
+   - However, when the frontend loaded in the browser, in-browser Babel Standalone (`/vendor/babel.min.js`) attempted to compile `bundle.jsx` and crashed with a fatal syntax error:
+     `Babel COMPILE ERROR: unknown: Identifier 'Plus' has already been declared. (1177:6)`.
+   - Because of this uncaught compilation crash, React was prevented from mounting `<div id="root">`, leaving the screen indefinitely stuck on:
+     *"Initializing Real-time Telemetry Engine... Loading clinical monitoring pipeline..."*.
+2. **The Root Cause:**
+   - In `prototype/public/src/icons.jsx`, the icons `Plus`, `Video`, `Wifi`, and `X` had duplicate component definitions added during the Camera Fleet Manager icon expansion.
+3. **The Fix:**
+   - Removed all duplicate identifier declarations (`Plus`, `Video`, `Wifi`, `X`) from `prototype/public/src/icons.jsx`, keeping their clean SVG definitions alongside `Settings`, `Trash2`, `Cpu`, and `Server`.
+   - Re-compiled `prototype/public/bundle.jsx` via `node tools/build_web.js` (302,031 bytes).
+4. **Verification:**
+   - **Babel Standalone In-Browser VM Test:** Verified that Babel standalone compiles `bundle.jsx` cleanly with zero syntax errors (output JavaScript size: 333,251 bytes).
+   - **Headless Edge DOM Render Test:** Executed headless Microsoft Edge against `http://127.0.0.1:8080`. Verified that React mounts cleanly:
+     - DOM rendered file size: 1,117,442 bytes.
+     - `Initializing Real-time Telemetry Engine`: False (loading screen dismissed).
+     - `Anita Sharma` patient overview and vital signs: Rendered cleanly.
+     - `Camera Zones` navigation and controls: Rendered cleanly.
+   - **Endpoint Health Checks:**
+     - Local server (`http://127.0.0.1:8080/api/health`): 200 OK (`{"ok":true,"service":"ReJivan"}`).
+     - Vercel cloud (`https://rejivan2.vercel.app/api/health`): 200 OK (`{"ok":true,"service":"ReJivan"}`).
+   - Git working tree clean; auto-committed, auto-pushed to GitHub main, and auto-deployed to Vercel production.
