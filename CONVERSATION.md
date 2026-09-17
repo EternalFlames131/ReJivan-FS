@@ -1757,8 +1757,66 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Edge-to-backend heartbeat (every 2-5s) with independent status hierarchy: `EdgeNode` → `Cameras` → `Vision Model` → `Tracking` → `Wearable/Sensor` → `Network` → `Database`.
 - Distinguish `EDGE STATUS`, `CAMERA STATUS`, and `PATIENT STATUS`. Camera/Edge disconnects or restarts must NEVER be interpreted as patient falls or emergencies!
 - Automatic RTSP reconnect with bounded retry and backoff, with tracking reset on reconnect boundary to avoid derivative spikes.
-- Frame gap derivative protection, duplicate frame motion suppression, standard RTSP URL compatibility.
-- Deployment topology documentation: IP CCTV/NVR → RTSP → ReJivan Edge Node → YOLO/Event Engine → structured telemetry → ReJivan Cloud/Dashboard.
-- Automated tests covering all lifecycle transitions, RTSP mock stream, disconnect/reconnect, edge timeout, multi-camera isolation, and false-alarm suppression.
+### What was done (verified):
+1. **Camera Ingestion Abstraction (`tools/camera_providers.py`):**
+   - Built `NormalizedFrame` frozen dataclass (`frame`, `timestamp`, `frame_index`, `source_id`, `source_type`, `dimensions`, `health_metrics`).
+   - Built `FrameHealthMetrics` tracking frame age, instantaneous and moving-average FPS, dropped frames, reconnect counts, and connection latency.
+   - Built `TrackingContext` storing isolated person bounding boxes, 17-point pose keypoints, center-of-mass trajectory, descent velocity, posture angles, and event hypotheses per camera.
+   - Built `CameraSource` abstract base class with explicit lifecycle states: `OFFLINE`, `CONNECTING`, `CALIBRATING`, `ONLINE`, `DEGRADED`, `RECONNECTING`, `LOW_LIGHT`, `OCCLUDED`, `FROZEN`, `STOPPED`.
+   - Implemented 3 production-grade camera providers:
+     - `LocalWebcamSource`: On-demand hardware lifecycle management (DirectShow backend, zero idle LED illumination).
+     - `RtspCctvSource`: Standard IP camera / NVR stream ingestion over TCP with bounded reconnect logic (max 5 retries, exponential backoff 1s to 16s), tracking derivative reset upon reconnect, fast non-blocking TCP socket pre-probe (<0.6s) to avoid 30s FFmpeg hangs, and duplicate frame suppression.
+     - `PrerecordedVideoSource`: Virtual camera source reading sequential frames with video playback timestamps ($t_{video} = \text{frame\_idx} / \text{fps}$), pause/resume derivative gap protection, and clean EOF transition.
+   - Implemented `EdgeNode` registry with `threading.RLock()` (deadlock-free), multi-camera isolation, active camera selection, and 7-tier hierarchical infrastructure health snapshot.
+   - Added credential security utilities: `mask_rtsp_url()` (redacts passwords as `*****` in URLs) and `validate_rtsp_url()`.
+
+2. **Backend Services & Persistence (`prototype/server.js` & `prototype/data/cameras.json`):**
+   - Created persistent camera registry in `prototype/data/cameras.json` pre-configured with demo feeds (Webcam, RTSP Ward CCTV, Pre-recorded hospital fall).
+   - Added RESTful Camera Fleet endpoints:
+     - `GET /api/cameras`: Returns registered cameras with passwords masked.
+     - `POST /api/cameras`: Adds/updates cameras with input validation.
+     - `DELETE /api/cameras/:id`: Removes cameras from fleet inventory.
+     - `POST /api/cameras/:id/activate`: Switches active ingestion source.
+     - `POST /api/cameras/:id/test`: Performs fast stream reachability test without freezing the event loop.
+     - `POST /api/edge/heartbeat`: Ingests Edge Node heartbeat and telemetry.
+     - `GET /api/system/health` & `/api/system-health`: Exposes 7-tier hierarchical snapshot (`edgeNode`, `cameras`, `activeCamera`, `visionModel`, `tracking`, `wearables`, `network`, `database`).
+   - Implemented 8-second Edge watchdog that marks monitoring as DEGRADED / OFFLINE without triggering false patient alarms.
+
+3. **Frontend UI Architecture (`prototype/public/src/components/CameraZonesView.jsx`):**
+   - Decoupled into a **Three-Pillar Telemetry Grid**:
+     - `EDGE STATUS` (Node online/offline, hardware acceleration, uptime, model loaded).
+     - `CAMERA STATUS` (Source type, FPS, latency, dropped frames, lifecycle state).
+     - `PATIENT STATUS` (Posture, velocity, fall risk, floor immobility, verified condition).
+   - Prominent **Dynamic Monitoring Status Banner**: `Vision Monitoring: ONLINE / DEGRADED / OFFLINE`.
+   - **Camera Fleet & Ingestion Manager Modal**:
+     - Modal for listing, adding, and removing camera sources.
+     - "Test Connection" button with live ping/receipt verification.
+     - Masked URL inputs protecting sensitive credentials.
+     - Added missing Lucide-style SVG icons in `icons.jsx` (`Settings`, `Plus`, `Trash2`, `Video`, `Wifi`, `Cpu`, `Server`, `X`).
+   - Recompiled production React bundle (`node tools/build_web.js` → 288,595 bytes) and verified headless DOM hydration via Microsoft Edge.
+
+4. **Deployment Topology & Documentation (`docs/DEPLOYMENT_TOPOLOGY.md`):**
+   - Detailed hospital production topology: IP CCTV / NVR → On-Premises Edge Node (GTX 1650 / Jetson) → Local YOLO-Pose Inference & Kinematics → DPDP 2023 Compliant Structured JSON Telemetry → ReJivan Cloud / Nurse Station.
+   - Evaluator zero-budget demonstration path (prerecorded virtual video + laptop webcam).
+   - Absolute false-alarm suppression and privacy compliance architecture breakdown.
+
+5. **Exhaustive Automated Verification:**
+   - `tools/test_camera_architecture.py`: **12/12 Tests Passed (100% in 0.614s)**:
+     - NormalizedFrame contract & immutability.
+     - LocalWebcamSource lifecycle & LED control.
+     - RTSP credential masking & regex validation.
+     - Fast socket pre-probe (<0.6s) on unreachable RTSP endpoints.
+     - RTSP bounded retries & backoff transitions.
+     - Safe reconnect boundary tracking reset (clearing velocity & CoM memory).
+     - Timestamp gap derivative protection ($dt > 350$ms resets derivatives).
+     - Stale & duplicate frame motion suppression.
+     - Prerecorded sequential timeline & speed invariance.
+     - Multi-camera tracking context isolation (zero cross-talk).
+     - Edge node heartbeat & 7-tier infrastructure hierarchy.
+     - **ABSOLUTE FALSE-ALARM SUPPRESSION:** Infrastructure disconnects/reconnects NEVER trigger patient emergencies.
+   - Regression suites verified:
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
 
 

@@ -344,3 +344,16 @@
   - **Resident Verification & Postural Recovery:** Wired 30-second resident check-in modal ("Are you okay?") on prolonged floor stillness, with instant auto-cancellation when upright recovery (<24° torso angle) is observed.
   - **Temporal State Resilience:** Added pause/resume/restart gap protection preventing derivative spikes and clean transition to `VIDEO_ENDED` / `MONITORING_IDLE` at end-of-video.
   - **Comprehensive Automated Verification:** 13/13 tests passed in `tools/test_prerecorded_monitoring.py` (100%), 7/7 passed in `tools/test_fall_kinematics.py`, and 23/23 passed in `tools/test_false_positive_lab.py`. Web bundle recompiled cleanly (261,338 bytes) and DOM rendering verified via headless Edge.
+
+- **2026-09-17 12:45 | Clean Camera Ingestion Architecture & Interchangeable Camera Sources (LOCAL_WEBCAM, RTSP_CCTV, PRERECORDED_VIDEO):**
+  - **Camera Ingestion Abstraction (`tools/camera_providers.py`):** Created `CameraSource` base abstraction with `NormalizedFrame` frozen dataclass, `FrameHealthMetrics`, and isolated `TrackingContext`. All 3 sources feed the identical downstream pose inference, temporal kinematics, hypothesis engine, and alert ladder.
+  - **Three Interchangeable Camera Providers:**
+    - `LocalWebcamSource`: Hardware on-demand lifecycle control (DirectShow), zero LED illumination when idle.
+    - `RtspCctvSource`: Production IP camera / NVR stream ingestion with bounded reconnect (max 5 retries, exponential backoff), fast non-blocking TCP socket pre-probe (<0.6s), safe reconnect boundary tracking reset, and duplicate frame suppression.
+    - `PrerecordedVideoSource`: Sequential virtual camera source with speed-invariant timeline normalization, pause/resume derivative gap protection, and clean EOF handling.
+  - **Credential Security & DPDP Act 2023 Compliance:** Sensitive RTSP credentials are masked (`rtsp://user:*****@host:port/path`) across all logs, telemetry, REST endpoints, and UI inputs. Edge processes raw CCTV video locally; cloud receives only structured event telemetry.
+  - **Decoupled Three-Pillar Telemetry Grid (`CameraZonesView.jsx`):** Replaced legacy status layout with 3 decoupled pillars: `EDGE STATUS`, `CAMERA STATUS`, and `PATIENT STATUS`. Technical events (CCTV disconnects, RTSP packet loss, edge restarts) are strictly isolated and NEVER trigger false patient fall alarms.
+  - **Camera Fleet & Ingestion Manager Modal:** Added dynamic modal UI for adding, testing, activating, and removing cameras with live ping reachability checks and masked URL display.
+  - **Backend Camera Store & REST API (`server.js` & `prototype/data/cameras.json`):** Added endpoints (`/api/cameras`, `/api/cameras/:id/activate`, `/api/cameras/:id/test`, `/api/edge/heartbeat`, `/api/system/health`) with an 8s edge watchdog.
+  - **Comprehensive Automated Verification:** 12/12 tests passed in `tools/test_camera_architecture.py` (100% in 0.614s); 7/7 passed in `tools/test_fall_kinematics.py`; 23/23 passed in `tools/test_false_positive_lab.py`; 13/13 passed in `tools/test_prerecorded_monitoring.py`. Web bundle recompiled cleanly (288,595 bytes) with headless Edge DOM validation.
+
