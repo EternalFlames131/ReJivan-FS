@@ -96,9 +96,22 @@ class SentinelHub:
         self.camera_active = False # On-demand hardware lifecycle (Camera OFF by default)
         self.active_streamers = 0  # Active MJPEG client count
         self.camera_index = 0
-        self.source = "webcam"     # Default to genuine webcam; 'bed_fall_demo' on-demand
+        self.source = "PRERECORDED_VIDEO" # Default: "PRERECORDED_VIDEO", "LIVE_WEBCAM", "RTSP_CAMERA"
+        self.camera_source_type = "PRERECORDED_VIDEO"
+        self.playback_state = "STOPPED"   # "STOPPED", "CALIBRATING", "PLAYING", "PAUSED", "VIDEO_ENDED"
+        self.playback_speed = 1.0         # 0.5, 1.0, 2.0
+        self.video_frame_index = 0
+        self.video_total_frames = 369
+        self.video_fps = 25.0
+        self.video_time = 0.0
+        self.video_duration = 14.76
+        self.floor_contact_time = None
+        self.timeline_stage = "STAGE_RESTING"
+
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.demo_video_path = os.path.join(repo_root, "video", "patient_bed_fall_demo.mp4")
+        if not os.path.exists(self.demo_video_path):
+            self.demo_video_path = os.path.join(repo_root, "prototype", "public", "videos", "patient_bed_fall_demo.mp4")
         self.cap = None
         self.latest_raw_frame = None
         self.latest_rendered_frame = None
@@ -131,10 +144,16 @@ class SentinelHub:
         self.telemetry = {
             "status": "STANDBY_AWAITING_CONSENT",
             "camera_state": "CAMERA_OFFLINE",
+            "camera_source_type": "PRERECORDED_VIDEO",
+            "playback_state": "STOPPED",
+            "playback_speed": 1.0,
+            "video_time": 0.0,
+            "video_duration": 14.76,
+            "timeline_stage": "STAGE_RESTING",
             "device": GPU_NAME,
             "cuda_enabled": CUDA_AVAILABLE,
             "engine": "Ultralytics YOLO11-Pose",
-            "source": "webcam",
+            "source": "PRERECORDED_VIDEO",
             "fps": 0.0,
             "person_detected": False,
             "persons_count": 0,
@@ -143,13 +162,13 @@ class SentinelHub:
             "torso_angle": 0.0,
             "downward_velocity": 0.0,
             "motion_energy": 0.0,
-            "posture": "Hardware Standby (Webcam Powered Off · Privacy Safe)",
+            "posture": "Hardware Standby (Camera Offline · Privacy Safe)",
             "risk_level": "SAFE",
             "confidence": 100.0,
             "hypothesis": {
                 "id": "H0",
-                "label": "Camera Hardware Standby",
-                "mechanism": "Physical webcam uninitialized and LED indicator extinguished."
+                "label": "Camera Standby",
+                "mechanism": "Camera monitoring uninitialized."
             },
             "canonical_event": {
                 "eventId": "EVT-STANDBY",
@@ -164,6 +183,22 @@ class SentinelHub:
             },
             "timestamp": time.time()
         }
+
+    def reset_tracking_state(self):
+        """Cleanly resets all temporal history, velocity, floor contact, and latches."""
+        self.consecutive_valid_frames = 0
+        self.prev_com_y = None
+        self.prev_time = None
+        self.smooth_velocity = 0.0
+        self.recent_drop_time = 0.0
+        self.recent_drop_velocity = 0.0
+        self.fall_latched = False
+        self.fall_latch_start_time = 0.0
+        self.last_high_risk_time = 0.0
+        self.immobility_start_time = None
+        self.floor_contact_time = None
+        self.calibration_frames_left = 25
+        self.timeline_stage = "STAGE_RESTING"
 
 hub = SentinelHub()
 
@@ -323,46 +358,45 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
 
     # 6. Physical Mechanism Classification & Counterfactual Reasoning
     is_recent_drop = (current_time - hub.recent_drop_time) < 2.0
+    src = source or hub.source
+    is_overhead = (src in ["PRERECORDED_VIDEO", "bed_fall_demo", "RTSP_CAMERA"])
 
-    if hub.source == "bed_fall_demo":
-        is_on_floor = com_y > (img_h * 0.58)
+    if is_overhead:
+        is_on_floor = com_y > (img_h * 0.62)
         is_in_bed = com_y <= (img_h * 0.55)
     else:
         # Genuine webcam mode
         is_on_floor = has_hips and (com_y > img_h * 0.82)
         is_in_bed = False
 
+    # Check for recovery
+    is_recovered = False
+    if (hub.floor_contact_time is not None or hub.fall_latched):
+        if torso_angle_deg < 24.0 and velocity_down < 0.25:
+            hub.floor_contact_time = None
+            hub.fall_latched = False
+            is_recovered = True
+
+    # Floor stillness tracking
+    floor_stillness = 0.0
+    if is_on_floor and torso_angle_deg > 45.0:
+        if hub.floor_contact_time is None:
+            hub.floor_contact_time = current_time
+        floor_stillness = max(0.0, current_time - hub.floor_contact_time)
+        hub.fall_latched = True
+        hub.last_high_risk_time = current_time
+    elif not is_on_floor and torso_angle_deg < 35.0:
+        hub.floor_contact_time = None
+
     # Check for genuine fall trigger:
-    # 1. High downward speed (>0.85 m/s) with substantial posture collapse (>45 deg)
-    fall_active = (velocity_down > 0.85 and torso_angle_deg > 45.0)
-    # 2. Recent drop (<2.0s) followed by horizontal floor contact (>55 deg or on floor)
-    fall_post_drop = is_recent_drop and (torso_angle_deg > 55.0 or is_on_floor)
-    # 3. Sustained horizontal floor collapse in demo
-    fall_floor_collapse = (hub.source == "bed_fall_demo" and torso_angle_deg > 65.0 and is_on_floor)
+    fall_active = (velocity_down > 0.85 and torso_angle_deg > 40.0)
+    fall_post_drop = is_recent_drop and (torso_angle_deg > 50.0 or is_on_floor)
+    is_fall = fall_active or fall_post_drop or (is_on_floor and torso_angle_deg > 45.0)
 
-    is_fall = fall_active or fall_post_drop or fall_floor_collapse
-
-    # Edge trigger for latch (only latch at the transition, NOT continuously updating timestamp!)
     if is_fall and not hub.fall_latched:
         hub.fall_latched = True
         hub.fall_latch_start_time = current_time
         hub.last_high_risk_time = current_time
-
-    # Check Latch & Recovery state
-    is_latched = False
-    is_recovered = False
-
-    if hub.fall_latched:
-        time_in_latch = current_time - hub.fall_latch_start_time
-        # RECOVERY CHECK: If person restores upright posture (<24 deg) with nominal velocity
-        if torso_angle_deg < 24.0 and velocity_down < 0.25:
-            hub.fall_latched = False
-            is_recovered = True
-        elif time_in_latch >= 4.0:
-            # Latch window has expired!
-            hub.fall_latched = False
-        else:
-            is_latched = True
 
     # 7. Final State & Hypothesis Determination
     if is_recovered:
@@ -370,6 +404,7 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         event_state = "RESOLVED"
         probable_mechanism = "TRIP"
         posture = "Upright Recovery (Incident Self-Resolved)"
+        stage = "STAGE_RESOLVED"
         hypothesis = {
             "id": "H0",
             "label": "Postural Recovery Restored",
@@ -381,34 +416,97 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         evidence = ["Upright posture restored (<24°)", "Locomotion resumed"]
         counter_evidence = ["Rapid recovery observed (<4s)", "Zero lingering floor immobility"]
         recovery_status = "RECOVERED_RAPID"
-    elif is_latched:
+    elif hub.floor_contact_time is not None and floor_stillness >= 2.5:
+        # Prolonged unrecovered floor immobility -> VERIFICATION / FALL_WITH_IMMOBILITY
         risk_level = "HIGH_RISK"
-        event_state = "CONTACT_OR_FALL"
+        event_state = "VERIFICATION"
+        probable_mechanism = "FALL_WITH_IMMOBILITY"
+        posture = f"Unrecovered Floor Immobility ({floor_stillness:.1f}s) · Resident Check-in Active"
+        stage = "STAGE_VERIFY"
+        hypothesis = {
+            "id": "H7",
+            "label": "Fall with Prolonged Post-Impact Immobility",
+            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) followed by {floor_stillness:.1f}s immobility at {torso_angle_deg}° on floor."
+        }
+        det_conf = 97
+        mech_conf = 94
+        sev_conf = 88
+        evidence = [
+            f"Descent velocity: {max(velocity_down, hub.recent_drop_velocity)} m/s",
+            f"Torso horizontal on floor: {torso_angle_deg}°",
+            f"Floor immobility: {floor_stillness:.1f}s"
+        ]
+        counter_evidence = ["Zero upright postural recovery observed (<24°)", "Resident check-in grace window open"]
+        recovery_status = "UNRECOVERED_STILLNESS"
+    elif hub.fall_latched or (is_on_floor and torso_angle_deg > 45.0):
+        risk_level = "HIGH_RISK"
+        event_state = "CONTACT_OR_FALL" if floor_stillness < 1.0 else "RECOVERY_MONITORING"
         probable_mechanism = "FALL"
-        posture = "Acute Fall / Horizontal Floor Contact"
+        posture = f"Acute Fall / Horizontal Floor Contact ({floor_stillness:.1f}s)"
+        stage = "STAGE_CONTACT" if floor_stillness < 1.0 else "STAGE_RECOVERY"
         hypothesis = {
             "id": "H1",
             "label": "Sudden Fall Event Detected",
             "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) with impact collapse at {torso_angle_deg}°."
         }
-        det_conf = 96
+        det_conf = 95
         mech_conf = 88
-        sev_conf = 82
-        evidence = [f"Descent velocity: {max(velocity_down, hub.recent_drop_velocity)} m/s", f"Torso angle: {torso_angle_deg}°"]
-        counter_evidence = ["No upright recovery within impact latch window"]
+        sev_conf = 75
+        evidence = [
+            f"Descent velocity: {max(velocity_down, hub.recent_drop_velocity)} m/s",
+            f"Torso angle: {torso_angle_deg}°",
+            "Body collapsed onto floor perimeter"
+        ]
+        counter_evidence = ["Recovery observation window active (<3s)"]
         recovery_status = "MONITORING"
-    elif is_in_bed and torso_angle_deg > 50.0:
+    elif velocity_down > 0.65 and not is_on_floor:
+        risk_level = "CAUTION"
+        event_state = "ANOMALY"
+        probable_mechanism = "LOSS_OF_BALANCE"
+        posture = f"Descent Motion Toward Floor ({velocity_down} m/s)"
+        stage = "STAGE_DESCENT"
+        hypothesis = {
+            "id": "H3",
+            "label": "Descent Motion / Loss of Balance",
+            "mechanism": f"Downward descent velocity at {velocity_down} m/s. Torso inclination at {torso_angle_deg}°."
+        }
+        det_conf = 65
+        mech_conf = 70
+        sev_conf = 30
+        evidence = [f"Downward descent velocity: {velocity_down} m/s", "Displacement toward floor boundary"]
+        counter_evidence = ["Floor impact pending confirmation", "Upright recovery possible"]
+        recovery_status = "MONITORING"
+    elif is_in_bed and torso_angle_deg <= 35.0:
+        # Controlled bed-edge sitting
+        risk_level = "SAFE"
+        event_state = "NORMAL"
+        probable_mechanism = "INTENTIONAL_SITTING"
+        posture = "Upright Bed-Edge Sitting (Spine Stable)"
+        stage = "STAGE_BED_EDGE"
+        hypothesis = {
+            "id": "H2",
+            "label": "Controlled Bed-Edge Sitting",
+            "mechanism": f"Patient seated upright on mattress perimeter (Torso {torso_angle_deg}°). Muscular deceleration intact."
+        }
+        det_conf = 15
+        mech_conf = 95
+        sev_conf = 0
+        evidence = ["Patient seated upright at mattress perimeter", "Upright spinal stability retained (<35°)"]
+        counter_evidence = ["Muscular deceleration intact", "Zero floor impact shock"]
+        recovery_status = "NOT_APPLICABLE"
+    elif is_in_bed and torso_angle_deg > 35.0:
         risk_level = "SAFE"
         event_state = "NORMAL"
         probable_mechanism = "INTENTIONAL_LYING"
         posture = "Supine Resting in Bed (Nominal)"
+        stage = "STAGE_RESTING"
         hypothesis = {
             "id": "H0",
             "label": "Resting Safely in Care Bed",
             "mechanism": "Patient in supine resting posture within mattress perimeter. Zero downward velocity."
         }
-        det_conf = 10
-        mech_conf = 95
+        det_conf = 5
+        mech_conf = 96
         sev_conf = 0
         evidence = ["Mattress perimeter proximity", "Zero downward velocity"]
         counter_evidence = ["Supine bed rest intentional", "Stable vitals baseline"]
@@ -419,6 +517,7 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         event_state = "NORMAL"
         probable_mechanism = "INTENTIONAL_SITTING"
         posture = "Controlled Sitting / Intentional Descent"
+        stage = "STAGE_BED_EDGE"
         hypothesis = {
             "id": "H2",
             "label": "Controlled Sitting",
@@ -435,6 +534,7 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         event_state = "ANOMALY"
         probable_mechanism = "LOSS_OF_BALANCE"
         posture = "Low Posture / Transitioning"
+        stage = "STAGE_DESCENT"
         hypothesis = {
             "id": "H3",
             "label": "Postural Transition / Mild Sway",
@@ -451,6 +551,7 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         event_state = "NORMAL"
         probable_mechanism = "NORMAL_ACTIVITY"
         posture = "Upright Ambulation / Nominal"
+        stage = "STAGE_RESTING"
         hypothesis = {
             "id": "H0",
             "label": "Stable Upright Posture",
@@ -463,10 +564,14 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         counter_evidence = ["Zero downward acceleration", "Continuous equilibrium"]
         recovery_status = "NOT_APPLICABLE"
 
+    hub.timeline_stage = stage
+
     canonical_event = {
         "eventId": f"EVT-YOLO-{int(current_time * 1000)}",
         "state": event_state,
         "probableMechanism": probable_mechanism,
+        "stage": stage,
+        "timelineStage": stage,
         "detectionConfidence": det_conf,
         "mechanismConfidence": mech_conf,
         "severityConfidence": sev_conf,
