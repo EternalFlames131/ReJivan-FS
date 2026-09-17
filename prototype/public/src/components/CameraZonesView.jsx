@@ -4,10 +4,15 @@
 // Real-Time YOLO11-Pose 17-Keypoint Inference & Client Optical Consensus with Zero Hardcoded Time Gates.
 
 const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
-  // 1. Unified Camera Source Abstraction ('PRERECORDED_VIDEO' | 'LIVE_WEBCAM' | 'RTSP_CAMERA')
-  const [cameraSource, setCameraSource] = React.useState("PRERECORDED_VIDEO");
+  // 1. Unified Camera Source Abstraction ('LIVE_WEBCAM' | 'PRERECORDED_VIDEO' | 'RTSP_CAMERA')
+  // Default to LIVE_WEBCAM so user can immediately verify YOLO and motion monitoring
+  const [cameraSource, setCameraSource] = React.useState("LIVE_WEBCAM");
   const [viewMode, setViewMode] = React.useState("video"); // 'video' | 'radar'
   const [privacyRadarOnly, setPrivacyRadarOnly] = React.useState(false);
+  const [hardwareStreamPaused, setHardwareStreamPaused] = React.useState(false);
+  const [streamRetryKey, setStreamRetryKey] = React.useState(Date.now());
+  const [customDemoVideoUrl, setCustomDemoVideoUrl] = React.useState("/videos/patient_bed_fall_demo.mp4");
+  const [customVideoFileName, setCustomVideoFileName] = React.useState(null);
   const [currentTime, setCurrentTime] = React.useState(new Date().toLocaleTimeString());
   const [snapshotToast, setSnapshotToast] = React.useState(null);
 
