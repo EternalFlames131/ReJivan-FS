@@ -1501,9 +1501,107 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
         </div>
 
+        {/* Live Camera Source Mode Switcher Bar */}
+        {cameraSource === "LIVE_WEBCAM" && (
+          <div className="px-4 py-2 bg-slate-100/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setLiveCameraMode("BROWSER_WEBCAM");
+                  if (playbackState === "PLAYING" && webcamStreamRef.current) {
+                    // stream ongoing
+                  } else {
+                    setPlaybackState("STOPPED");
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-md font-medium text-[11px] transition-all flex items-center gap-1.5 ${
+                  liveCameraMode === "BROWSER_WEBCAM"
+                    ? "bg-indigo-600 text-white shadow-2xs font-semibold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>🌐 In-Browser Camera</span>
+              </button>
+
+              {localYoloActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiveCameraMode("HARDWARE_YOLO");
+                    if (webcamStreamRef.current) {
+                      webcamStreamRef.current.getTracks().forEach((t) => t.stop());
+                      webcamStreamRef.current = null;
+                    }
+                  }}
+                  className={`px-2.5 py-1 rounded-md font-medium text-[11px] transition-all flex items-center gap-1.5 ${
+                    liveCameraMode === "HARDWARE_YOLO"
+                      ? "bg-indigo-600 text-white shadow-2xs font-semibold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>⚡ Hardware YOLO Sentinel</span>
+                </button>
+              )}
+            </div>
+
+            {/* Device Specific Selector */}
+            <div className="flex items-center gap-2">
+              {liveCameraMode === "BROWSER_WEBCAM" ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 text-[11px] font-medium">Device:</span>
+                  <select
+                    value={selectedCameraDeviceId}
+                    onChange={(e) => handleSelectBrowserCamera(e.target.value)}
+                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-medium rounded-md px-2 py-1 outline-hidden focus:border-indigo-500"
+                  >
+                    {availableWebcams.length > 0 ? (
+                      availableWebcams.map((dev, idx) => (
+                        <option key={dev.deviceId || idx} value={dev.deviceId}>
+                          {dev.label || `Camera ${idx + 1}`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Default Camera / Laptop Webcam</option>
+                    )}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 text-[11px] font-medium mr-1">Hardware Sensor:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchHardwareDevice(0)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                      hardwareCameraIndex === 0
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    📱 Phone (Cam 0)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchHardwareDevice(1)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
+                      hardwareCameraIndex === 1
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    💻 Laptop (Cam 1)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Video & Canvas Stage */}
         <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden select-none">
-          {cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused ? (
+          {cameraSource === "LIVE_WEBCAM" && liveCameraMode === "HARDWARE_YOLO" && localYoloActive && !hardwareStreamPaused ? (
             /* Sub-branch 1A: Direct Hardware Ultralytics YOLO-Pose Stream */
             <div className="relative w-full h-full flex items-center justify-center">
               <img
