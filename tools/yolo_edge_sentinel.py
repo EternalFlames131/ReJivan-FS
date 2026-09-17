@@ -311,9 +311,16 @@ def compute_kinematics(
     Operates on the provided tracking_context (or defaults to hub for backwards compatibility).
     """
     ctx = tracking_context if tracking_context is not None else hub
-    kp = keypoints # (17, 3) -> [x, y, confidence]
-
-    # 1. Calibration Phase Check
+    # Normalize keypoints to [x, y, conf]
+    raw_kp = keypoints or []
+    kp = []
+    for item in raw_kp:
+        if isinstance(item, dict):
+            kp.append([float(item.get("x", 0)), float(item.get("y", 0)), float(item.get("conf", item.get("confidence", 0.0)))])
+        elif isinstance(item, (list, tuple)):
+            kp.append(item)
+        else:
+            kp.append([0.0, 0.0, 0.0])
     if ctx.calibration_frames_left > 0:
         ctx.calibration_frames_left -= 1
         ctx.consecutive_valid_frames += 1
