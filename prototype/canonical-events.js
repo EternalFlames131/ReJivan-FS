@@ -41,6 +41,22 @@
     UNKNOWN: "UNKNOWN"
   });
 
+  // 2b. Unified Camera Source Abstraction
+  const CAMERA_SOURCES = Object.freeze({
+    LIVE_WEBCAM: "LIVE_WEBCAM",
+    RTSP_CAMERA: "RTSP_CAMERA",
+    PRERECORDED_VIDEO: "PRERECORDED_VIDEO"
+  });
+
+  const CAMERA_LIFECYCLE = Object.freeze({
+    CAMERA_OFFLINE: "CAMERA_OFFLINE",
+    CAMERA_STARTING: "CAMERA_STARTING",
+    CAMERA_CALIBRATING: "CAMERA_CALIBRATING",
+    MONITORING: "MONITORING",
+    PAUSED: "PAUSED",
+    VIDEO_ENDED: "VIDEO_ENDED"
+  });
+
   // 3. System Infrastructure Health States (Strictly separated from Patient Health)
   const SYSTEM_HEALTH_STATES = Object.freeze({
     EDGE: {
@@ -193,6 +209,8 @@
   return {
     EVENT_STATES,
     PHYSICAL_MECHANISMS,
+    CAMERA_SOURCES,
+    CAMERA_LIFECYCLE,
     SYSTEM_HEALTH_STATES,
     RECOVERY_STATUS,
     VERIFICATION_STATUS,
