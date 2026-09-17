@@ -421,7 +421,7 @@ def compute_kinematics(
 
     # 5. Physical Mechanism Classification & Multi-Hypothesis Evaluation
     is_recent_drop = (current_time - ctx.recent_drop_time) < 2.0
-    src = source or getattr(ctx, "source", hub.source)
+    src = source or "webcam"
     is_overhead = (src in ["PRERECORDED_VIDEO", "bed_fall_demo", "RTSP_CAMERA", "RTSP_CCTV"])
 
     if is_overhead:
