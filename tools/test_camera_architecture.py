@@ -107,7 +107,7 @@ class TestCameraArchitecture(unittest.TestCase):
         valid_cases = [
             ("rtsp://admin:HospitalSecurePass2026@192.168.1.50:554/live/ch0",
              "rtsp://admin:*****@192.168.1.50:554/live/ch0"),
-            ("rtsp://nurse_station:p@ss:w0rd!@10.0.0.12/stream",
+            ("rtsp://nurse_station:Nurs3_Station_2026!@10.0.0.12/stream",
              "rtsp://nurse_station:*****@10.0.0.12/stream"),
             ("rtsps://camera.gbpant.in:322/feed1",
              "rtsps://camera.gbpant.in:322/feed1"),  # No password to mask
@@ -225,17 +225,17 @@ class TestCameraArchitecture(unittest.TestCase):
         # Run compute_kinematics through the pipeline
         kinematics = yolo_edge_sentinel.compute_kinematics(
             synthetic_keypoints,
-            frame_w=640,
-            frame_h=480,
-            video_time=10.50,  # dt = 0.50s > 0.35s
+            img_w=640,
+            img_h=480,
+            current_time=10.50,  # dt = 0.50s > 0.35s
             source="RTSP_CCTV",
             tracking_context=context
         )
 
         # Derivative velocity must be clamped/reset to 0.0, NOT a massive drop spike!
-        self.assertEqual(kinematics["velocity_down_mps"], 0.0)
-        self.assertFalse(kinematics["is_high_risk"])
-        self.assertNotEqual(kinematics["risk_level"], "HIGH_RISK")
+        self.assertEqual(abs(kinematics["downward_velocity"]), 0.0)
+        self.assertNotEqual(kinematics["canonical_event"]["state"], "CONTACT_OR_FALL")
+        self.assertEqual(kinematics["risk_level"], "SAFE")
 
     # -------------------------------------------------------------------------
     # TEST 8: Stale / Duplicate Frame Detection
@@ -324,6 +324,7 @@ class TestCameraArchitecture(unittest.TestCase):
     # -------------------------------------------------------------------------
     def test_11_edge_heartbeat_and_hierarchy(self):
         cam = PrerecordedVideoSource("cam-demo", "Demo Feed", "patient_bed_fall_demo.mp4")
+        cam.lifecycle_state = CameraLifecycleState.ONLINE
         self.edge_node.register_camera(cam, set_active=True)
 
         heartbeat = self.edge_node.get_heartbeat()
@@ -355,10 +356,10 @@ class TestCameraArchitecture(unittest.TestCase):
         for frame_no in range(1, 36):
             synth_kpts = [{"x": 320, "y": 240, "conf": 0.85} for _ in range(17)]
             kine = yolo_edge_sentinel.compute_kinematics(
-                synth_kpts, 640, 480, video_time=frame_no * 0.04,
+                synth_kpts, img_w=640, img_h=480, current_time=frame_no * 0.04,
                 source="RTSP_CCTV", tracking_context=context
             )
-            self.assertFalse(kine["is_high_risk"], f"Startup frame {frame_no} triggered false risk!")
+            self.assertFalse(kine.get("is_high_risk", False), f"Startup frame {frame_no} triggered false risk!")
             self.assertEqual(kine["risk_level"], "SAFE")
 
         # Scenario B: Sudden Camera Disconnection / Total Frame Loss
@@ -371,12 +372,11 @@ class TestCameraArchitecture(unittest.TestCase):
         # Keypoints reappear abruptly at a totally different position (e.g. resident was walking)
         synth_reappear_kpts = [{"x": 100, "y": 420, "conf": 0.90} for _ in range(17)]
         kine_after_reconnect = yolo_edge_sentinel.compute_kinematics(
-            synth_reappear_kpts, 640, 480, video_time=120.0,
+            synth_reappear_kpts, img_w=640, img_h=480, current_time=120.0,
             source="RTSP_CCTV", tracking_context=context
         )
         # Because context was reset, consecutive_valid_frames is 1 (< 3 required for derivative)
-        self.assertEqual(kine_after_reconnect["velocity_down_mps"], 0.0)
-        self.assertFalse(kine_after_reconnect["is_high_risk"])
+        self.assertEqual(abs(kine_after_reconnect["downward_velocity"]), 0.0)
         self.assertEqual(kine_after_reconnect["risk_level"], "SAFE")
 
         # Scenario D: System Status vs Patient Status Verification

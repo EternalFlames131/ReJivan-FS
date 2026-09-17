@@ -712,6 +712,21 @@ class RtspCctvSource(CameraSource):
 
         effective_url = self._get_effective_url()
         logger.info(f"Testing RTSP stream connection to {self.masked_url}...")
+
+        # Fast pre-flight socket probe (< 0.6s) to avoid 30s OS timeout in cv2.VideoCapture if host/port is unreachable
+        try:
+            m = re.search(r'://(?:[^@]+@)?([^:/]+)(?::(\d+))?', effective_url)
+            if m:
+                probe_host = m.group(1)
+                probe_port = int(m.group(2)) if m.group(2) else 554
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.6)
+                    res = s.connect_ex((probe_host, probe_port))
+                    if res != 0:
+                        return False, f"Could not establish network connection to {probe_host}:{probe_port} (Error {res})."
+        except Exception as sock_err:
+            return False, f"Host unreachable: {sock_err}"
+
         test_cap = None
         try:
             test_cap = cv2.VideoCapture(effective_url)
