@@ -213,13 +213,64 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
   const YOLO_API_BASE = "http://127.0.0.1:5050";
 
-  // Clock ticker for CCTV HUD
+  // Live Camera Source Modes: "BROWSER_WEBCAM" (direct WebRTC in browser) vs "HARDWARE_YOLO" (NVIDIA GPU MJPEG stream)
+  const [liveCameraMode, setLiveCameraMode] = React.useState("BROWSER_WEBCAM");
+  const [availableWebcams, setAvailableWebcams] = React.useState([]);
+  const [selectedCameraDeviceId, setSelectedCameraDeviceId] = React.useState("");
+  const [hardwareCameraIndex, setHardwareCameraIndex] = React.useState(0);
+
+  // Enumerate connected video devices
   React.useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date().toLocaleTimeString());
-    }, 1000);
-    return () => clearInterval(timer);
+    const enumerate = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const vInputs = devs.filter((d) => d.kind === "videoinput");
+        setAvailableWebcams(vInputs);
+        if (vInputs.length > 0 && !selectedCameraDeviceId) {
+          const lap = vInputs.find((d) => /integrated|built-in|laptop|internal/i.test(d.label));
+          setSelectedCameraDeviceId(lap ? lap.deviceId : vInputs[0].deviceId);
+        }
+      } catch (e) {}
+    };
+    enumerate();
   }, []);
+
+  const handleSwitchHardwareDevice = async (newIdx) => {
+    setHardwareCameraIndex(newIdx);
+    if (localYoloActive) {
+      try {
+        await fetch(`${YOLO_API_BASE}/api/yolo/webcam/device`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceIndex: newIdx })
+        });
+        setStreamRetryKey(Date.now());
+      } catch (e) {}
+    }
+  };
+
+  const handleSelectBrowserCamera = async (deviceId) => {
+    setSelectedCameraDeviceId(deviceId);
+    if (playbackState === "PLAYING" && cameraSource === "LIVE_WEBCAM" && liveCameraMode === "BROWSER_WEBCAM") {
+      if (webcamStreamRef.current) {
+        webcamStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+        webcamStreamRef.current = stream;
+        if (videoElementRef.current) {
+          videoElementRef.current.srcObject = stream;
+          await videoElementRef.current.play();
+        }
+      } catch (e) {
+        console.warn("Camera switch error:", e);
+      }
+    }
+  };
 
   // Poll Local Hardware YOLO Sentinel Daemon with Debounced 3-Strike Resilience
   React.useEffect(() => {
@@ -317,7 +368,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           setTelemetry((prev) => ({
             ...prev,
             fps: Math.round(data.fps || (localYoloInfo && localYoloInfo.fps) || 25),
-            motionEnergyPercent: data.person_detected ? Math.min(100, Math.round(data.confidence || 95)) : (data.motion_energy_percent || 6),
+            motionEnergyPercent: data.motion_energy_percent !== undefined ? data.motion_energy_percent : (data.person_detected ? 25 : 6),
             downwardVelocity: data.downward_velocity ?? 0.0,
             torsoAngle: Math.round(data.torso_angle ?? 12),
             posture: data.posture || "Upright Tracking",
@@ -425,7 +476,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     alarmLatchedRef.current = false;
 
     if (cameraSource === "LIVE_WEBCAM") {
-      if (localYoloActive) {
+      if (liveCameraMode === "HARDWARE_YOLO" && localYoloActive) {
         setHardwareStreamPaused(false);
         setStreamRetryKey(Date.now());
         try {
@@ -435,12 +486,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         return;
       }
 
-      // Browser Webcam Fallback
+      // Browser Webcam Mode (Direct WebRTC with client differencing and YOLO bridge)
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+        const constraints = {
+          video: selectedCameraDeviceId
+            ? { deviceId: { exact: selectedCameraDeviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+            : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false
-        });
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         webcamStreamRef.current = stream;
         if (videoElementRef.current) {
           videoElementRef.current.srcObject = stream;
@@ -448,8 +502,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         }
         setPlaybackState("PLAYING");
         startFrameProcessingLoop();
+        // Update device list with discovered labels now that permission was granted
+        if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const devs = await navigator.mediaDevices.enumerateDevices();
+          const vInputs = devs.filter((d) => d.kind === "videoinput");
+          if (vInputs.length > 0) setAvailableWebcams(vInputs);
+        }
       } catch (err) {
-        alert("Could not access webcam: " + err.message);
+        alert("Could not access browser webcam: " + err.message + "\n\nPlease ensure webcam permissions are enabled in your browser.");
       }
       return;
     }
@@ -626,6 +686,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     let floorStillnessSeconds = 0.0;
     let floorContactTimestamp = null;
     let lastProcessedVideoTime = -1.0;
+    let lastProcessedWallTime = Date.now() / 1000.0;
 
     const render = () => {
       // If stopped, terminate loop
@@ -661,8 +722,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         const width = canvas.width;
         const height = canvas.height;
         const now = Date.now();
-        const vTime = video.currentTime || 0.0;
-        setVideoCurrentTime(vTime);
+        const nowSec = now / 1000.0;
+        const vTime = cameraSource === "PRERECORDED_VIDEO" ? (video.currentTime || 0.0) : nowSec;
+        setVideoCurrentTime(cameraSource === "PRERECORDED_VIDEO" ? (video.currentTime || 0.0) : 0.0);
+
+        let dt_kin = 0.033;
+        if (cameraSource === "PRERECORDED_VIDEO") {
+          dt_kin = lastProcessedVideoTime >= 0 ? Math.max(0.01, vTime - lastProcessedVideoTime) : 0.04;
+          lastProcessedVideoTime = vTime;
+        } else {
+          dt_kin = lastProcessedWallTime > 0 ? Math.max(0.015, Math.min(0.25, nowSec - lastProcessedWallTime)) : 0.033;
+          lastProcessedWallTime = nowSec;
+        }
 
         frameCount++;
         if (now - lastFpsCheck >= 1000) {
