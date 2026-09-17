@@ -1052,6 +1052,7 @@ def camera_processing_thread():
                 "persons_count": persons_count,
                 "torso_angle": kinematics_data.get("torso_angle", 0.0),
                 "downward_velocity": kinematics_data.get("downward_velocity", 0.0),
+                "motion_energy_percent": kinematics_data.get("motion_energy_percent", 6 if persons_count == 0 else 12),
                 "posture": kinematics_data.get("posture", "Upright Ambulation"),
                 "risk_level": kinematics_data.get("risk_level", "SAFE"),
                 "confidence": kinematics_data.get("confidence", 95.0),
@@ -1321,7 +1322,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 r = results[0]
 
                 persons_count = len(r.boxes) if r.boxes is not None else 0
-                kin_time = float(client_vtime) if client_vtime is not None else time.time()
+                kin_time = float(client_vtime) if (client_vtime is not None and float(client_vtime) > 1.0) else time.time()
                 src_for_kin = req_source or hub.source
 
                 if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
@@ -1337,6 +1338,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                         "bbox": primary_box,
                         "torso_angle": kinematics.get("torso_angle", 0.0),
                         "downward_velocity": kinematics.get("downward_velocity", 0.0),
+                        "motion_energy_percent": kinematics.get("motion_energy_percent", 25),
                         "posture": kinematics.get("posture", "Upright Ambulation"),
                         "risk_level": kinematics.get("risk_level", "SAFE"),
                         "confidence": kinematics.get("confidence", 95.0),
@@ -1358,6 +1360,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                         "bbox": None,
                         "torso_angle": 0.0,
                         "downward_velocity": 0.0,
+                        "motion_energy_percent": 6,
                         "posture": "Scanning Perimeter (No Person Detected)",
                         "risk_level": "SAFE",
                         "confidence": 98.0,
@@ -1386,6 +1389,29 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 self.send_cors_headers("application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps(resp).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
+
+        # 1B. Set Webcam Physical Device Index (e.g. 0 for Phone, 1 for Built-in Laptop Webcam)
+        if path == "/api/yolo/webcam/device":
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_len).decode("utf-8")) if content_len > 0 else {}
+                new_idx = int(body.get("deviceIndex", 0))
+                target_cam_id = "cam-webcam-02" if new_idx == 1 else "cam-webcam-01"
+                with hub.lock:
+                    hub.camera_index = new_idx
+                    if hub.source == "webcam":
+                        hub.edge_node.set_active_camera(target_cam_id)
+                self.send_response(200)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": True, "deviceIndex": new_idx, "cameraId": target_cam_id}).encode("utf-8"))
                 return
             except Exception as e:
                 self.send_response(400)
