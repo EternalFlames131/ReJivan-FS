@@ -300,6 +300,72 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     return found ? found.label : "Monitoring Baseline";
   };
 
+  // Live High-Frequency Telemetry Stream from Local YOLO Daemon (When local YOLO is active)
+  React.useEffect(() => {
+    if (!localYoloActive || hardwareStreamPaused) return;
+    let isCancelled = false;
+    const pollTelemetry = async () => {
+      try {
+        const res = await fetch(`${YOLO_API_BASE}/api/yolo/telemetry`, {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout ? AbortSignal.timeout(1000) : undefined
+        });
+        if (res.ok && !isCancelled) {
+          const data = await res.json();
+          const isHighRisk = data.risk_level === "HIGH_RISK";
+          const isCaution = data.risk_level === "CAUTION";
+          setTelemetry((prev) => ({
+            ...prev,
+            fps: Math.round(data.fps || (localYoloInfo && localYoloInfo.fps) || 25),
+            motionEnergyPercent: data.person_detected ? Math.min(100, Math.round(data.confidence || 95)) : (data.motion_energy_percent || 6),
+            downwardVelocity: data.downward_velocity ?? 0.0,
+            torsoAngle: Math.round(data.torso_angle ?? 12),
+            posture: data.posture || "Upright Tracking",
+            riskLevel: data.risk_level || "SAFE",
+            confidence: `${Math.round(data.confidence || 95)}%`,
+            detectionConfidence: data.detection_confidence ?? (data.person_detected ? 95 : 10),
+            mechanismConfidence: data.mechanism_confidence ?? 92,
+            severityConfidence: data.severity_confidence ?? (isHighRisk ? 85 : 0),
+            timelineStage: data.timeline_stage || data.stage || "STAGE_RESTING",
+            stageLabel: getStageLabel(data.timeline_stage || data.stage || "STAGE_RESTING"),
+            eventState: data.canonical_event?.state || (isHighRisk ? "CONTACT_OR_FALL" : "NORMAL"),
+            probableMechanism: data.canonical_event?.probableMechanism || data.probable_mechanism || "NORMAL_ACTIVITY",
+            evidence: data.evidence && data.evidence.length > 0 ? data.evidence : prev.evidence,
+            counterEvidence: data.counter_evidence && data.counter_evidence.length > 0 ? data.counter_evidence : prev.counterEvidence,
+            visionSource: `${data.device || "NVIDIA GTX 1650"} (Ultralytics YOLO11-Pose)`,
+            hardwareBadge: data.cuda_enabled ? "GTX 1650 CUDA Ingestion" : "Local Edge CPU",
+            consensusSummary: data.hypothesis?.mechanism || "Continuous YOLO-Pose kinematics monitoring active."
+          }));
+
+          // Trigger Resident Verification on high risk fall
+          if (isHighRisk && !alarmLatchedRef.current) {
+            const canonical = data.canonical_event;
+            if (canonical && canonical.recoveryStatus === "RECOVERED_RAPID") {
+              // Upright recovery confirmed, alarm suppressed
+            } else if (onTriggerVerification && !verificationTimerRef.current) {
+              const mechanism = canonical?.probableMechanism || "trip_fall";
+              alarmLatchedRef.current = true;
+              onTriggerVerification(mechanism);
+              verificationTimerRef.current = setTimeout(() => {
+                verificationTimerRef.current = null;
+              }, 6000);
+              if (onTriggerAlert) onTriggerAlert(true);
+            }
+          } else if (!isHighRisk && data.torso_angle < 24.0) {
+            alarmLatchedRef.current = false;
+          }
+        }
+      } catch (e) {}
+    };
+
+    pollTelemetry();
+    const timer = setInterval(pollTelemetry, 350);
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+    };
+  }, [localYoloActive, hardwareStreamPaused, onTriggerVerification, onTriggerAlert, localYoloInfo]);
+
   // Switch Camera Source
   const handleSelectSource = async (newSource) => {
     handleStopMonitoring();
@@ -307,14 +373,51 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     alarmLatchedRef.current = false;
 
     if (localYoloActive) {
+      let yoloSourceParam = "webcam";
+      if (newSource === "PRERECORDED_VIDEO") yoloSourceParam = "bed_fall_demo";
+      else if (newSource === "RTSP_CAMERA") yoloSourceParam = "RTSP_CAMERA";
+
       try {
         await fetch(`${YOLO_API_BASE}/api/yolo/source`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: newSource })
+          body: JSON.stringify({ source: yoloSourceParam })
         });
+        setStreamRetryKey(Date.now());
       } catch (e) {}
     }
+  };
+
+  // Instant Fall Verification Test (Simulate fall event without physical drop)
+  const handleTestFall = async () => {
+    alarmLatchedRef.current = true;
+    if (localYoloActive) {
+      fetch(`${YOLO_API_BASE}/api/yolo/simulate_fall`, { method: "POST" }).catch(() => {});
+    }
+    setTelemetry((prev) => ({
+      ...prev,
+      riskLevel: "HIGH_RISK",
+      posture: "Simulated Acute Floor Contact Collapse",
+      eventState: "CONTACT_OR_FALL",
+      probableMechanism: "TRIP_OR_SLIP",
+      timelineStage: "STAGE_CONTACT",
+      stageLabel: "Floor Contact / Fall",
+      downwardVelocity: -2.4,
+      torsoAngle: 82,
+      confidence: "99.1%",
+      detectionConfidence: 98,
+      mechanismConfidence: 94,
+      severityConfidence: 89,
+      evidence: ["Rapid downward kinematic acceleration (-2.4 m/s)", "Centroid displaced to floor boundary (Torso 82°)"],
+      counterEvidence: ["Zero upright postural recovery observed"]
+    }));
+    if (onTriggerVerification && !verificationTimerRef.current) {
+      onTriggerVerification("trip_fall");
+      verificationTimerRef.current = setTimeout(() => {
+        verificationTimerRef.current = null;
+      }, 6000);
+    }
+    if (onTriggerAlert) onTriggerAlert(true);
   };
 
   // Playback & Monitoring Controls
@@ -322,6 +425,17 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     alarmLatchedRef.current = false;
 
     if (cameraSource === "LIVE_WEBCAM") {
+      if (localYoloActive) {
+        setHardwareStreamPaused(false);
+        setStreamRetryKey(Date.now());
+        try {
+          await fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" });
+        } catch (e) {}
+        setPlaybackState("PLAYING");
+        return;
+      }
+
+      // Browser Webcam Fallback
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
@@ -425,6 +539,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "stop" })
         });
+        await fetch(`${YOLO_API_BASE}/api/yolo/stop`, { method: "POST" });
+        setHardwareStreamPaused(true);
       } catch (e) {}
     }
   };
@@ -935,10 +1051,10 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 Clinical Sentinel: Unified Camera Pipeline
               </h3>
               <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
-                {cameraSource === "PRERECORDED_VIDEO"
-                  ? "CAMERA SOURCE: PRE-RECORDED DEMONSTRATION"
-                  : cameraSource === "LIVE_WEBCAM"
-                  ? "CAMERA SOURCE: PHYSICAL DEVICE WEBCAM"
+                {cameraSource === "LIVE_WEBCAM"
+                  ? "CAMERA SOURCE: LIVE CAMERA FEED (VERIFICATION)"
+                  : cameraSource === "PRERECORDED_VIDEO"
+                  ? "CAMERA SOURCE: DEMO VIDEO (CUSTOM VIDEO SLOT)"
                   : "CAMERA SOURCE: RTSP WARD CAMERA"}
               </span>
               <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -955,7 +1071,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Authentic hospital bed-fall video stream processed through genuine 17-keypoint YOLO11-Pose &amp; Prajñā kinetic pipeline. Zero recorded/stored video.
+              Live camera feed for real-time YOLO-Pose and motion verification. Demo video slot ready for official video (to be provided by user).
             </p>
           </div>
         </div>
@@ -964,16 +1080,6 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
           <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-medium text-slate-700">
             <button
-              onClick={() => handleSelectSource("PRERECORDED_VIDEO")}
-              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
-                cameraSource === "PRERECORDED_VIDEO"
-                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span>🎥 Pre-Recorded Hospital Demo</span>
-            </button>
-            <button
               onClick={() => handleSelectSource("LIVE_WEBCAM")}
               className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
                 cameraSource === "LIVE_WEBCAM"
@@ -981,7 +1087,17 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <span>📹 Live Webcam</span>
+              <span>📹 Live Camera Feed (YOLO / Motion Verification)</span>
+            </button>
+            <button
+              onClick={() => handleSelectSource("PRERECORDED_VIDEO")}
+              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                cameraSource === "PRERECORDED_VIDEO"
+                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span>🎥 Demo Video (Custom Slot · Provide Later)</span>
             </button>
             <button
               onClick={() => handleSelectSource("RTSP_CAMERA")}
@@ -1227,22 +1343,26 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             />
             <div className="min-w-0">
               <h4 className="text-xs font-bold text-slate-900 truncate">
-                {cameraSource === "PRERECORDED_VIDEO"
-                  ? "Hospital Ward 302 Sentinel · Pre-Recorded Bed-Fall Footage"
-                  : cameraSource === "LIVE_WEBCAM"
-                  ? "Physical Device Webcam Sentinel (Live On-Demand)"
+                {cameraSource === "LIVE_WEBCAM"
+                  ? (localYoloActive ? "Hardware YOLO-Pose Camera Sentinel (NVIDIA GTX 1650 CUDA)" : "Live Device Webcam Sentinel (Real-Time Motion)")
+                  : cameraSource === "PRERECORDED_VIDEO"
+                  ? `Demonstration Video Sentinel · ${customVideoFileName || "Pre-Recorded Bed-Fall Footage (Custom Video Slot)"}`
                   : "RTSP Hospital Ward CCTV (Simulated Stream)"}
               </h4>
               <p className="text-[11px] text-slate-400 truncate">
-                GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02)
+                {cameraSource === "LIVE_WEBCAM"
+                  ? "Live Camera Feed · Real-Time Posture & Motion Verification · Zero Recorded/Stored Video"
+                  : "GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02)"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-200/70 rounded">
-              {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
-            </span>
+            {cameraSource === "PRERECORDED_VIDEO" && (
+              <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-200/70 rounded">
+                {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
+              </span>
+            )}
             <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-200/70 rounded">
               {telemetry.fps} FPS
             </span>
@@ -1258,69 +1378,119 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
         {/* Video & Canvas Stage */}
         <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden select-none">
-          {/* Underlying Video Element */}
-          <video
-            ref={videoElementRef}
-            src="/videos/patient_bed_fall_demo.mp4"
-            playsInline
-            muted
-            className={`w-full h-full object-cover pointer-events-none transition-opacity duration-300 ${
-              privacyRadarOnly ? "opacity-0" : "opacity-100"
-            }`}
-          />
+          {cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused ? (
+            /* Sub-branch 1A: Direct Hardware Ultralytics YOLO-Pose Stream */
+            <div className="relative w-full h-full flex items-center justify-center">
+              <img
+                key={`yolo-live-feed-${streamRetryKey}-${privacyRadarOnly}`}
+                src={`${YOLO_API_BASE}/api/yolo/video_feed?source=webcam${privacyRadarOnly ? "&privacy=1" : ""}&t=${streamRetryKey}`}
+                alt="Ultralytics YOLO Pose Stream"
+                className="w-full h-full object-cover select-none pointer-events-none"
+                onError={() => {
+                  setTimeout(() => setStreamRetryKey(Date.now()), 1500);
+                }}
+              />
+            </div>
+          ) : cameraSource === "LIVE_WEBCAM" ? (
+            /* Sub-branch 1B: Browser Live Webcam with Real-Time Motion/Skeleton Canvas */
+            <div className="relative w-full h-full flex items-center justify-center">
+              <video
+                ref={videoElementRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${privacyRadarOnly ? "opacity-0" : "opacity-100"}`}
+              />
+              <canvas
+                ref={canvasElementRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
 
-          {/* Real-Time Pose Skeleton Overlay Canvas */}
-          <canvas
-            ref={canvasElementRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-          />
+              {playbackState !== "PLAYING" && (
+                <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg">
+                    <Camera className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-1">
+                    Live Camera Feed Ready for Verification
+                  </h4>
+                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-4">
+                    Click <strong>Start Live Camera</strong> to open your webcam for real-time motion detection and pose tracking verification.
+                  </p>
+                  <button
+                    onClick={handleStartMonitoring}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>Start Live Camera Feed</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Sub-branch 2: Prerecorded Demonstration Video */
+            <div className="relative w-full h-full flex items-center justify-center">
+              <video
+                ref={videoElementRef}
+                src={customDemoVideoUrl}
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${privacyRadarOnly ? "opacity-0" : "opacity-100"}`}
+              />
+              <canvas
+                ref={canvasElementRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
 
-          {/* Standby Overlay when Stopped */}
-          {playbackState === "STOPPED" && (
-            <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg">
-                <Play className="w-7 h-7 ml-1" />
-              </div>
-              <h4 className="text-sm font-bold text-white mb-1">
-                Clinical Fall Demonstration Ready
-              </h4>
-              <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-4">
-                Click <strong>Start Monitoring</strong> to initiate real sequential frame ingestion. Frames are fed directly into the YOLO11-Pose model on the GTX 1650, evaluating physical kinematics without hardcoded timers.
-              </p>
-              <button
-                onClick={handleStartMonitoring}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
-              >
-                <Play className="w-4 h-4" />
-                <span>Start Monitoring</span>
-              </button>
+              {playbackState === "STOPPED" && (
+                <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg">
+                    <Play className="w-7 h-7 ml-1" />
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-1">
+                    Clinical Demonstration Video Slot
+                  </h4>
+                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-4">
+                    Click <strong>Start Monitoring</strong> to initiate real sequential frame ingestion. You can also load your own recorded hospital fall video below anytime.
+                  </p>
+                  <button
+                    onClick={handleStartMonitoring}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>Start Monitoring Video</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {/* Live CCTV HUD (Top Left) */}
-          <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-white text-[11px] font-mono shadow-md">
-            <span className={`w-2 h-2 rounded-full ${playbackState === "PLAYING" ? "bg-emerald-500 animate-ping" : "bg-slate-400"}`} />
+          <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-white text-[11px] font-mono shadow-md z-20">
+            <span className={`w-2 h-2 rounded-full ${cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused ? "bg-emerald-500 animate-ping" : (playbackState === "PLAYING" ? "bg-emerald-500 animate-ping" : "bg-slate-400")}`} />
             <span className="font-bold text-emerald-400">
-              {playbackState === "PLAYING" ? "MONITORING ACTIVE" : playbackState}
+              {cameraSource === "LIVE_WEBCAM"
+                ? (localYoloActive ? "HARDWARE YOLO-POSE" : (playbackState === "PLAYING" ? "LIVE WEBCAM ACTIVE" : "WEBCAM STANDBY"))
+                : (playbackState === "PLAYING" ? "DEMO PLAYING" : playbackState)}
             </span>
             <span className="text-slate-500">|</span>
             <span>{currentTime}</span>
           </div>
 
           {/* Live Kinematics Strip (Top Right) */}
-          <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-slate-300 text-[10px] font-mono flex items-center gap-2 shadow-md">
+          <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-slate-300 text-[10px] font-mono flex items-center gap-2 shadow-md z-20">
             <span className="text-emerald-400 font-bold">{telemetry.fps} FPS</span>
             <span className="text-slate-500">•</span>
             <span>Torso: {telemetry.torsoAngle}°</span>
             <span className="text-slate-500">•</span>
-            <span className={telemetry.downwardVelocity > 0.8 ? "text-rose-400 font-bold" : "text-slate-300"}>
-              Descent: {telemetry.downwardVelocity} m/s
+            <span className={telemetry.downwardVelocity > 0.8 || telemetry.downwardVelocity < -1.2 ? "text-rose-400 font-bold" : "text-slate-300"}>
+              Velocity: {telemetry.downwardVelocity} m/s
             </span>
           </div>
 
           {/* Target Detection Box Overlay (Bottom) */}
           <div
-            className={`absolute bottom-14 left-4 right-4 border rounded-lg p-2.5 text-center shadow-2xl backdrop-blur-md transition-all ${
+            className={`absolute bottom-14 left-4 right-4 border rounded-lg p-2.5 text-center shadow-2xl backdrop-blur-md transition-all z-20 ${
               telemetry.riskLevel === "HIGH_RISK"
                 ? "border-rose-400/90 bg-rose-950/85 text-rose-100 animate-pulse"
                 : telemetry.riskLevel === "CAUTION"
@@ -1333,7 +1503,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 [ {telemetry.riskLevel === "HIGH_RISK" ? "⚠️ CRITICAL FALL DETECTED · RESIDENT CHECK-IN" : "Prajñā Biomechanics Sentinel: Active"} ]
               </span>
               <span className="text-indigo-300 font-normal">
-                {telemetry.stageLabel} (Stage {TIMELINE_STAGES.find((s) => s.id === telemetry.timelineStage)?.step || 1}/7)
+                {telemetry.stageLabel}
               </span>
             </div>
             <div className="text-xs font-semibold">
@@ -1342,7 +1512,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             <div className="text-[10px] font-mono text-slate-300 mt-0.5 flex flex-wrap items-center justify-center gap-3">
               <span>Confidence: {telemetry.confidence}</span>
               <span>•</span>
-              <span>Descent: {telemetry.downwardVelocity} m/s</span>
+              <span>Velocity: {telemetry.downwardVelocity} m/s</span>
               <span>•</span>
               <span>Torso Angle: {telemetry.torsoAngle}°</span>
               <span>•</span>
@@ -1354,64 +1524,158 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         {/* Unified Playback & Demonstration Control Bar */}
         <div className="p-3 px-4 bg-slate-50 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            {playbackState === "PLAYING" ? (
-              <button
-                onClick={handlePauseMonitoring}
-                className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
-                title="Pause Monitoring"
-              >
-                <Pause className="w-3.5 h-3.5" />
-                <span>Pause</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleStartMonitoring}
-                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
-                title="Start Monitoring"
-              >
-                <Play className="w-3.5 h-3.5" />
-                <span>Start Monitoring</span>
-              </button>
-            )}
+            {cameraSource === "LIVE_WEBCAM" ? (
+              <>
+                {localYoloActive ? (
+                  <button
+                    onClick={() => {
+                      if (hardwareStreamPaused) {
+                        setHardwareStreamPaused(false);
+                        setStreamRetryKey(Date.now());
+                        fetch(`${YOLO_API_BASE}/api/yolo/start`, { method: "POST" }).catch(() => {});
+                      } else {
+                        setHardwareStreamPaused(true);
+                        fetch(`${YOLO_API_BASE}/api/yolo/stop`, { method: "POST" }).catch(() => {});
+                      }
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5 ${
+                      hardwareStreamPaused
+                        ? "bg-emerald-600 hover:bg-emerald-500"
+                        : "bg-slate-700 hover:bg-slate-600"
+                    }`}
+                  >
+                    {hardwareStreamPaused ? <Play className="w-3.5 h-3.5" /> : <CameraOff className="w-3.5 h-3.5" />}
+                    <span>{hardwareStreamPaused ? "Start Camera Sentinel" : "Pause Camera Sentinel"}</span>
+                  </button>
+                ) : (
+                  <>
+                    {playbackState === "PLAYING" ? (
+                      <button
+                        onClick={handleStopMonitoring}
+                        className="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        <span>Stop Webcam</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleStartMonitoring}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        <span>Start Live Camera</span>
+                      </button>
+                    )}
+                  </>
+                )}
 
-            <button
-              onClick={handleStopMonitoring}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
-              title="Stop Monitoring and Rewind to Frame 0"
-            >
-              <Square className="w-3.5 h-3.5" />
-              <span>Stop</span>
-            </button>
-
-            <button
-              onClick={handleRestartMonitoring}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
-              title="Reset temporal history and replay from t=0s"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Restart</span>
-            </button>
-          </div>
-
-          {/* Speed Toggle Controls */}
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-            <span className="text-slate-400 font-normal">Playback Speed:</span>
-            <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg">
-              {[0.5, 1.0, 2.0].map((s) => (
+                {/* Instant Fall Test Button */}
                 <button
-                  key={s}
-                  onClick={() => handleChangeSpeed(s)}
-                  className={`px-2.5 py-1 rounded-md text-xs transition-all ${
-                    playbackSpeed === s
-                      ? "bg-white text-indigo-900 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
+                  onClick={handleTestFall}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  title="Simulate sudden fall event to test resident check-in dialog & escalation ladder"
                 >
-                  {s}x
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Test Fall Verification</span>
                 </button>
-              ))}
-            </div>
+              </>
+            ) : (
+              /* Prerecorded Demonstration Controls */
+              <>
+                {playbackState === "PLAYING" ? (
+                  <button
+                    onClick={handlePauseMonitoring}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  >
+                    <Pause className="w-3.5 h-3.5" />
+                    <span>Pause</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartMonitoring}
+                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Start Monitoring</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleStopMonitoring}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  <span>Stop</span>
+                </button>
+
+                <button
+                  onClick={handleRestartMonitoring}
+                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Restart</span>
+                </button>
+
+                {/* Instant Fall Test Button */}
+                <button
+                  onClick={handleTestFall}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Test Fall</span>
+                </button>
+              </>
+            )}
           </div>
+
+          {/* Speed Toggle Controls (Prerecorded video only) */}
+          {cameraSource === "PRERECORDED_VIDEO" && (
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+              <span className="text-slate-400 font-normal">Playback Speed:</span>
+              <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg">
+                {[0.5, 1.0, 2.0].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => handleChangeSpeed(s)}
+                    className={`px-2.5 py-1 rounded-md text-xs transition-all ${
+                      playbackSpeed === s
+                        ? "bg-white text-indigo-900 font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Video File Upload Slot (When on PRERECORDED_VIDEO) */}
+          {cameraSource === "PRERECORDED_VIDEO" && (
+            <label className="cursor-pointer px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-all border border-amber-300 flex items-center gap-1.5 shadow-2xs">
+              <span>📁 {customVideoFileName ? `Loaded: ${customVideoFileName}` : "Provide Your Demo Video"}</span>
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files && e.target.files[0];
+                  if (f) {
+                    const u = URL.createObjectURL(f);
+                    setCustomDemoVideoUrl(u);
+                    setCustomVideoFileName(f.name);
+                    if (videoElementRef.current) {
+                      videoElementRef.current.src = u;
+                      videoElementRef.current.currentTime = 0;
+                    }
+                    handleStopMonitoring();
+                    setSnapshotToast(`Custom video "${f.name}" loaded successfully!`);
+                    setTimeout(() => setSnapshotToast(null), 4000);
+                  }
+                }}
+              />
+            </label>
+          )}
 
           {/* Quick Jump to Reconstruction */}
           <a
