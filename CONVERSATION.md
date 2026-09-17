@@ -1827,6 +1827,24 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Ensure live camera feed is active and clearly accessible for live verification of YOLO and motion monitoring.
 - Note that the evaluator/demo video will be provided by the user later.
 
-### In Progress:
-- Investigating `CameraZonesView.jsx` and video feed rendering to ensure live camera feed (webcam / YOLO stream / motion monitoring) is front-and-center and never hidden during verification or motion monitoring.
-- Ensuring the user can seamlessly test live camera motion and pose tracking directly, while keeping the pre-recorded video slot ready for when the user provides the final video.
+### What was done (verified):
+1. **Restored Live Camera Feed as Primary Verification Screen:**
+   - Changed default active camera source in `CameraZonesView.jsx` from `PRERECORDED_VIDEO` to `LIVE_WEBCAM`.
+   - Restored direct hardware stream rendering: when local YOLO daemon is running (`localYoloActive = true`), it renders the live MJPEG stream from `${YOLO_API_BASE}/api/yolo/video_feed?source=webcam` showing the physical webcam feed with the real-time 17-keypoint green YOLO-Pose skeleton accelerated by the NVIDIA GTX 1650 CUDA.
+   - Restored in-browser live webcam fallback: when local YOLO is offline (e.g. on Vercel or when daemon is stopped), it opens the browser webcam via `navigator.mediaDevices.getUserMedia` with real-time optical differencing, green bounding brackets tracking motion, kinetic energy %, downward velocity, posture, and floor gating.
+   - Restored high-frequency live telemetry polling from `${YOLO_API_BASE}/api/yolo/telemetry` (every 350ms) to update live HUD metrics (torso angle, velocity, posture, risk level, stage).
+   - Added instant "Test Fall Verification" button allowing one-tap simulation of fall events to verify the 30-second resident check-in dialog and emergency escalation ladder.
+
+2. **Decoupled Demonstration Video Slot (Custom Video Slot):**
+   - Retained the pre-recorded video mode as a dedicated virtual source tab: `🎥 Demo Video (Custom Slot · Provide Later)`.
+   - Explicitly noted that Samrat will provide the official demonstration video later.
+   - Added an on-the-fly custom video file picker (`<input type="file" accept="video/*" />`) so that whenever Samrat or judges have their custom fall video file ready, they can simply choose the file and ReJivan will immediately stream and evaluate it through the identical kinematic pipeline.
+
+3. **Rebuilt & Verified:**
+   - Compiled React bundle (`node tools/build_web.js` → 302,809 bytes).
+   - Verified 100% test pass rate across all 4 suites:
+     - `tools/test_camera_architecture.py`: 12/12 passed (100% in 0.611s).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+   - Verified prototype server operational on port 8080 (`/api/health` 200 OK).
