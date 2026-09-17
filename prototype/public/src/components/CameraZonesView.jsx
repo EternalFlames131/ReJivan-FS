@@ -28,8 +28,149 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     calibrationProgress: 0,
     lastHeartbeat: null,
     latencyMs: 18,
-    fps: 25.0
+    fps: 25.0,
+    bannerText: "Vision Monitoring: ONLINE",
+    bannerSeverity: "success",
+    edgeDetails: null,
+    cameraDetails: null,
+    trackingDetails: null
   });
+
+  // Camera Manager & Fleet State
+  const [isCameraManagerOpen, setIsCameraManagerOpen] = React.useState(false);
+  const [camerasList, setCamerasList] = React.useState([]);
+  const [activeCameraId, setActiveCameraId] = React.useState("cam-prerecorded-demo");
+  const [testResult, setTestResult] = React.useState(null);
+  const [isTestingCamera, setIsTestingCamera] = React.useState(false);
+  const [newCameraForm, setNewCameraForm] = React.useState({
+    cameraName: "",
+    sourceType: "RTSP_CCTV",
+    rtspUrl: "",
+    zone: "GB Pant Hospital · Virtual Ward Bed 1",
+    residentId: "P1",
+    bedId: "BED1",
+    targetFps: 25
+  });
+  const [formError, setFormError] = React.useState(null);
+
+  // Fetch camera fleet from backend
+  const fetchCameras = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/cameras");
+      if (res.ok) {
+        const data = await res.json();
+        setCamerasList(data.cameras || []);
+        if (data.activeCameraId) setActiveCameraId(data.activeCameraId);
+      }
+    } catch (e) {}
+  }, []);
+
+  React.useEffect(() => {
+    fetchCameras();
+    const t = setInterval(fetchCameras, 4000);
+    return () => clearInterval(t);
+  }, [fetchCameras]);
+
+  // Poll 7-tier system health hierarchy
+  React.useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch("/api/system/health");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.statusHierarchy) {
+            const h = data.statusHierarchy;
+            setSystemHealth((prev) => ({
+              ...prev,
+              edgeStatus: h.edgeNode?.status === "ONLINE" ? "EDGE_ONLINE" : "EDGE_OFFLINE",
+              cameraLifecycle: h.activeCamera?.lifecycleState || "ONLINE",
+              bannerText: h.monitoringStatusBanner?.text || "Vision Monitoring: ONLINE",
+              bannerSeverity: h.monitoringStatusBanner?.severity || "success",
+              edgeDetails: h.edgeNode,
+              cameraDetails: h.activeCamera,
+              trackingDetails: h.tracking
+            }));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchHealth();
+    const t = setInterval(fetchHealth, 3500);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleTestCamera = async (camId) => {
+    setIsTestingCamera(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/cameras/${camId}/test`, { method: "POST" });
+      const data = await res.json();
+      setTestResult({ id: camId, ok: data.ok, message: data.message, latencyMs: data.latencyMs });
+    } catch (err) {
+      setTestResult({ id: camId, ok: false, message: "Connection test request failed.", latencyMs: 0 });
+    } finally {
+      setIsTestingCamera(false);
+    }
+  };
+
+  const handleActivateCamera = async (cam) => {
+    try {
+      await fetch(`/api/cameras/${cam.cameraId}/activate`, { method: "POST" });
+      setActiveCameraId(cam.cameraId);
+      if (cam.sourceType === "PRERECORDED_VIDEO") {
+        handleSelectSource("PRERECORDED_VIDEO");
+      } else if (cam.sourceType === "LOCAL_WEBCAM") {
+        handleSelectSource("LIVE_WEBCAM");
+      } else {
+        handleSelectSource("RTSP_CAMERA");
+      }
+      fetchCameras();
+    } catch (e) {}
+  };
+
+  const handleAddCamera = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!newCameraForm.cameraName.trim()) {
+      setFormError("Camera Name is required.");
+      return;
+    }
+    if (newCameraForm.sourceType === "RTSP_CCTV" && !newCameraForm.rtspUrl.trim()) {
+      setFormError("RTSP URL is required for CCTV streams.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/cameras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCameraForm)
+      });
+      if (res.ok) {
+        setNewCameraForm({
+          cameraName: "",
+          sourceType: "RTSP_CCTV",
+          rtspUrl: "",
+          zone: "GB Pant Hospital · Virtual Ward Bed 1",
+          residentId: "P1",
+          bedId: "BED1",
+          targetFps: 25
+        });
+        fetchCameras();
+      } else {
+        const err = await res.json();
+        setFormError(err.error || "Failed to add camera.");
+      }
+    } catch (err) {
+      setFormError("Network error while adding camera.");
+    }
+  };
+
+  const handleDeleteCamera = async (camId) => {
+    try {
+      const res = await fetch(`/api/cameras/${camId}`, { method: "DELETE" });
+      if (res.ok) fetchCameras();
+    } catch (e) {}
+  };
 
   // Clinical Telemetry & Biomechanics State
   const [telemetry, setTelemetry] = React.useState({

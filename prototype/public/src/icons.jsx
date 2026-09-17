@@ -608,4 +608,115 @@ const RotateCcw = (props) => (
   />
 );
 
+const Settings = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    }
+  />
+);
+
+const Plus = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M5 12h14" />
+        <path d="M12 5v14" />
+      </>
+    }
+  />
+);
+
+const Trash2 = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M3 6h18" />
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        <line x1="10" x2="10" y1="11" y2="17" />
+        <line x1="14" x2="14" y1="11" y2="17" />
+      </>
+    }
+  />
+);
+
+const Video = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="m22 8-6 4 6 4V8Z" />
+        <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+      </>
+    }
+  />
+);
+
+const Wifi = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M12 20h.01" />
+        <path d="M2 8.82a15 15 0 0 1 20 0" />
+        <path d="M5 12.859a10 10 0 0 1 14 0" />
+        <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+      </>
+    }
+  />
+);
+
+const Cpu = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <rect width="16" height="16" x="4" y="4" rx="2" />
+        <rect width="6" height="6" x="9" y="9" rx="1" />
+        <path d="M15 2v2" />
+        <path d="M15 20v2" />
+        <path d="M2 15h2" />
+        <path d="M2 9h2" />
+        <path d="M20 15h2" />
+        <path d="M20 9h2" />
+        <path d="M9 2v2" />
+        <path d="M9 20v2" />
+      </>
+    }
+  />
+);
+
+const Server = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+        <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+        <line x1="6" x2="6.01" y1="6" y2="6" />
+        <line x1="6" x2="6.01" y1="18" y2="18" />
+      </>
+    }
+  />
+);
+
+const X = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </>
+    }
+  />
+);
+
 
