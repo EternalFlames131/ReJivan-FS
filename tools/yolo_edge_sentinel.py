@@ -972,7 +972,9 @@ def camera_processing_thread():
         if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
             primary_kp = r.keypoints.data[0].cpu().numpy()
             h_img, w_img = frame.shape[:2]
-            kinematics_data = compute_kinematics(primary_kp, w_img, h_img, current_time)
+            kin_time = hub.video_time if current_source == "bed_fall_demo" else current_time
+            kinematics_data = compute_kinematics(primary_kp, w_img, h_img, kin_time, source=current_source)
+            hub.timeline_stage = kinematics_data.get("timeline_stage", "STAGE_RESTING")
             
             for idx, (kx, ky, kconf) in enumerate(primary_kp):
                 keypoints_formatted.append({
@@ -996,6 +998,19 @@ def camera_processing_thread():
             hub.telemetry = {
                 "status": "ONLINE_STREAMING" if hub.camera_state == "MONITORING" else hub.camera_state,
                 "camera_state": hub.camera_state,
+                "camera_source_type": hub.camera_source_type,
+                "playback_state": hub.playback_state,
+                "playback_speed": hub.playback_speed,
+                "video_time": hub.video_time,
+                "video_duration": hub.video_duration,
+                "video_frame_index": hub.video_frame_index,
+                "timeline_stage": kinematics_data.get("timeline_stage", "STAGE_RESTING"),
+                "stage": kinematics_data.get("stage", "STAGE_RESTING"),
+                "detection_confidence": kinematics_data.get("detection_confidence", 85),
+                "mechanism_confidence": kinematics_data.get("mechanism_confidence", 90),
+                "severity_confidence": kinematics_data.get("severity_confidence", 0),
+                "evidence": kinematics_data.get("evidence", []),
+                "counter_evidence": kinematics_data.get("counter_evidence", []),
                 "device": GPU_NAME,
                 "cuda_enabled": CUDA_AVAILABLE,
                 "engine": "Ultralytics YOLO11-Pose",
@@ -1067,6 +1082,12 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     "cuda_enabled": CUDA_AVAILABLE,
                     "status": hub.telemetry.get("status", "STANDBY_AWAITING_CONSENT"),
                     "source": hub.source,
+                    "camera_source_type": hub.camera_source_type,
+                    "playback_state": hub.playback_state,
+                    "playback_speed": hub.playback_speed,
+                    "video_time": hub.video_time,
+                    "video_duration": hub.video_duration,
+                    "timeline_stage": hub.timeline_stage,
                     "demo_video_available": os.path.exists(hub.demo_video_path),
                     "hardware_active": is_hardware_on,
                     "camera_led_state": ("ON" if (is_hardware_on and hub.source == "webcam") else "OFF"),
@@ -1181,6 +1202,9 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 if not raw_bytes:
                     raise ValueError("Empty body")
 
+                client_vtime = None
+                req_source = None
+
                 # Handle base64 JSON if sent from browser
                 if raw_bytes.startswith(b"{"):
                     req = json.loads(raw_bytes.decode("utf-8"))
@@ -1188,6 +1212,17 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     if "," in b64_str:
                         b64_str = b64_str.split(",", 1)[1]
                     raw_bytes = base64.b64decode(b64_str)
+                    client_vtime = req.get("video_timestamp", None)
+                    req_source = req.get("source", None)
+
+                # Also inspect custom headers if sent as raw binary JPEG
+                if client_vtime is None and self.headers.get("X-Video-Timestamp"):
+                    try:
+                        client_vtime = float(self.headers.get("X-Video-Timestamp"))
+                    except Exception:
+                        pass
+                if req_source is None and self.headers.get("X-Source"):
+                    req_source = self.headers.get("X-Source")
 
                 nparr = np.frombuffer(raw_bytes, np.uint8)
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -1200,9 +1235,12 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 r = results[0]
 
                 persons_count = len(r.boxes) if r.boxes is not None else 0
+                kin_time = float(client_vtime) if client_vtime is not None else time.time()
+                src_for_kin = req_source or hub.source
+
                 if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
                     primary_kp = r.keypoints.data[0].cpu().numpy()
-                    kinematics = compute_kinematics(primary_kp, w_img, h_img, time.time())
+                    kinematics = compute_kinematics(primary_kp, w_img, h_img, kin_time, source=src_for_kin)
                     boxes = r.boxes.xyxy.cpu().numpy()
                     primary_box = boxes[0].tolist() if len(boxes) > 0 else None
 
@@ -1216,6 +1254,14 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                         "posture": kinematics.get("posture", "Upright Ambulation"),
                         "risk_level": kinematics.get("risk_level", "SAFE"),
                         "confidence": kinematics.get("confidence", 95.0),
+                        "stage": kinematics.get("stage", "STAGE_RESTING"),
+                        "timeline_stage": kinematics.get("timeline_stage", "STAGE_RESTING"),
+                        "detection_confidence": kinematics.get("detection_confidence", 85),
+                        "mechanism_confidence": kinematics.get("mechanism_confidence", 90),
+                        "severity_confidence": kinematics.get("severity_confidence", 0),
+                        "evidence": kinematics.get("evidence", []),
+                        "counter_evidence": kinematics.get("counter_evidence", []),
+                        "canonical_event": kinematics.get("canonical_event", {}),
                         "consensus_summary": kinematics.get("hypothesis", {}).get("mechanism", "YOLO Pose tracking nominal.")
                     }
                 else:
@@ -1229,6 +1275,24 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                         "posture": "Scanning Perimeter (No Person Detected)",
                         "risk_level": "SAFE",
                         "confidence": 98.0,
+                        "stage": "STAGE_RESTING",
+                        "timeline_stage": "STAGE_RESTING",
+                        "detection_confidence": 0,
+                        "mechanism_confidence": 100,
+                        "severity_confidence": 0,
+                        "evidence": ["Subject out of frame or occluded"],
+                        "counter_evidence": ["Perimeter nominal"],
+                        "canonical_event": {
+                            "eventId": f"EVT-SCAN-{int(kin_time)}",
+                            "state": "NORMAL",
+                            "probableMechanism": "NORMAL_ACTIVITY",
+                            "detectionConfidence": 0,
+                            "mechanismConfidence": 100,
+                            "severityConfidence": 0,
+                            "recoveryStatus": "NOT_APPLICABLE",
+                            "evidence": [],
+                            "counterEvidence": []
+                        },
                         "consensus_summary": "Subject out of frame or occluded. Perimeter nominal."
                     }
 
@@ -1244,23 +1308,34 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
                 return
 
-        # Video Source Selection Endpoint (Webcam vs Bed Fall Demo Video)
+        # Video Source Selection Endpoint (Unified Camera Abstraction)
         if self.path == "/api/yolo/source":
             try:
                 content_len = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_len).decode("utf-8")
                 req_data = json.loads(body) if body else {}
                 target_src = req_data.get("source", "bed_fall_demo")
-                if target_src in ["webcam", "bed_fall_demo"]:
-                    with hub.lock:
-                        hub.source = target_src
-                        hub.camera_active = True
-                    print(f"[+] Source switched via API to: {hub.source}")
-                    self.send_response(200)
-                    self.send_cors_headers("application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"ok": True, "source": hub.source}).encode("utf-8"))
-                    return
+                with hub.lock:
+                    if target_src in ["PRERECORDED_VIDEO", "bed_fall_demo"]:
+                        hub.camera_source_type = "PRERECORDED_VIDEO"
+                        hub.source = "bed_fall_demo"
+                    elif target_src in ["LIVE_WEBCAM", "webcam"]:
+                        hub.camera_source_type = "LIVE_WEBCAM"
+                        hub.source = "webcam"
+                    elif target_src in ["RTSP_CAMERA"]:
+                        hub.camera_source_type = "RTSP_CAMERA"
+                        hub.source = "bed_fall_demo" # Anchored to ward surveillance in prototype
+                    hub.camera_active = True
+                print(f"[+] Source switched via API to: {hub.source} ({hub.camera_source_type})")
+                self.send_response(200)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "ok": True,
+                    "source": hub.source,
+                    "camera_source_type": hub.camera_source_type
+                }).encode("utf-8"))
+                return
             except Exception as e:
                 pass
             self.send_response(400)
@@ -1268,6 +1343,68 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"ok": False, "error": "Invalid source"}).encode("utf-8"))
             return
+
+        # Playback Control Endpoint (START, PAUSE, RESUME, STOP, RESTART, SPEED)
+        if self.path == "/api/yolo/control":
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_len).decode("utf-8") if content_len > 0 else "{}"
+                data = json.loads(body) if body else {}
+                action = data.get("action", "start")
+                
+                with hub.lock:
+                    if action in ["start", "play", "resume"]:
+                        hub.playback_state = "PLAYING"
+                        hub.camera_active = True
+                        if hub.camera_state == "VIDEO_ENDED" or hub.playback_state == "STOPPED":
+                            if hub.cap is not None:
+                                hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            hub.video_frame_index = 0
+                            hub.video_time = 0.0
+                            hub.reset_tracking_state()
+                            hub.camera_state = "MONITORING"
+                    elif action == "pause":
+                        hub.playback_state = "PAUSED"
+                    elif action == "stop":
+                        hub.playback_state = "STOPPED"
+                        hub.camera_active = False
+                        if hub.cap is not None:
+                            hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        hub.video_frame_index = 0
+                        hub.video_time = 0.0
+                        hub.reset_tracking_state()
+                    elif action == "restart":
+                        if hub.cap is not None:
+                            hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        hub.video_frame_index = 0
+                        hub.video_time = 0.0
+                        hub.reset_tracking_state()
+                        hub.playback_state = "PLAYING"
+                        hub.camera_active = True
+                        hub.camera_state = "CAMERA_CALIBRATING"
+                        hub.calibration_frames_left = 20
+                    elif action == "speed":
+                        new_speed = float(data.get("speed", 1.0))
+                        hub.playback_speed = max(0.25, min(new_speed, 4.0))
+
+                self.send_response(200)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "ok": True,
+                    "action": action,
+                    "playback_state": hub.playback_state,
+                    "playback_speed": hub.playback_speed,
+                    "video_time": hub.video_time,
+                    "timeline_stage": hub.timeline_stage
+                }).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
 
         # Explicit Camera Start Endpoint
         if self.path == "/api/yolo/start":
