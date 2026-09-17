@@ -363,10 +363,14 @@ def compute_kinematics(
         com_x = (sh_mid_x + hip_mid_x) / 2.0
         com_y = (sh_mid_y + hip_mid_y) / 2.0
 
+        dx_sh = abs(kp[5][0] - kp[6][0])
+        dy_sh = abs(kp[5][1] - kp[6][1]) + 1e-5
+        shoulder_tilt_deg = math.degrees(math.atan2(dy_sh, max(dx_sh, 1.0)))
+
         dx = abs(sh_mid_x - hip_mid_x)
         dy = abs(sh_mid_y - hip_mid_y) + 1e-5
-        angle_rad = math.atan2(dx, dy)
-        torso_angle_deg = round(math.degrees(angle_rad), 1)
+        torso_angle_hips = math.degrees(math.atan2(dx, dy))
+        torso_angle_deg = round(max(torso_angle_hips, shoulder_tilt_deg * 0.8), 1)
     elif has_shoulders:
         sh_mid_x = (kp[5][0] + kp[6][0]) / 2.0
         sh_mid_y = (kp[5][1] + kp[6][1]) / 2.0
