@@ -1848,3 +1848,13 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
      - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
    - Verified prototype server operational on port 8080 (`/api/health` 200 OK).
+
+---
+
+## 2026-09-17 (Day 9 — Diagnostic: Website Not Running Investigation)
+
+### What the user asked:
+- "why is the website not running at all?"
+
+### In Progress:
+- Investigating local Node server (port 8080), background processes, Vercel cloud deployment (`rejivan2.vercel.app`), browser console/Babel errors, and bundle integrity.
