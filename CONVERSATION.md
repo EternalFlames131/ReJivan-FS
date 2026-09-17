@@ -1879,3 +1879,15 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      - Local server (`http://127.0.0.1:8080/api/health`): 200 OK (`{"ok":true,"service":"ReJivan"}`).
      - Vercel cloud (`https://rejivan2.vercel.app/api/health`): 200 OK (`{"ok":true,"service":"ReJivan"}`).
    - Git working tree clean; auto-committed, auto-pushed to GitHub main, and auto-deployed to Vercel production.
+
+---
+
+## 2026-09-17 (Day 9 — Browser Camera Integration & Motion Detection Troubleshooting)
+
+### What the user asked:
+- "live is using phone camera it is ok but add browser camera as well, why is motion detection not working?"
+- 1. The user observes that the live camera opened their phone camera (via local hardware/Windows link) and asks to add the browser camera as well (with camera selection/toggle).
+- 2. Investigate why motion detection is currently not working or reacting, diagnose the root cause, and fix it so motion detection and pose tracking respond properly to physical movements.
+
+### In Progress:
+- Investigating `CameraZonesView.jsx`, `yolo_edge_sentinel.py`, `camera_providers.py`, and browser optical/YOLO motion pipeline.
