@@ -41,6 +41,34 @@
     UNKNOWN: "UNKNOWN"
   });
 
+  // Unified Camera Source Abstraction
+  const CAMERA_SOURCES = Object.freeze({
+    LIVE_WEBCAM: "LIVE_WEBCAM",
+    RTSP_CAMERA: "RTSP_CAMERA",
+    PRERECORDED_VIDEO: "PRERECORDED_VIDEO"
+  });
+
+  const CAMERA_LIFECYCLE = Object.freeze({
+    CAMERA_OFFLINE: "CAMERA_OFFLINE",
+    CAMERA_STARTING: "CAMERA_STARTING",
+    CAMERA_CALIBRATING: "CAMERA_CALIBRATING",
+    MONITORING: "MONITORING",
+    PAUSED: "PAUSED",
+    VIDEO_ENDED: "VIDEO_ENDED"
+  });
+
+  // Demonstration Timeline Stages
+  const PRERECORDED_STAGES = Object.freeze([
+    { id: "STAGE_RESTING", label: "Normal In-Bed Resting", state: "NORMAL", step: 1 },
+    { id: "STAGE_BED_EDGE", label: "Bed-Edge Sitting", state: "NORMAL", step: 2 },
+    { id: "STAGE_DESCENT", label: "Suspected Descent", state: "ANOMALY", step: 3 },
+    { id: "STAGE_CONTACT", label: "Floor Contact / Fall", state: "CONTACT_OR_FALL", step: 4 },
+    { id: "STAGE_RECOVERY", label: "Recovery Monitoring", state: "RECOVERY_MONITORING", step: 5 },
+    { id: "STAGE_VERIFY", label: "Resident Verification", state: "VERIFICATION", step: 6 },
+    { id: "STAGE_ESCALATED", label: "High-Risk Escalation", state: "ESCALATED", step: 7 },
+    { id: "STAGE_RESOLVED", label: "Upright Recovery / Resolved", state: "RESOLVED", step: 7 }
+  ]);
+
   /**
    * Personal Baseline Tracker
    * Maintains running averages of resident normal behavior to evaluate individual deviations
@@ -139,6 +167,9 @@
       postStillnessSeconds = 0,    // seconds elapsed motionless
       chairBedProximity = false,   // near recognized furniture
       bedProximity = false,        // near bed
+      isFloorLevel = false,        // confirmed situated at floor level
+      isBedLevel = false,          // confirmed resting within elevated bed boundary
+      isStartupCalibrating = false,// sensor startup auto-exposure / calibration phase
       isKneeling = false,          // knees on floor with upright torso
       wristOscillationHz = 0,      // frequency of tremor/jitter (3-8 Hz)
       recoveryObserved = false,    // stood back up or upright recovery restored
@@ -150,6 +181,29 @@
     const supporting = [];
     const counter = [];
     const hypotheses = [];
+
+    // Check for Sensor Calibration Startup Gate (Suppresses all alerts during initial auto-exposure/calibration)
+    if (isStartupCalibrating) {
+      hypotheses.push({
+        id: "H_CALIB",
+        mechanism: MECHANISMS.NORMAL_ACTIVITY,
+        label: "Sensor Calibration Phase",
+        score: 0.99,
+        confidence: 99,
+        severity: "NORMAL",
+        explanation: "Establishing spatial reference baseline and lighting calibration. Alert triggers inhibited."
+      });
+      return {
+        winningHypothesis: hypotheses[0],
+        allHypotheses: hypotheses,
+        detectionConfidence: 5,
+        mechanismConfidence: 98,
+        severityConfidence: 0,
+        supportingEvidence: ["Startup calibration active", "Spatial baseline acquiring"],
+        counterEvidence: ["Alert generation inhibited during calibration"],
+        counterfactualExplanation: "Camera startup in progress; temporal derivatives suppressed to avoid false startup alerts."
+      };
+    }
 
     // Check for UNKNOWN / DEGRADED condition
     if (trackingQuality < 0.40 || sensorConflict) {
@@ -176,7 +230,7 @@
 
     // Evaluate H1: Fall (Accidental / Uncontrolled)
     let hFallScore = 0.05;
-    if (downwardVelocity < -1.1) {
+    if (downwardVelocity < -1.0) {
       hFallScore += 0.35;
       supporting.push(`High downward velocity (${downwardVelocity} m/s)`);
     } else {
@@ -194,13 +248,21 @@
     } else {
       counter.push(`Zero impact deceleration shock (${impactShockG}g)`);
     }
+    if (isFloorLevel) {
+      hFallScore += 0.30;
+      supporting.push("Body situated at floor level outside designated sleep area");
+    }
+    if (isBedLevel) {
+      hFallScore -= 0.35;
+      counter.push("Patient situated within elevated care bed perimeter");
+    }
     // Negative evidence: chair proximity reduces accidental fall
     if (chairBedProximity || bedProximity) {
-      hFallScore -= 0.30;
+      hFallScore -= 0.25;
       counter.push("Proximity to recognized seating/bed furniture rules against uncontrolled fall");
     }
     if (recoveryObserved) {
-      hFallScore -= 0.35;
+      hFallScore -= 0.40;
       counter.push("Immediate upright postural recovery observed (<5s)");
     }
     hFallScore = Math.max(0.01, Math.min(0.99, hFallScore));
@@ -219,22 +281,35 @@
       hSitScore += 0.20;
       supporting.push("Smooth contact with zero ground impact shock");
     }
-    if (chairBedProximity) {
-      hSitScore += 0.25;
-      supporting.push("Armchair/couch perimeter corroborated");
+    if (chairBedProximity || (isBedLevel && torsoAngle < 35)) {
+      hSitScore += 0.30;
+      supporting.push("Bed-edge / armchair perimeter corroborated with upright balance");
+    }
+    if (isFloorLevel) {
+      hSitScore -= 0.30;
     }
     hSitScore = Math.max(0.01, Math.min(0.99, hSitScore));
 
     // Evaluate H3: Intentional Lying / Bed Rest
     let hLyingScore = 0.05;
-    if (bedProximity || chairBedProximity) hLyingScore += 0.40;
-    if (torsoAngle > 60 && downwardVelocity > -0.6) hLyingScore += 0.35;
+    if (isBedLevel || bedProximity || chairBedProximity) {
+      hLyingScore += 0.40;
+      if (isBedLevel) supporting.push("Patient positioned within designated care bed perimeter");
+    }
+    if (torsoAngle > 50 && downwardVelocity > -0.6) {
+      hLyingScore += 0.35;
+      supporting.push("Reclining supine body orientation with nominal velocity");
+    }
     if (impactShockG < 1.3) hLyingScore += 0.20;
+    if (isFloorLevel) {
+      hLyingScore -= 0.40;
+      counter.push("Floor level contact indicates bed-exit / collapse rather than bed rest");
+    }
     hLyingScore = Math.max(0.01, Math.min(0.99, hLyingScore));
 
     // Evaluate H4: Kneeling / Floor Task
     let hKneelScore = 0.05;
-    if (isKneeling || (torsoAngle < 35 && downwardVelocity > -0.7)) hKneelScore += 0.40;
+    if (isKneeling || (torsoAngle < 35 && downwardVelocity > -0.7 && isFloorLevel)) hKneelScore += 0.40;
     if (impactShockG < 1.4) hKneelScore += 0.25;
     hKneelScore = Math.max(0.01, Math.min(0.99, hKneelScore));
 
@@ -252,8 +327,19 @@
 
     // Evaluate H7: Fall with Prolonged Immobility
     let hImmobileScore = 0.05;
-    if (hFallScore > 0.6 && postStillnessSeconds > 15) hImmobileScore += 0.60;
-    if (torsoAngle > 65 && !recoveryObserved && postStillnessSeconds > 10) hImmobileScore += 0.35;
+    if (isFloorLevel && !recoveryObserved) {
+      if (postStillnessSeconds >= 3.0) {
+        hImmobileScore += 0.65;
+        supporting.push(`Persistent floor immobility (${Math.round(postStillnessSeconds)}s) exceeds grace window`);
+      } else if (postStillnessSeconds >= 1.0) {
+        hImmobileScore += 0.35;
+      }
+    } else if (hFallScore > 0.6 && postStillnessSeconds > 15) {
+      hImmobileScore += 0.60;
+    }
+    if (torsoAngle > 50 && isFloorLevel && !recoveryObserved && postStillnessSeconds > 2.0) {
+      hImmobileScore += 0.30;
+    }
     hImmobileScore = Math.max(0.01, Math.min(0.99, hImmobileScore));
 
     // Evaluate H8: Device Drop (IMU shock without vision collapse)
@@ -400,12 +486,61 @@
     }
   }
 
+  /**
+   * Dynamically determines current Demonstration Timeline Stage based on physical evidence
+   */
+  function determineStageFromEvidence(evidence = {}) {
+    const {
+      isStartupCalibrating = false,
+      isBedLevel = false,
+      isFloorLevel = false,
+      torsoAngle = 10,
+      downwardVelocity = -0.1,
+      postStillnessSeconds = 0,
+      recoveryObserved = false,
+      videoEnded = false
+    } = evidence;
+
+    if (videoEnded) {
+      return { id: "STAGE_RESOLVED", label: "Demonstration Concluded / Idle", state: "RESOLVED", color: "slate" };
+    }
+    if (recoveryObserved) {
+      return { id: "STAGE_RESOLVED", label: "Upright Postural Recovery Restored", state: "RESOLVED", color: "teal" };
+    }
+    if (isStartupCalibrating) {
+      return { id: "STAGE_RESTING", label: "Camera Calibrating Spatial Baseline", state: "NORMAL", color: "slate" };
+    }
+    if (isFloorLevel && postStillnessSeconds >= 3.0) {
+      return { id: "STAGE_VERIFY", label: "Resident Verification Active (High Risk)", state: "VERIFICATION", color: "purple" };
+    }
+    if (isFloorLevel && postStillnessSeconds >= 1.0) {
+      return { id: "STAGE_RECOVERY", label: "Post-Impact Recovery Monitoring", state: "RECOVERY_MONITORING", color: "orange" };
+    }
+    if (isFloorLevel || (downwardVelocity < -0.85 && torsoAngle > 45)) {
+      return { id: "STAGE_CONTACT", label: "Floor Contact / Impact Transition", state: "CONTACT_OR_FALL", color: "rose" };
+    }
+    if (downwardVelocity < -0.65 || (isBedLevel && torsoAngle > 35 && downwardVelocity < -0.4)) {
+      return { id: "STAGE_DESCENT", label: "Suspected Descent / Motion Toward Floor", state: "ANOMALY", color: "amber" };
+    }
+    if (isBedLevel && torsoAngle <= 35) {
+      return { id: "STAGE_BED_EDGE", label: "Bed-Edge Sitting / Controlled Posture", state: "NORMAL", color: "blue" };
+    }
+    if (isBedLevel && torsoAngle > 35) {
+      return { id: "STAGE_RESTING", label: "Normal In-Bed Resting (Supine)", state: "NORMAL", color: "emerald" };
+    }
+    return { id: "STAGE_RESTING", label: "Normal Ambulation / Resting", state: "NORMAL", color: "emerald" };
+  }
+
   return {
     KEYPOINTS,
     MECHANISMS,
+    CAMERA_SOURCES,
+    CAMERA_LIFECYCLE,
+    PRERECORDED_STAGES,
     PersonalBaselineTracker,
     analyzePoseGeometry,
     evaluateHypotheses,
+    determineStageFromEvidence,
     generateChronologicalTimeline
   };
 });

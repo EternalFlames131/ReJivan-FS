@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "scenarioId": "SCENARIO_BED_FALL_01",
+  "title": "Hospital Ward Bed-Fall Clinical Demonstration Scenario",
+  "description": "Authentic multi-stage hospital surveillance video depicting an elderly patient resting, waking to sit at bed edge, experiencing loss of balance, and collapsing onto the floor with post-impact immobility.",
+  "asset": {
+    "filename": "patient_bed_fall_demo.mp4",
+    "localPath": "video/patient_bed_fall_demo.mp4",
+    "webPath": "/videos/patient_bed_fall_demo.mp4",
+    "durationSeconds": 14.76,
+    "totalFrames": 369,
+    "fps": 25.0,
+    "resolution": "1280x720",
+    "cameraPerspective": "WARD_OVERHEAD_ANGLED"
+  },
+  "groundTruthTimeline": [
+    {
+      "stageId": "STAGE_RESTING",
+      "startTime": 0.0,
+      "endTime": 3.5,
+      "label": "Normal Resting in Bed",
+      "expectedMechanism": "INTENTIONAL_LYING",
+      "expectedState": "NORMAL",
+      "expectedRisk": "SAFE",
+      "clinicalNotes": "Patient Anita Sharma supine in bed within mattress perimeter; zero downward velocity; stable vitals."
+    },
+    {
+      "stageId": "STAGE_BED_EDGE",
+      "startTime": 3.5,
+      "endTime": 7.5,
+      "label": "Bed-Edge Sitting",
+      "expectedMechanism": "INTENTIONAL_SITTING",
+      "expectedState": "NORMAL",
+      "expectedRisk": "SAFE",
+      "clinicalNotes": "Patient sits up and pivots legs to bed perimeter; spine upright (~18°); controlled muscular transfer. Must NOT trigger false alarm."
+    },
+    {
+      "stageId": "STAGE_DESCENT",
+      "startTime": 7.5,
+      "endTime": 8.8,
+      "label": "Suspected Descent",
+      "expectedMechanism": "LOSS_OF_BALANCE",
+      "expectedState": "ANOMALY",
+      "expectedRisk": "CAUTION",
+      "clinicalNotes": "Patient slips forward off mattress edge; vertical velocity spikes downward (>1.0 m/s); body center of mass descends."
+    },
+    {
+      "stageId": "STAGE_CONTACT",
+      "startTime": 8.8,
+      "endTime": 9.8,
+      "label": "Floor Contact / Impact Collapse",
+      "expectedMechanism": "FALL",
+      "expectedState": "CONTACT_OR_FALL",
+      "expectedRisk": "HIGH_RISK",
+      "clinicalNotes": "Impact transition with floor boundary; torso orientation collapses to horizontal (56-60°); kinetic energy collapses."
+    },
+    {
+      "stageId": "STAGE_RECOVERY",
+      "startTime": 9.8,
+      "endTime": 12.5,
+      "label": "Recovery Observation Window",
+      "expectedMechanism": "FALL",
+      "expectedState": "RECOVERY_MONITORING",
+      "expectedRisk": "HIGH_RISK",
+      "clinicalNotes": "System monitors whether patient self-rights or remains immobile; no postural recovery observed."
+    },
+    {
+      "stageId": "STAGE_VERIFY",
+      "startTime": 12.5,
+      "endTime": 14.76,
+      "label": "Resident Verification & Acute High-Risk",
+      "expectedMechanism": "FALL_WITH_IMMOBILITY",
+      "expectedState": "VERIFICATION",
+      "expectedRisk": "HIGH_RISK",
+      "clinicalNotes": "Unrecovered floor immobility exceeds threshold; resident verification check-in modal displayed on screen; escalation ladder armed."
+    },
+    {
+      "stageId": "STAGE_ENDED",
+      "startTime": 14.76,
+      "endTime": 999.0,
+      "label": "Video Concluded / Standby",
+      "expectedMechanism": "NORMAL_ACTIVITY",
+      "expectedState": "MONITORING_IDLE",
+      "expectedRisk": "SAFE",
+      "clinicalNotes": "Video playback concludes; camera transitions cleanly to idle monitoring rather than infinite emergency loop."
+    }
+  ],
+  "expectedOutcome": {
+    "verifiedIncident": true,
+    "primaryMechanism": "FALL_WITH_IMMOBILITY",
+    "finalRiskLevel": "HIGH_RISK",
+    "verificationTriggered": true,
+    "falseAlarmSuppressedAtStartup": true,
+    "bedEdgeSittingSuppressed": true
+  },
+  "evaluationNotes": "This metadata is strictly for offline validation and benchmark reporting. Runtime inference pipeline must independently derive physical kinematics from frame data without consulting this file."
+}
