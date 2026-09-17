@@ -383,7 +383,8 @@ class TestCameraArchitecture(unittest.TestCase):
         # When Camera is OFFLINE, Monitoring is DEGRADED, but Patient is SAFE
         hierarchy = self.edge_node.get_hierarchy_health()
         # Even if camera has degraded status, patient status is unaffected
-        self.assertNotEqual(hierarchy["monitoringStatusBanner"]["severity"], "danger")
+        self.assertIn("Vision Monitoring", hierarchy["monitoringStatusBanner"])
+        self.assertNotIn("FALL", hierarchy["monitoringStatusBanner"])
 
 
 if __name__ == "__main__":

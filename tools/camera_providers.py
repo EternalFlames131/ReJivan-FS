@@ -800,6 +800,10 @@ class PrerecordedVideoSource(CameraSource):
         self.video_duration = 14.76
         self.video_time = 0.0
 
+    @property
+    def is_paused(self) -> bool:
+        return self.playback_state == "PAUSED"
+
     def open(self) -> bool:
         if not os.path.exists(self.video_path):
             self.lifecycle_state = CameraLifecycleState.OFFLINE
@@ -975,10 +979,10 @@ class EdgeNode:
         self.active_camera_id: Optional[str] = None
         self.lock = threading.Lock()
 
-    def register_camera(self, source: CameraSource):
+    def register_camera(self, source: CameraSource, set_active: bool = False):
         with self.lock:
             self.cameras[source.camera_id] = source
-            if self.active_camera_id is None:
+            if self.active_camera_id is None or set_active:
                 self.active_camera_id = source.camera_id
             logger.info(f"Registered camera [{source.camera_id}] ({source.camera_name}) under edge {self.edge_id}.")
 
