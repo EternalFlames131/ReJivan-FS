@@ -570,3 +570,42 @@ const EyeOff = (props) => (
   />
 );
 
+const Play = (props) => (
+  <IconBase
+    {...props}
+    d={<polygon points="5 3 19 12 5 21 5 3" />}
+  />
+);
+
+const Pause = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <rect width="4" height="16" x="6" y="4" />
+        <rect width="4" height="16" x="14" y="4" />
+      </>
+    }
+  />
+);
+
+const Square = (props) => (
+  <IconBase
+    {...props}
+    d={<rect width="18" height="18" x="3" y="3" rx="2" />}
+  />
+);
+
+const RotateCcw = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+      </>
+    }
+  />
+);
+
+
