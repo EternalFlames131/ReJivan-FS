@@ -295,8 +295,25 @@ class CameraSource:
             "resolution": f"{self.resolution[0]}x{self.resolution[1]}",
             "targetFps": self.target_fps,
             "enabled": self.enabled,
-            "lifecycleState": self.lifecycle_state
+            "lifecycleState": self.lifecycle_state,
+            "state": self.lifecycle_state
         }
+
+    @property
+    def state(self) -> str:
+        return self.lifecycle_state
+
+    @state.setter
+    def state(self, value: str):
+        self.lifecycle_state = value
+
+    @property
+    def health(self) -> FrameHealthMetrics:
+        return self.health_metrics
+
+    @property
+    def is_opened(self) -> bool:
+        return self.lifecycle_state in [CameraLifecycleState.ONLINE, CameraLifecycleState.CALIBRATING]
 
 # =============================================================================
 # 5. IMPLEMENTATION: LocalWebcamSource
@@ -562,6 +579,42 @@ class RtspCctvSource(CameraSource):
                 logger.error(f"[{self.camera_id}] RTSP open exception: {e}")
                 return False
 
+    def _handle_connection_loss(self, reason: str = "Connection lost"):
+        """Handles stream failure, releases capture, resets tracking context, and enters backoff."""
+        now = time.time()
+        if self.cap is not None:
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+            self.cap = None
+        self._reconnect_attempt += 1
+        self.health_metrics.reconnect_count += 1
+        self.health_metrics.last_error = reason
+        # Critical safety: Reset tracking state across reconnect boundary
+        self.tracking_context.reset()
+        if self._reconnect_attempt > self.max_reconnect_attempts:
+            self.lifecycle_state = CameraLifecycleState.OFFLINE
+            self.health_metrics.last_error = f"Max retries ({self.max_reconnect_attempts}) reached: {reason}"
+        else:
+            self.lifecycle_state = CameraLifecycleState.RECONNECTING
+            delay = min(self.max_backoff_sec, self.base_backoff_sec * (1.5 ** self._reconnect_attempt))
+            self._next_reconnect_time = now + delay
+
+    def _detect_duplicate_frame(self, frame: Any) -> bool:
+        """Detects whether incoming frame is identical to previous sample."""
+        if frame is None or np is None:
+            return False
+        frame_sample = frame[::32, ::32, 0] # fast subsample
+        frame_hash = int(np.sum(frame_sample))
+        is_dup = (self._last_frame_hash is not None and frame_hash == self._last_frame_hash)
+        self._last_frame_hash = frame_hash
+        if is_dup:
+            self.health_metrics.is_frozen = True
+        else:
+            self.health_metrics.is_frozen = False
+        return is_dup
+
     def read_frame(self) -> Optional[NormalizedFrame]:
         now = time.time()
 
@@ -572,19 +625,10 @@ class RtspCctvSource(CameraSource):
             logger.info(f"[{self.camera_id}] Executing RTSP reconnect attempt {self._reconnect_attempt}/{self.max_reconnect_attempts}...")
             success = self.open()
             if success:
-                self.health_metrics.reconnect_count += 1
                 logger.info(f"[{self.camera_id}] RTSP reconnection SUCCEEDED. Reset tracking state to suppress false motion.")
                 return None
             else:
-                self._reconnect_attempt += 1
-                if self._reconnect_attempt > self.max_reconnect_attempts:
-                    self.lifecycle_state = CameraLifecycleState.OFFLINE
-                    self.health_metrics.last_error = "Max reconnect attempts reached. Stream marked OFFLINE."
-                    logger.error(f"[{self.camera_id}] RTSP stream unreachable after {self.max_reconnect_attempts} attempts. Infrastructure OFFLINE.")
-                else:
-                    delay = min(self.max_backoff_sec, self.base_backoff_sec * (1.5 ** self._reconnect_attempt))
-                    self._next_reconnect_time = now + delay
-                    logger.warning(f"[{self.camera_id}] Reconnect failed. Backing off for {delay:.1f}s...")
+                self._handle_connection_loss("RTSP reconnect attempt failed")
                 return None
 
         if self.cap is None or not self.cap.isOpened():
@@ -595,30 +639,14 @@ class RtspCctvSource(CameraSource):
             self.health_metrics.consecutive_decode_failures += 1
             if self.health_metrics.consecutive_decode_failures >= 8:
                 logger.warning(f"[{self.camera_id}] RTSP frame decode failure threshold reached. Initiating automatic reconnect...")
-                try:
-                    self.cap.release()
-                except Exception:
-                    pass
-                self.cap = None
-                self.lifecycle_state = CameraLifecycleState.RECONNECTING
-                # Critical safety: Reset tracking state across reconnect boundary
-                self.tracking_context.reset()
-                self._reconnect_attempt = 1
-                self._next_reconnect_time = now + self.base_backoff_sec
+                self._handle_connection_loss("Consecutive decode failures exceeded threshold")
             return None
 
         self.health_metrics.consecutive_decode_failures = 0
         self.health_metrics.total_frames_received += 1
 
         # Check for duplicate / frozen frames
-        frame_sample = frame[::32, ::32, 0] # fast subsample
-        frame_hash = int(np.sum(frame_sample)) if np is not None else 0
-        if self._last_frame_hash is not None and frame_hash == self._last_frame_hash:
-            # Frame is identical to previous: mark static, do not evaluate motion derivatives
-            is_duplicate = True
-        else:
-            is_duplicate = False
-        self._last_frame_hash = frame_hash
+        is_duplicate = self._detect_duplicate_frame(frame)
 
         # Frame timestamp continuity & gap protection
         prev_ts = self.health_metrics.last_frame_timestamp
@@ -983,6 +1011,11 @@ class EdgeNode:
                 return self.cameras[self.active_camera_id]
             return None
 
+    def get_tracking_context(self, camera_id: str) -> Optional[TrackingContext]:
+        with self.lock:
+            cam = self.cameras.get(camera_id)
+            return cam.tracking_context if cam else None
+
     def get_heartbeat(self, model_status: str = "ONLINE", inference_latency_ms: float = 18.0) -> Dict[str, Any]:
         """
         Generates heartbeat payload emitted every 2-5 seconds to the backend.
@@ -1002,6 +1035,7 @@ class EdgeNode:
                 "name": self.name,
                 "hostIdentifier": self.host_identifier,
                 "timestamp": now,
+                "status": edge_status,
                 "processStatus": edge_status,
                 "softwareVersion": self.software_version,
                 "modelStatus": model_status,

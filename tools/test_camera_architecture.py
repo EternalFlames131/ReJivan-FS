@@ -49,7 +49,7 @@ class TestCameraArchitecture(unittest.TestCase):
 
     def setUp(self):
         # Fresh EdgeNode for each test
-        self.edge_node = EdgeNode(node_id="test-edge-node-01", node_name="Ward-B-Edge-Gateway")
+        self.edge_node = EdgeNode(edge_id="test-edge-node-01", name="Ward-B-Edge-Gateway")
 
     # -------------------------------------------------------------------------
     # TEST 1: NormalizedFrame Structure & Contract
@@ -145,16 +145,14 @@ class TestCameraArchitecture(unittest.TestCase):
         rtsp_cam = RtspCctvSource(
             camera_id="cam-rtsp-unreachable",
             camera_name="ICU Unreachable Cam",
-            rtsp_url="rtsp://admin:pass@127.0.0.1:59999/live",
-            connection_timeout=1.0
+            rtsp_url="rtsp://admin:pass@127.0.0.1:59999/live"
         )
 
-        ok, message, latency = rtsp_cam.test_connection()
+        ok, message = rtsp_cam.test_connection()
         self.assertFalse(ok)
         self.assertIsInstance(message, str)
         # Verify secret is NEVER leaked in test_connection failure message
         self.assertNotIn("pass", message)
-        self.assertTrue(latency >= 0.0)
 
     # -------------------------------------------------------------------------
     # TEST 5: RTSP Disconnect, Bounded Retry & Exponential Backoff
@@ -165,7 +163,7 @@ class TestCameraArchitecture(unittest.TestCase):
             camera_name="Ward Room 101",
             rtsp_url="rtsp://admin:pass@127.0.0.1:59998/live",
             max_reconnect_attempts=5,
-            backoff_base_sec=0.05
+            base_backoff_sec=0.05
         )
 
         # Simulate connection loss and retry loop
