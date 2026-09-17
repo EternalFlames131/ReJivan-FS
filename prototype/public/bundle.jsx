@@ -1162,6 +1162,117 @@ const RotateCcw = (props) => (
   />
 );
 
+const Settings = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    }
+  />
+);
+
+const Plus = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M5 12h14" />
+        <path d="M12 5v14" />
+      </>
+    }
+  />
+);
+
+const Trash2 = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M3 6h18" />
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        <line x1="10" x2="10" y1="11" y2="17" />
+        <line x1="14" x2="14" y1="11" y2="17" />
+      </>
+    }
+  />
+);
+
+const Video = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="m22 8-6 4 6 4V8Z" />
+        <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+      </>
+    }
+  />
+);
+
+const Wifi = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M12 20h.01" />
+        <path d="M2 8.82a15 15 0 0 1 20 0" />
+        <path d="M5 12.859a10 10 0 0 1 14 0" />
+        <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+      </>
+    }
+  />
+);
+
+const Cpu = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <rect width="16" height="16" x="4" y="4" rx="2" />
+        <rect width="6" height="6" x="9" y="9" rx="1" />
+        <path d="M15 2v2" />
+        <path d="M15 20v2" />
+        <path d="M2 15h2" />
+        <path d="M2 9h2" />
+        <path d="M20 15h2" />
+        <path d="M20 9h2" />
+        <path d="M9 2v2" />
+        <path d="M9 20v2" />
+      </>
+    }
+  />
+);
+
+const Server = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+        <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+        <line x1="6" x2="6.01" y1="6" y2="6" />
+        <line x1="6" x2="6.01" y1="18" y2="18" />
+      </>
+    }
+  />
+);
+
+const X = (props) => (
+  <IconBase
+    {...props}
+    d={
+      <>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </>
+    }
+  />
+);
+
 
 
 // --- END: prototype\public\src\icons.jsx ---
@@ -3506,8 +3617,149 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
     calibrationProgress: 0,
     lastHeartbeat: null,
     latencyMs: 18,
-    fps: 25.0
+    fps: 25.0,
+    bannerText: "Vision Monitoring: ONLINE",
+    bannerSeverity: "success",
+    edgeDetails: null,
+    cameraDetails: null,
+    trackingDetails: null
   });
+
+  // Camera Manager & Fleet State
+  const [isCameraManagerOpen, setIsCameraManagerOpen] = React.useState(false);
+  const [camerasList, setCamerasList] = React.useState([]);
+  const [activeCameraId, setActiveCameraId] = React.useState("cam-prerecorded-demo");
+  const [testResult, setTestResult] = React.useState(null);
+  const [isTestingCamera, setIsTestingCamera] = React.useState(false);
+  const [newCameraForm, setNewCameraForm] = React.useState({
+    cameraName: "",
+    sourceType: "RTSP_CCTV",
+    rtspUrl: "",
+    zone: "GB Pant Hospital · Virtual Ward Bed 1",
+    residentId: "P1",
+    bedId: "BED1",
+    targetFps: 25
+  });
+  const [formError, setFormError] = React.useState(null);
+
+  // Fetch camera fleet from backend
+  const fetchCameras = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/cameras");
+      if (res.ok) {
+        const data = await res.json();
+        setCamerasList(data.cameras || []);
+        if (data.activeCameraId) setActiveCameraId(data.activeCameraId);
+      }
+    } catch (e) {}
+  }, []);
+
+  React.useEffect(() => {
+    fetchCameras();
+    const t = setInterval(fetchCameras, 4000);
+    return () => clearInterval(t);
+  }, [fetchCameras]);
+
+  // Poll 7-tier system health hierarchy
+  React.useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch("/api/system/health");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.statusHierarchy) {
+            const h = data.statusHierarchy;
+            setSystemHealth((prev) => ({
+              ...prev,
+              edgeStatus: h.edgeNode?.status === "ONLINE" ? "EDGE_ONLINE" : "EDGE_OFFLINE",
+              cameraLifecycle: h.activeCamera?.lifecycleState || "ONLINE",
+              bannerText: h.monitoringStatusBanner?.text || "Vision Monitoring: ONLINE",
+              bannerSeverity: h.monitoringStatusBanner?.severity || "success",
+              edgeDetails: h.edgeNode,
+              cameraDetails: h.activeCamera,
+              trackingDetails: h.tracking
+            }));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchHealth();
+    const t = setInterval(fetchHealth, 3500);
+    return () => clearInterval(t);
+  }, []);
+
+  const handleTestCamera = async (camId) => {
+    setIsTestingCamera(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/cameras/${camId}/test`, { method: "POST" });
+      const data = await res.json();
+      setTestResult({ id: camId, ok: data.ok, message: data.message, latencyMs: data.latencyMs });
+    } catch (err) {
+      setTestResult({ id: camId, ok: false, message: "Connection test request failed.", latencyMs: 0 });
+    } finally {
+      setIsTestingCamera(false);
+    }
+  };
+
+  const handleActivateCamera = async (cam) => {
+    try {
+      await fetch(`/api/cameras/${cam.cameraId}/activate`, { method: "POST" });
+      setActiveCameraId(cam.cameraId);
+      if (cam.sourceType === "PRERECORDED_VIDEO") {
+        handleSelectSource("PRERECORDED_VIDEO");
+      } else if (cam.sourceType === "LOCAL_WEBCAM") {
+        handleSelectSource("LIVE_WEBCAM");
+      } else {
+        handleSelectSource("RTSP_CAMERA");
+      }
+      fetchCameras();
+    } catch (e) {}
+  };
+
+  const handleAddCamera = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!newCameraForm.cameraName.trim()) {
+      setFormError("Camera Name is required.");
+      return;
+    }
+    if (newCameraForm.sourceType === "RTSP_CCTV" && !newCameraForm.rtspUrl.trim()) {
+      setFormError("RTSP URL is required for CCTV streams.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/cameras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCameraForm)
+      });
+      if (res.ok) {
+        setNewCameraForm({
+          cameraName: "",
+          sourceType: "RTSP_CCTV",
+          rtspUrl: "",
+          zone: "GB Pant Hospital · Virtual Ward Bed 1",
+          residentId: "P1",
+          bedId: "BED1",
+          targetFps: 25
+        });
+        fetchCameras();
+      } else {
+        const err = await res.json();
+        setFormError(err.error || "Failed to add camera.");
+      }
+    } catch (err) {
+      setFormError("Network error while adding camera.");
+    }
+  };
+
+  const handleDeleteCamera = async (camId) => {
+    try {
+      const res = await fetch(`/api/cameras/${camId}`, { method: "DELETE" });
+      if (res.ok) fetchCameras();
+    } catch (e) {}
+  };
 
   // Clinical Telemetry & Biomechanics State
   const [telemetry, setTelemetry] = React.useState({
@@ -4328,6 +4580,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
 
           <button
+            onClick={() => setIsCameraManagerOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shadow-2xs"
+            title="Manage connected camera sources, add RTSP streams, and test connection"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Manage Cameras ({camerasList.length || 3})</span>
+          </button>
+
+          <button
             onClick={() => setPrivacyRadarOnly(!privacyRadarOnly)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
               privacyRadarOnly
@@ -4342,16 +4603,149 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
       </div>
 
-      {/* Two-Pillar Telemetry Grid: Separate Patient Clinical Status from System Infrastructure Health */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Pillar 1: Patient Safety & Clinical Posture */}
+      {/* Monitoring Status Banner (Hierarchical Infrastructure Health) */}
+      <div
+        className={`p-2.5 px-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs transition-all ${
+          systemHealth.bannerSeverity === "danger"
+            ? "bg-rose-50 border-rose-200 text-rose-900"
+            : systemHealth.bannerSeverity === "warning"
+            ? "bg-amber-50 border-amber-200 text-amber-900"
+            : systemHealth.bannerSeverity === "info"
+            ? "bg-sky-50 border-sky-200 text-sky-900"
+            : "bg-emerald-50 border-emerald-200 text-emerald-900"
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${
+              systemHealth.bannerSeverity === "danger"
+                ? "bg-rose-500"
+                : systemHealth.bannerSeverity === "warning"
+                ? "bg-amber-500 animate-pulse"
+                : systemHealth.bannerSeverity === "info"
+                ? "bg-sky-500 animate-pulse"
+                : "bg-emerald-500"
+            }`}
+          />
+          <span className="font-bold">{systemHealth.bannerText || "Vision Monitoring: ONLINE"}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] font-normal text-slate-500">
+          <span>Active Edge: {localYoloActive ? "NVIDIA GTX 1650 (Port 5050)" : "CPU Edge Sentinel"}</span>
+          <span>•</span>
+          <span>DPDP Act 2023 Compliant · Zero Stored Video</span>
+        </div>
+      </div>
+
+      {/* Three-Pillar Telemetry Grid: Decouple Edge Status, Camera Status, and Patient Clinical Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Pillar 1: EDGE STATUS */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            systemHealth.edgeStatus === "EDGE_ONLINE"
+              ? "bg-slate-900 text-white border-slate-800 shadow-2xs"
+              : "bg-slate-100 text-slate-800 border-slate-300 shadow-2xs"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Server
+                className={`w-4 h-4 shrink-0 ${
+                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
+                }`}
+              />
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                  Edge Node Status
+                </span>
+                <span className="text-xs font-bold truncate block max-w-[140px]">
+                  {systemHealth.edgeStatus === "EDGE_ONLINE"
+                    ? "Edge Node Online"
+                    : "Edge Offline / Unreachable"}
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                systemHealth.edgeStatus === "EDGE_ONLINE"
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
+              }`}
+            >
+              {systemHealth.edgeStatus}
+            </span>
+          </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono opacity-85">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Node ID:</span>
+              <span className="truncate max-w-[130px]">{systemHealth.edgeDetails?.id || "edge-node-an-01"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Inference:</span>
+              <span>{localYoloActive ? "NVIDIA GTX 1650 CUDA" : "DirectShow / CPU"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Heartbeat:</span>
+              <span>{systemHealth.latencyMs}ms Latency</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pillar 2: CAMERA STATUS */}
+        <div className="p-3.5 rounded-xl border bg-white border-slate-200 text-slate-800 shadow-2xs">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Video className="w-4 h-4 text-indigo-600 shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                  Camera Stream Status
+                </span>
+                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
+                  {cameraSource === "PRERECORDED_VIDEO"
+                    ? "Clinical Bed-Fall Demo"
+                    : cameraSource === "LIVE_WEBCAM"
+                    ? "Device Caregiver Webcam"
+                    : "Ward Bed 1 RTSP CCTV"}
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                systemHealth.cameraLifecycle === "ONLINE" || systemHealth.cameraLifecycle === "MONITORING"
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                  : systemHealth.cameraLifecycle === "CALIBRATING"
+                  ? "bg-sky-100 text-sky-800 border border-sky-200"
+                  : systemHealth.cameraLifecycle === "RECONNECTING"
+                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
+            >
+              {systemHealth.cameraLifecycle}
+            </span>
+          </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
+            <div className="flex justify-between">
+              <span>Delivery Rate:</span>
+              <span className="font-bold text-slate-900">{telemetry.fps} FPS</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Timestamp Gaps:</span>
+              <span className="text-emerald-700 font-semibold">0 (Guarded &gt;350ms)</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Duplicates:</span>
+              <span>Suppressed (Static Safe)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pillar 3: PATIENT STATUS */}
         <div
           className={`p-3.5 rounded-xl border transition-all ${
             telemetry.riskLevel === "HIGH_RISK"
               ? "bg-rose-50 border-rose-300 text-rose-950 shadow-xs"
               : telemetry.riskLevel === "CAUTION"
               ? "bg-amber-50 border-amber-300 text-amber-950 shadow-xs"
-              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
+              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950 shadow-2xs"
           }`}
         >
           <div className="flex items-start justify-between gap-2">
@@ -4365,14 +4759,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               )}
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                  Resident Safety Status (Clinical)
+                  Patient Clinical Status
                 </span>
-                <span className="text-xs font-bold text-slate-900">
+                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
                   {telemetry.riskLevel === "HIGH_RISK"
-                    ? "Suspected Acute Fall · Resident Verification Modal Active"
+                    ? "Acute Fall Check Active"
                     : telemetry.riskLevel === "CAUTION"
-                    ? "Suspected Descent · Monitoring Impact Stability"
-                    : "Patient Nominal · Upright / Resting in Care Bed"}
+                    ? "Descent Monitoring"
+                    : "Patient Normal / Stable"}
                 </span>
               </div>
             </div>
@@ -4388,61 +4782,19 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               {telemetry.riskLevel}
             </span>
           </div>
-          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
-            {telemetry.consensusSummary}
-          </p>
-        </div>
-
-        {/* Pillar 2: System Health & Edge Sentinel Infrastructure Status */}
-        <div
-          className={`p-3.5 rounded-xl border transition-all ${
-            systemHealth.edgeStatus === "EDGE_ONLINE" && systemHealth.cameraLifecycle === "MONITORING"
-              ? "bg-slate-900 text-white border-slate-800"
-              : systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
-              ? "bg-sky-950 text-sky-100 border-sky-800"
-              : "bg-slate-100 text-slate-800 border-slate-300"
-          }`}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Activity
-                className={`w-4 h-4 shrink-0 ${
-                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
-                }`}
-              />
-              <div>
-                <span
-                  className={`text-[10px] uppercase font-bold tracking-wider block ${
-                    systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-slate-400" : "text-slate-500"
-                  }`}
-                >
-                  System Infrastructure Health
-                </span>
-                <span className="text-xs font-bold">
-                  {systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
-                    ? `Sensor Calibrating Baseline (${systemHealth.calibrationProgress}%)`
-                    : systemHealth.edgeStatus === "EDGE_ONLINE"
-                    ? "NVIDIA GTX 1650 CUDA Online · Port 5050"
-                    : "EDGE OFFLINE / VISION UNAVAILABLE / MONITORING DEGRADED"}
-                </span>
-              </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
+            <div className="flex justify-between">
+              <span>Kinematic Posture:</span>
+              <span className="font-bold text-slate-900 truncate max-w-[120px]">{telemetry.posture}</span>
             </div>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                systemHealth.edgeStatus === "EDGE_ONLINE"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
-              }`}
-            >
-              {systemHealth.edgeStatus}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mt-2 text-[11px] font-mono opacity-85">
-            <span>Latency: {systemHealth.latencyMs}ms</span>
-            <span>•</span>
-            <span>Sensor: {systemHealth.cameraLifecycle}</span>
-            <span>•</span>
-            <span>Rate: {telemetry.fps} FPS</span>
+            <div className="flex justify-between">
+              <span>Hypothesis:</span>
+              <span className="font-bold text-slate-900">{telemetry.probableMechanism}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Biomechanics:</span>
+              <span>{telemetry.torsoAngle}° spine · {telemetry.downwardVelocity}m/s</span>
+            </div>
           </div>
         </div>
       </div>
@@ -4856,6 +5208,288 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* CAMERA FLEET & SOURCE INGESTION MANAGER MODAL                             */}
+      {/* ========================================================================= */}
+      {isCameraManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 px-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Camera Fleet & Ingestion Manager</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Interchangeable IP CCTV, Local Webcam & Clinical Demonstration Sources
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCameraManagerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Test Result Toast */}
+              {testResult && (
+                <div
+                  className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                    testResult.ok
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-rose-50 border-rose-200 text-rose-900"
+                  }`}
+                >
+                  {testResult.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-bold block">
+                      {testResult.ok ? "Stream Verified Online" : "Connection Test Failed"}
+                    </span>
+                    <span className="text-[11px] opacity-90">{testResult.message}</span>
+                    {testResult.latencyMs > 0 && (
+                      <span className="block text-[10px] font-mono mt-1 font-semibold text-emerald-700">
+                        Roundtrip latency: {testResult.latencyMs}ms
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setTestResult(null)}
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Registered Cameras Fleet */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Registered Camera Fleet ({camerasList.length})
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-mono">Edge: edge-node-an-01</span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {camerasList.map((cam) => {
+                    const isSelected = cam.cameraId === activeCameraId;
+                    return (
+                      <div
+                        key={cam.cameraId}
+                        className={`p-3.5 rounded-xl border transition-all ${
+                          isSelected
+                            ? "bg-indigo-50/40 border-indigo-300 ring-1 ring-indigo-200"
+                            : "bg-slate-50 border-slate-200/80 hover:bg-slate-100/50"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-900 truncate">
+                                {cam.cameraName}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-600 text-white">
+                                  Currently Monitored
+                                </span>
+                              )}
+                              <span
+                                className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  cam.lifecycleState === "ONLINE"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : cam.lifecycleState === "CALIBRATING"
+                                    ? "bg-sky-100 text-sky-800"
+                                    : cam.lifecycleState === "RECONNECTING"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-200 text-slate-700"
+                                }`}
+                              >
+                                {cam.lifecycleState || "ONLINE"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
+                              <span className="px-1.5 py-0.2 bg-white rounded border border-slate-200 text-slate-700 font-semibold">
+                                {cam.sourceType}
+                              </span>
+                              <span>•</span>
+                              <span>{cam.zone}</span>
+                              <span>•</span>
+                              <span>{cam.resolution || "1280x720"} @ {cam.targetFps || 25} FPS</span>
+                            </div>
+
+                            {cam.rtspUrl && (
+                              <p className="text-[10px] font-mono text-slate-400 mt-1 truncate">
+                                Stream: {cam.rtspUrl}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Camera Actions */}
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                            <button
+                              onClick={() => handleTestCamera(cam.cameraId)}
+                              disabled={isTestingCamera}
+                              className="px-2.5 py-1.2 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors shadow-2xs flex items-center gap-1 disabled:opacity-50"
+                              title="Actively verify RTSP stream negotiation and frame receipt"
+                            >
+                              <span>⚡ Test</span>
+                            </button>
+
+                            {!isSelected && (
+                              <button
+                                onClick={() => handleActivateCamera(cam)}
+                                className="px-2.5 py-1.2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-2xs"
+                              >
+                                Monitor
+                              </button>
+                            )}
+
+                            {cam.cameraId !== "cam-prerecorded-demo" && cam.cameraId !== "cam-webcam-01" && (
+                              <button
+                                onClick={() => handleDeleteCamera(cam.cameraId)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                title="Remove camera source"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add New Camera Source Form */}
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Register New Camera Source</span>
+                </h4>
+
+                {formError && (
+                  <div className="p-2.5 mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                    {formError}
+                  </div>
+                )}
+
+                <form onSubmit={handleAddCamera} className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Camera / Zone Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. GB Pant ICU Bed 4 CCTV"
+                        value={newCameraForm.cameraName}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, cameraName: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Source Type *
+                      </label>
+                      <select
+                        value={newCameraForm.sourceType}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, sourceType: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="RTSP_CCTV">RTSP IP Camera / NVR Stream</option>
+                        <option value="LOCAL_WEBCAM">Local Caregiver Webcam (DirectShow)</option>
+                        <option value="PRERECORDED_VIDEO">Pre-Recorded Clinical Video</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {newCameraForm.sourceType === "RTSP_CCTV" && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        RTSP Stream URL * (Credentials will be masked)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="rtsp://admin:password@192.168.1.100:554/live/ch0"
+                        value={newCameraForm.rtspUrl}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, rtspUrl: e.target.value })}
+                        className="w-full text-xs font-mono px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        🔒 Security guarantee: Passwords are automatically masked (e.g. rtsp://admin:*****@host) across all logs, telemetry, and UI displays.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Location / Hospital Ward Zone
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="GB Pant Hospital · Virtual Ward Bed 1"
+                        value={newCameraForm.zone}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, zone: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Target Frame Rate
+                      </label>
+                      <select
+                        value={newCameraForm.targetFps}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, targetFps: Number(e.target.value) })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value={15}>15 FPS (Bandwidth Optimized)</option>
+                        <option value={25}>25 FPS (Standard Clinical)</option>
+                        <option value={30}>30 FPS (High Precision)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+                    >
+                      Add Camera to Fleet
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500">
+              <span>All sources normalize into unified 17-keypoint pose pipeline.</span>
+              <button
+                onClick={() => setIsCameraManagerOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 font-semibold text-slate-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

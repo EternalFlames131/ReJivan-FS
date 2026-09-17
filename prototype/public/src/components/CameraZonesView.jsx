@@ -1619,6 +1619,288 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* CAMERA FLEET & SOURCE INGESTION MANAGER MODAL                             */}
+      {/* ========================================================================= */}
+      {isCameraManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="p-4 px-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <Settings className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Camera Fleet & Ingestion Manager</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Interchangeable IP CCTV, Local Webcam & Clinical Demonstration Sources
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCameraManagerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Test Result Toast */}
+              {testResult && (
+                <div
+                  className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                    testResult.ok
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-rose-50 border-rose-200 text-rose-900"
+                  }`}
+                >
+                  {testResult.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-bold block">
+                      {testResult.ok ? "Stream Verified Online" : "Connection Test Failed"}
+                    </span>
+                    <span className="text-[11px] opacity-90">{testResult.message}</span>
+                    {testResult.latencyMs > 0 && (
+                      <span className="block text-[10px] font-mono mt-1 font-semibold text-emerald-700">
+                        Roundtrip latency: {testResult.latencyMs}ms
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setTestResult(null)}
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Registered Cameras Fleet */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Registered Camera Fleet ({camerasList.length})
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-mono">Edge: edge-node-an-01</span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {camerasList.map((cam) => {
+                    const isSelected = cam.cameraId === activeCameraId;
+                    return (
+                      <div
+                        key={cam.cameraId}
+                        className={`p-3.5 rounded-xl border transition-all ${
+                          isSelected
+                            ? "bg-indigo-50/40 border-indigo-300 ring-1 ring-indigo-200"
+                            : "bg-slate-50 border-slate-200/80 hover:bg-slate-100/50"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-900 truncate">
+                                {cam.cameraName}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-600 text-white">
+                                  Currently Monitored
+                                </span>
+                              )}
+                              <span
+                                className={`text-[9px] uppercase font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  cam.lifecycleState === "ONLINE"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : cam.lifecycleState === "CALIBRATING"
+                                    ? "bg-sky-100 text-sky-800"
+                                    : cam.lifecycleState === "RECONNECTING"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-200 text-slate-700"
+                                }`}
+                              >
+                                {cam.lifecycleState || "ONLINE"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
+                              <span className="px-1.5 py-0.2 bg-white rounded border border-slate-200 text-slate-700 font-semibold">
+                                {cam.sourceType}
+                              </span>
+                              <span>•</span>
+                              <span>{cam.zone}</span>
+                              <span>•</span>
+                              <span>{cam.resolution || "1280x720"} @ {cam.targetFps || 25} FPS</span>
+                            </div>
+
+                            {cam.rtspUrl && (
+                              <p className="text-[10px] font-mono text-slate-400 mt-1 truncate">
+                                Stream: {cam.rtspUrl}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Camera Actions */}
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                            <button
+                              onClick={() => handleTestCamera(cam.cameraId)}
+                              disabled={isTestingCamera}
+                              className="px-2.5 py-1.2 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors shadow-2xs flex items-center gap-1 disabled:opacity-50"
+                              title="Actively verify RTSP stream negotiation and frame receipt"
+                            >
+                              <span>⚡ Test</span>
+                            </button>
+
+                            {!isSelected && (
+                              <button
+                                onClick={() => handleActivateCamera(cam)}
+                                className="px-2.5 py-1.2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-2xs"
+                              >
+                                Monitor
+                              </button>
+                            )}
+
+                            {cam.cameraId !== "cam-prerecorded-demo" && cam.cameraId !== "cam-webcam-01" && (
+                              <button
+                                onClick={() => handleDeleteCamera(cam.cameraId)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                title="Remove camera source"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add New Camera Source Form */}
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Register New Camera Source</span>
+                </h4>
+
+                {formError && (
+                  <div className="p-2.5 mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                    {formError}
+                  </div>
+                )}
+
+                <form onSubmit={handleAddCamera} className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Camera / Zone Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. GB Pant ICU Bed 4 CCTV"
+                        value={newCameraForm.cameraName}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, cameraName: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Source Type *
+                      </label>
+                      <select
+                        value={newCameraForm.sourceType}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, sourceType: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="RTSP_CCTV">RTSP IP Camera / NVR Stream</option>
+                        <option value="LOCAL_WEBCAM">Local Caregiver Webcam (DirectShow)</option>
+                        <option value="PRERECORDED_VIDEO">Pre-Recorded Clinical Video</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {newCameraForm.sourceType === "RTSP_CCTV" && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        RTSP Stream URL * (Credentials will be masked)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="rtsp://admin:password@192.168.1.100:554/live/ch0"
+                        value={newCameraForm.rtspUrl}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, rtspUrl: e.target.value })}
+                        className="w-full text-xs font-mono px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        🔒 Security guarantee: Passwords are automatically masked (e.g. rtsp://admin:*****@host) across all logs, telemetry, and UI displays.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Location / Hospital Ward Zone
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="GB Pant Hospital · Virtual Ward Bed 1"
+                        value={newCameraForm.zone}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, zone: e.target.value })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                        Target Frame Rate
+                      </label>
+                      <select
+                        value={newCameraForm.targetFps}
+                        onChange={(e) => setNewCameraForm({ ...newCameraForm, targetFps: Number(e.target.value) })}
+                        className="w-full text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value={15}>15 FPS (Bandwidth Optimized)</option>
+                        <option value={25}>25 FPS (Standard Clinical)</option>
+                        <option value={30}>30 FPS (High Precision)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+                    >
+                      Add Camera to Fleet
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500">
+              <span>All sources normalize into unified 17-keypoint pose pipeline.</span>
+              <button
+                onClick={() => setIsCameraManagerOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 font-semibold text-slate-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
