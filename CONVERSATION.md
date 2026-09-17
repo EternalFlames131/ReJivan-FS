@@ -1709,3 +1709,33 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Visual status indicator: "CAMERA SOURCE: PRE-RECORDED DEMONSTRATION", source status panel, end-of-video idle handling, pause/restart reset.
 - Graceful degradation if YOLO is offline (EDGE OFFLINE / VISION UNAVAILABLE / MONITORING DEGRADED) with browser fallback.
 - Automated tests and demonstration event timeline with 3 confidence metrics (Detection, Mechanism, Severity) and incident reconstruction replay.
+
+### What was done (verified):
+1. **Unified Camera Source Abstraction & Pipeline Unification:**
+   - Pre-recorded demonstration video (`patient_bed_fall_demo.mp4`, 25.0 FPS, 369 frames) is treated as a virtual camera source (`PRERECORDED_VIDEO`) alongside `LIVE_WEBCAM` and `RTSP_CAMERA`.
+   - Sequential video timestamps ($t_{video} = \text{frame\_idx} / \text{fps}$) are computed for every frame, ensuring that kinematic velocity calculations ($\Delta y / \Delta t$) are mathematically invariant whether played at 0.5x, 1.0x, or 2.0x speed.
+   - Completely eradicated legacy hardcoded timestamps (`if (t >= 9.0)`) across the frontend; all state transitions, alarms, and hypothesis rankings are driven dynamically by live 17-point pose kinematics.
+
+2. **Temporal Kinematic Engine & Controlled Sitting Discrimination (`tools/yolo_edge_sentinel.py`):**
+   - Added sitting transfer classification (`velocity_down > 0.25 and torso_angle_deg <= 30.0 and not is_on_floor`), strictly classifying bed-edge sitting and chair transfers as `SAFE` / `INTENTIONAL_SITTING`.
+   - Added derivative protection for gaps and pause/resume cycles (`time_since_prev > 0.35` or `time_since_prev <= 0.001`), suppressing false velocity spikes upon user interaction.
+   - Clean end-of-video state transition to `VIDEO_ENDED` / `MONITORING_IDLE`, clearing active fall latches and preventing perpetual emergency loops.
+   - Added 3 decoupled confidence metrics: Detection Confidence (keypoint anatomical quality), Mechanism Confidence (Bayesian differentiation of fall vs sitting/lying), and Severity Confidence (unrecovered floor stillness duration).
+
+3. **Demonstration Interface & Verification Flow (`CameraZonesView.jsx`):**
+   - Source Selection Pill Tabs (`🎥 Pre-Recorded Hospital Demo`, `📹 Live Webcam`, `🏥 Ward RTSP CCTV`) with persistent source banner: `CAMERA SOURCE: PRE-RECORDED DEMONSTRATION`.
+   - Video Playback Controls: Start Monitoring, Pause, Stop, Restart, and Speed buttons (`0.5x`, `1.0x`, `2.0x`).
+   - Source Status Panel displaying 7 real-time telemetry parameters (Source, Video Time, FPS, YOLO Status, Tracking Status, Event State, Alert State).
+   - 7-Stage Progressive Demonstration Event Timeline:
+     `STAGE_RESTING` (0–3.5s) → `STAGE_BED_EDGE` (3.5–7.5s) → `STAGE_DESCENT` (7.5–8.8s) → `STAGE_CONTACT` (8.8–9.8s) → `STAGE_RECOVERY` (9.8–12.5s) → `STAGE_VERIFY` (12.5–14.8s) → `STAGE_RESOLVED`.
+   - 3 Confidence Meters (Detection, Mechanism, Severity) alongside dynamic Corroborating Evidence and Counter-Evidence panels.
+   - Automatic Resident Verification Modal ("Are you okay?") triggered upon prolonged floor immobility (>12.5s), with instant auto-cancellation when upright posture (<24°) is restored.
+   - Graceful degradation banner (`EDGE OFFLINE / VISION UNAVAILABLE / MONITORING DEGRADED`) if YOLO is unreachable, maintaining safety without false panic.
+
+4. **Automated Verification Results:**
+   - `tools/test_prerecorded_monitoring.py`: **13/13 Tests Passed (100%)** — covering abstraction, speed invariance, calibration guards, all 7 stages, 3 confidences, auto-cancellation, pause/resume gap protection, EOF transitions, and ground-truth scenario schema.
+   - `tools/test_fall_kinematics.py`: **7/7 Unit Tests Passed (100%)**.
+   - `tools/test_false_positive_lab.py`: **23/23 Scenarios Passed (100%)** with perfect false-positive suppression.
+   - Web application bundle compiled cleanly (`node tools/build_web.js` → 261,338 bytes).
+   - React DOM hydration and rendering verified via Microsoft Edge headless without console exceptions.
+

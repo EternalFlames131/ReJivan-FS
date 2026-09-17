@@ -41,7 +41,7 @@ A personal Prajñā nurse for every family — affordable health monitoring with
 5. To rebuild the PDF after editing `docs/source/ReJivan_doc_source.html`, run `pwsh -File tools\build_pdf.ps1`.
 
 ## Active Immediate Tasks (Live Tracking — crash-resilient)
-- [ ] Implement Unified Camera Source Abstraction & Prerecorded Video Monitoring Mode (YOLO11-Pose / client fallback, kinematic features, event reconstruction, 3-confidence metrics, resident verification, and demonstration UI with automated tests).
+- [x] Implement Unified Camera Source Abstraction & Prerecorded Video Monitoring Mode (YOLO11-Pose / client fallback, kinematic features, event reconstruction, 3-confidence metrics, resident verification, and demonstration UI with automated tests).
 - [x] Cleanse docs/ folder of existing PDF files and build comprehensive new unified documentation PDF (`docs/ReJivan_Features_And_Recommended_Fixes.pdf`) specifying all newly added features, system capabilities, and recommended technical fixes.
 - [x] Receive and analyze user's ChatGPT conversation (extracted 41 messages from https://chatgpt.com/share/6aa67ed9-f0e8-83e8-8c1b-66d55e423d8c).
 - [x] Create and present structured master plan (comparing ChatGPT ideas with current ReJivan implementation).

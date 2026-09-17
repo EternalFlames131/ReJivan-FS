@@ -335,11 +335,12 @@
   - **Built & Verified Production PDF (`docs/ReJivan_Features_And_Recommended_Fixes.pdf`):** Rendered 10-page master PDF (281,637 bytes) via Edge headless with clean print styling. Verified 100% pass across all 5 verification keywords via `tools/verify_pdf.py`.
   - **Updated Automation Pipelines:** Updated `tools/build_pdf.ps1`, `tools/build_features_pdf.ps1`, `tools/verify_pdf.py`, and `.githooks/pre-commit` to ensure future commits automatically regenerate and stage the new unified PDF.
 
-
-
-
-
-
-
-
-
+- **2026-09-17 10:15 | Unified Camera Source Abstraction & Prerecorded Video Monitoring Mode for Demonstration:**
+  - **Unified Camera Abstraction:** Designed camera-source abstraction supporting `PRERECORDED_VIDEO`, `LIVE_WEBCAM`, and `RTSP_CAMERA` under a single pipeline. Pre-recorded hospital fall video (`patient_bed_fall_demo.mp4`) feeds through the exact same real vision, temporal kinematics, hypothesis evaluation, resident verification, and alert ladder as a live camera.
+  - **Sequential Physical Timeline Invariance:** Decoupled kinematic derivatives from wall-clock time and playback speed (`t_video = frame_idx / fps`), maintaining mathematically invariant velocity calculations across 0.5x, 1x, and 2x speeds.
+  - **Zero Hardcoded Timestamps:** Completely eliminated legacy hardcoded `t >= 9.0` time triggers; alerts fire purely from 17-point pose features, center-of-mass vertical descent, and sustained floor immobility.
+  - **7-Stage Clinical Event Timeline & 3 Decoupled Confidence Metrics:** Implemented progressive stages (`STAGE_RESTING` -> `STAGE_BED_EDGE` -> `STAGE_DESCENT` -> `STAGE_CONTACT` -> `STAGE_RECOVERY` -> `STAGE_VERIFY` -> `STAGE_RESOLVED`), reporting independent Detection, Mechanism, and Severity confidences with supporting and counter-evidence.
+  - **Controlled Bed-Edge Sitting Classification:** Differentiated controlled sitting transfers (`INTENTIONAL_SITTING`) from falls, keeping upright seated postures classified as `SAFE`.
+  - **Resident Verification & Postural Recovery:** Wired 30-second resident check-in modal ("Are you okay?") on prolonged floor stillness, with instant auto-cancellation when upright recovery (<24° torso angle) is observed.
+  - **Temporal State Resilience:** Added pause/resume/restart gap protection preventing derivative spikes and clean transition to `VIDEO_ENDED` / `MONITORING_IDLE` at end-of-video.
+  - **Comprehensive Automated Verification:** 13/13 tests passed in `tools/test_prerecorded_monitoring.py` (100%), 7/7 passed in `tools/test_fall_kinematics.py`, and 23/23 passed in `tools/test_false_positive_lab.py`. Web bundle recompiled cleanly (261,338 bytes) and DOM rendering verified via headless Edge.
