@@ -380,10 +380,14 @@ def compute_kinematics(
         head_tilt_deg = 0.0
         if has_head:
             dx_h = abs(kp[0][0] - sh_mid_x)
-            dy_h = abs(kp[0][1] - sh_mid_y) + 1e-5
-            head_tilt_deg = math.degrees(math.atan2(dx_h, dy_h))
+            dy_h = sh_mid_y - kp[0][1] # Upright head is above shoulders (dy_h > 0)
+            if dy_h > 12.0:
+                head_tilt_deg = math.degrees(math.atan2(dx_h, dy_h))
+            else:
+                # Head dropped level with or below shoulders
+                head_tilt_deg = 45.0 + min(35.0, abs(dy_h) * 1.5)
 
-        torso_angle_deg = round(max(shoulder_tilt_deg * 0.7, head_tilt_deg * 0.7), 1)
+        torso_angle_deg = round(max(shoulder_tilt_deg, head_tilt_deg * 0.8), 1)
     else:
         com_x = kp[0][0]
         com_y = kp[0][1]
@@ -406,7 +410,8 @@ def compute_kinematics(
         else:
             dt = max(min(time_since_prev, 0.1), 0.015)
             dy_pixels = com_y - ctx.prev_com_y
-            if abs(dy_pixels) > (img_h * 0.35):
+            # Discard extreme optical teleports (>65% of screen in one frame)
+            if abs(dy_pixels) > (img_h * 0.65):
                 dy_pixels = 0.0
             instant_vel = (dy_pixels / img_h) / dt * 2.2
             ctx.smooth_velocity = 0.50 * instant_vel + 0.50 * ctx.smooth_velocity
