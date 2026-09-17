@@ -202,7 +202,7 @@ class SentinelHub:
 
 hub = SentinelHub()
 
-def compute_kinematics(keypoints, img_w, img_h, current_time):
+def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
     """
     Computes genuine physical biomechanics from COCO 17 keypoints:
     - Torso Angle theta (0 upright to 90 horizontal):
@@ -589,7 +589,14 @@ def compute_kinematics(keypoints, img_w, img_h, current_time):
         "risk_level": risk_level,
         "confidence": mech_conf,
         "hypothesis": hypothesis,
-        "canonical_event": canonical_event
+        "canonical_event": canonical_event,
+        "stage": stage,
+        "timeline_stage": stage,
+        "detection_confidence": det_conf,
+        "mechanism_confidence": mech_conf,
+        "severity_confidence": sev_conf,
+        "evidence": evidence,
+        "counter_evidence": counter_evidence
     }
 
 def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
