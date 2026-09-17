@@ -1739,3 +1739,26 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Web application bundle compiled cleanly (`node tools/build_web.js` → 261,338 bytes).
    - React DOM hydration and rendering verified via Microsoft Edge headless without console exceptions.
 
+---
+
+## 2026-09-17 (Day 9 — Clean Camera Ingestion Architecture & Interchangeable Camera Sources)
+
+### What the user asked:
+- Implement a clean camera-ingestion architecture decoupled from local webcam or a single YOLO process.
+- Support 3 interchangeable sources: `LOCAL_WEBCAM`, `RTSP_CCTV`, and `PRERECORDED_VIDEO`.
+- All three feed the exact same downstream pipeline: `CAMERA SOURCE → FRAME/TIMESTAMP NORMALIZATION → POSE INFERENCE → PERSON TRACKING → TEMPORAL FEATURE EXTRACTION → EVENT STATE MACHINE → PHYSICAL EVENT RECONSTRUCTION → HYPOTHESIS/COUNTERFACTUAL REASONING → SENSOR FUSION → RISK ENGINE → RECOVERY → RESIDENT VERIFICATION → ALERT/ESCALATION`.
+- Define `CameraSource` / `CameraProvider` abstraction with `LocalWebcamSource`, `RtspCctvSource`, and `PrerecordedVideoSource`.
+- Define normalized frame interface: frame data, timestamp, frame index, source ID, source type, dimensions, and source health metadata.
+- RTSP CCTV source must be a first-class production-style IP camera / NVR stream handled locally by the edge computer (no raw video to Vercel/cloud).
+- Secure camera configuration model (`cameraId`, `cameraName`, `sourceType`, `rtspUrl`, credential masking, `zone`, `residentId`/`bedId`, resolution, target FPS, enabled state). Never expose raw credentials in UI, logs, or API responses.
+- Camera Manager UI: add, edit, test connection, connect, disconnect, remove camera sources. "TEST CONNECTION" actually verifies frame receipt.
+- Explicit camera lifecycle states: `OFFLINE`, `CONNECTING`, `CALIBRATING`, `ONLINE`, `DEGRADED`, `RECONNECTING`, `LOW_LIGHT`, `OCCLUDED`, `FROZEN`, `STOPPED`.
+- Frame-health metrics (`lastFrameTimestamp`, received FPS, expected FPS, dropped frames, reconnect count, latency, frame age).
+- Edge-to-backend heartbeat (every 2-5s) with independent status hierarchy: `EdgeNode` → `Cameras` → `Vision Model` → `Tracking` → `Wearable/Sensor` → `Network` → `Database`.
+- Distinguish `EDGE STATUS`, `CAMERA STATUS`, and `PATIENT STATUS`. Camera/Edge disconnects or restarts must NEVER be interpreted as patient falls or emergencies!
+- Automatic RTSP reconnect with bounded retry and backoff, with tracking reset on reconnect boundary to avoid derivative spikes.
+- Frame gap derivative protection, duplicate frame motion suppression, standard RTSP URL compatibility.
+- Deployment topology documentation: IP CCTV/NVR → RTSP → ReJivan Edge Node → YOLO/Event Engine → structured telemetry → ReJivan Cloud/Dashboard.
+- Automated tests covering all lifecycle transitions, RTSP mock stream, disconnect/reconnect, edge timeout, multi-camera isolation, and false-alarm suppression.
+
+
