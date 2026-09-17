@@ -809,8 +809,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               method: "POST",
               headers: {
                 "Content-Type": "image/jpeg",
-                "X-Video-Timestamp": String(vTime),
-                "X-Source": cameraSource
+                "X-Video-Timestamp": String(nowSec),
+                "X-Source": cameraSource === "LIVE_WEBCAM" ? "browser_frame" : cameraSource
               },
               body: blob,
               signal: AbortSignal.timeout ? AbortSignal.timeout(1500) : undefined
@@ -962,6 +962,8 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
           let diffPixels = 0;
           let sumY = 0;
+          let sumX = 0;
+          let minX = sampleW, maxX = 0, minY = sampleH, maxY = 0;
 
           if (prevFrameDataRef.current) {
             const prev = prevFrameDataRef.current;
@@ -971,34 +973,86 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               if (Math.abs(lumCurr - lumPrev) > 10) {
                 diffPixels++;
                 const pIdx = i / 4;
-                sumY += Math.floor(pIdx / sampleW);
+                const px = pIdx % sampleW;
+                const py = Math.floor(pIdx / sampleW);
+                sumX += px;
+                sumY += py;
+                if (px < minX) minX = px;
+                if (px > maxX) maxX = px;
+                if (py < minY) minY = py;
+                if (py > maxY) maxY = py;
               }
             }
           }
           prevFrameDataRef.current = data;
 
           const totalPixels = sampleW * sampleH;
-          const motionPercent = Math.min(Math.round((diffPixels / (totalPixels * 0.15)) * 100), 100);
+          const motionPercent = Math.min(Math.round((diffPixels / (totalPixels * 0.12)) * 100), 100);
+          const centroidX = diffPixels > 0 ? (sumX / diffPixels) / sampleW : 0.5;
           const centroidY = diffPixels > 0 ? (sumY / diffPixels) / sampleH : 0.45;
 
-          // Kinematic calculation from video time delta
+          // Kinematic calculation from normalized delta
           let dy = 0.0;
-          const dt_video = lastProcessedVideoTime >= 0 ? Math.max(0.01, vTime - lastProcessedVideoTime) : 0.04;
-          lastProcessedVideoTime = vTime;
-
           if (prevCentroidYRef.current !== null) {
             dy = centroidY - prevCentroidYRef.current;
           }
           prevCentroidYRef.current = centroidY;
 
-          const downwardVelocity = Math.round((dy / dt_video) * 1.8 * 100) / 100;
+          const downwardVelocity = Math.round((dy / dt_kin) * 1.8 * 100) / 100;
           const isFloorLevel = centroidY > 0.65;
           const isBedLevel = centroidY <= 0.58;
 
           if (isFloorLevel && motionPercent < 15) {
-            floorStillnessSeconds += dt_video;
+            floorStillnessSeconds += dt_kin;
           } else if (!isFloorLevel) {
             floorStillnessSeconds = 0.0;
+          }
+
+          // Draw real-time optical motion tracking brackets and centroid crosshair
+          if (diffPixels > 8) {
+            const scaleX = width / sampleW;
+            const scaleY = height / sampleH;
+            const bX = minX * scaleX;
+            const bY = minY * scaleY;
+            const bW = Math.max(48, (maxX - minX + 1) * scaleX);
+            const bH = Math.max(64, (maxY - minY + 1) * scaleY);
+            const arm = Math.min(24, bW * 0.25);
+
+            const isHighEnergy = motionPercent > 55 || downwardVelocity > 1.2;
+            const isMedium = motionPercent > 20 || downwardVelocity > 0.5;
+            const boxColor = isHighEnergy ? "#F43F5E" : (isMedium ? "#38BDF8" : "#10B981");
+
+            ctx.strokeStyle = boxColor;
+            ctx.lineWidth = 2.5;
+
+            // Top-Left corner
+            ctx.beginPath(); ctx.moveTo(bX, bY + arm); ctx.lineTo(bX, bY); ctx.lineTo(bX + arm, bY); ctx.stroke();
+            // Top-Right corner
+            ctx.beginPath(); ctx.moveTo(bX + bW - arm, bY); ctx.lineTo(bX + bW); ctx.lineTo(bX + bW, bY + arm); ctx.stroke();
+            // Bottom-Left corner
+            ctx.beginPath(); ctx.moveTo(bX, bY + bH - arm); ctx.lineTo(bX, bY + bH); ctx.lineTo(bX + arm, bY + bH); ctx.stroke();
+            // Bottom-Right corner
+            ctx.beginPath(); ctx.moveTo(bX + bW - arm, bY + bH); ctx.lineTo(bX + bW); ctx.lineTo(bX + bW, bY + bH - arm); ctx.stroke();
+
+            // Center of Mass reticle crosshair
+            const cX = centroidX * width;
+            const cY = centroidY * height;
+            ctx.strokeStyle = boxColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(cX, cY, 8, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cX - 12, cY); ctx.lineTo(cX + 12, cY);
+            ctx.moveTo(cX, cY - 12); ctx.lineTo(cX, cY + 12);
+            ctx.stroke();
+
+            // Motion HUD label above box
+            ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+            ctx.fillRect(bX, Math.max(10, bY - 24), 190, 20);
+            ctx.fillStyle = boxColor;
+            ctx.font = "bold 10px monospace";
+            ctx.fillText(`OPTICAL MOTION: ${motionPercent}% | VEL: ${downwardVelocity.toFixed(1)}m/s`, bX + 6, Math.max(24, bY - 10));
           }
 
           // Evaluate using ReJivan Movement Engine
