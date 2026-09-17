@@ -991,6 +991,15 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
 
           <button
+            onClick={() => setIsCameraManagerOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shadow-2xs"
+            title="Manage connected camera sources, add RTSP streams, and test connection"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Manage Cameras ({camerasList.length || 3})</span>
+          </button>
+
+          <button
             onClick={() => setPrivacyRadarOnly(!privacyRadarOnly)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
               privacyRadarOnly
@@ -1005,16 +1014,149 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
       </div>
 
-      {/* Two-Pillar Telemetry Grid: Separate Patient Clinical Status from System Infrastructure Health */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Pillar 1: Patient Safety & Clinical Posture */}
+      {/* Monitoring Status Banner (Hierarchical Infrastructure Health) */}
+      <div
+        className={`p-2.5 px-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs transition-all ${
+          systemHealth.bannerSeverity === "danger"
+            ? "bg-rose-50 border-rose-200 text-rose-900"
+            : systemHealth.bannerSeverity === "warning"
+            ? "bg-amber-50 border-amber-200 text-amber-900"
+            : systemHealth.bannerSeverity === "info"
+            ? "bg-sky-50 border-sky-200 text-sky-900"
+            : "bg-emerald-50 border-emerald-200 text-emerald-900"
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${
+              systemHealth.bannerSeverity === "danger"
+                ? "bg-rose-500"
+                : systemHealth.bannerSeverity === "warning"
+                ? "bg-amber-500 animate-pulse"
+                : systemHealth.bannerSeverity === "info"
+                ? "bg-sky-500 animate-pulse"
+                : "bg-emerald-500"
+            }`}
+          />
+          <span className="font-bold">{systemHealth.bannerText || "Vision Monitoring: ONLINE"}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] font-normal text-slate-500">
+          <span>Active Edge: {localYoloActive ? "NVIDIA GTX 1650 (Port 5050)" : "CPU Edge Sentinel"}</span>
+          <span>•</span>
+          <span>DPDP Act 2023 Compliant · Zero Stored Video</span>
+        </div>
+      </div>
+
+      {/* Three-Pillar Telemetry Grid: Decouple Edge Status, Camera Status, and Patient Clinical Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Pillar 1: EDGE STATUS */}
+        <div
+          className={`p-3.5 rounded-xl border transition-all ${
+            systemHealth.edgeStatus === "EDGE_ONLINE"
+              ? "bg-slate-900 text-white border-slate-800 shadow-2xs"
+              : "bg-slate-100 text-slate-800 border-slate-300 shadow-2xs"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Server
+                className={`w-4 h-4 shrink-0 ${
+                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
+                }`}
+              />
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                  Edge Node Status
+                </span>
+                <span className="text-xs font-bold truncate block max-w-[140px]">
+                  {systemHealth.edgeStatus === "EDGE_ONLINE"
+                    ? "Edge Node Online"
+                    : "Edge Offline / Unreachable"}
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                systemHealth.edgeStatus === "EDGE_ONLINE"
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
+              }`}
+            >
+              {systemHealth.edgeStatus}
+            </span>
+          </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono opacity-85">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Node ID:</span>
+              <span className="truncate max-w-[130px]">{systemHealth.edgeDetails?.id || "edge-node-an-01"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Inference:</span>
+              <span>{localYoloActive ? "NVIDIA GTX 1650 CUDA" : "DirectShow / CPU"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Heartbeat:</span>
+              <span>{systemHealth.latencyMs}ms Latency</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pillar 2: CAMERA STATUS */}
+        <div className="p-3.5 rounded-xl border bg-white border-slate-200 text-slate-800 shadow-2xs">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Video className="w-4 h-4 text-indigo-600 shrink-0" />
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                  Camera Stream Status
+                </span>
+                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
+                  {cameraSource === "PRERECORDED_VIDEO"
+                    ? "Clinical Bed-Fall Demo"
+                    : cameraSource === "LIVE_WEBCAM"
+                    ? "Device Caregiver Webcam"
+                    : "Ward Bed 1 RTSP CCTV"}
+                </span>
+              </div>
+            </div>
+            <span
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                systemHealth.cameraLifecycle === "ONLINE" || systemHealth.cameraLifecycle === "MONITORING"
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                  : systemHealth.cameraLifecycle === "CALIBRATING"
+                  ? "bg-sky-100 text-sky-800 border border-sky-200"
+                  : systemHealth.cameraLifecycle === "RECONNECTING"
+                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                  : "bg-slate-100 text-slate-700 border border-slate-200"
+              }`}
+            >
+              {systemHealth.cameraLifecycle}
+            </span>
+          </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
+            <div className="flex justify-between">
+              <span>Delivery Rate:</span>
+              <span className="font-bold text-slate-900">{telemetry.fps} FPS</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Timestamp Gaps:</span>
+              <span className="text-emerald-700 font-semibold">0 (Guarded &gt;350ms)</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Duplicates:</span>
+              <span>Suppressed (Static Safe)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Pillar 3: PATIENT STATUS */}
         <div
           className={`p-3.5 rounded-xl border transition-all ${
             telemetry.riskLevel === "HIGH_RISK"
               ? "bg-rose-50 border-rose-300 text-rose-950 shadow-xs"
               : telemetry.riskLevel === "CAUTION"
               ? "bg-amber-50 border-amber-300 text-amber-950 shadow-xs"
-              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950"
+              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950 shadow-2xs"
           }`}
         >
           <div className="flex items-start justify-between gap-2">
@@ -1028,14 +1170,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               )}
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                  Resident Safety Status (Clinical)
+                  Patient Clinical Status
                 </span>
-                <span className="text-xs font-bold text-slate-900">
+                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
                   {telemetry.riskLevel === "HIGH_RISK"
-                    ? "Suspected Acute Fall · Resident Verification Modal Active"
+                    ? "Acute Fall Check Active"
                     : telemetry.riskLevel === "CAUTION"
-                    ? "Suspected Descent · Monitoring Impact Stability"
-                    : "Patient Nominal · Upright / Resting in Care Bed"}
+                    ? "Descent Monitoring"
+                    : "Patient Normal / Stable"}
                 </span>
               </div>
             </div>
@@ -1051,61 +1193,19 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
               {telemetry.riskLevel}
             </span>
           </div>
-          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
-            {telemetry.consensusSummary}
-          </p>
-        </div>
-
-        {/* Pillar 2: System Health & Edge Sentinel Infrastructure Status */}
-        <div
-          className={`p-3.5 rounded-xl border transition-all ${
-            systemHealth.edgeStatus === "EDGE_ONLINE" && systemHealth.cameraLifecycle === "MONITORING"
-              ? "bg-slate-900 text-white border-slate-800"
-              : systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
-              ? "bg-sky-950 text-sky-100 border-sky-800"
-              : "bg-slate-100 text-slate-800 border-slate-300"
-          }`}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Activity
-                className={`w-4 h-4 shrink-0 ${
-                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
-                }`}
-              />
-              <div>
-                <span
-                  className={`text-[10px] uppercase font-bold tracking-wider block ${
-                    systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-slate-400" : "text-slate-500"
-                  }`}
-                >
-                  System Infrastructure Health
-                </span>
-                <span className="text-xs font-bold">
-                  {systemHealth.cameraLifecycle === "CAMERA_CALIBRATING"
-                    ? `Sensor Calibrating Baseline (${systemHealth.calibrationProgress}%)`
-                    : systemHealth.edgeStatus === "EDGE_ONLINE"
-                    ? "NVIDIA GTX 1650 CUDA Online · Port 5050"
-                    : "EDGE OFFLINE / VISION UNAVAILABLE / MONITORING DEGRADED"}
-                </span>
-              </div>
+          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
+            <div className="flex justify-between">
+              <span>Kinematic Posture:</span>
+              <span className="font-bold text-slate-900 truncate max-w-[120px]">{telemetry.posture}</span>
             </div>
-            <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                systemHealth.edgeStatus === "EDGE_ONLINE"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
-              }`}
-            >
-              {systemHealth.edgeStatus}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mt-2 text-[11px] font-mono opacity-85">
-            <span>Latency: {systemHealth.latencyMs}ms</span>
-            <span>•</span>
-            <span>Sensor: {systemHealth.cameraLifecycle}</span>
-            <span>•</span>
-            <span>Rate: {telemetry.fps} FPS</span>
+            <div className="flex justify-between">
+              <span>Hypothesis:</span>
+              <span className="font-bold text-slate-900">{telemetry.probableMechanism}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Biomechanics:</span>
+              <span>{telemetry.torsoAngle}° spine · {telemetry.downwardVelocity}m/s</span>
+            </div>
           </div>
         </div>
       </div>
