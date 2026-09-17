@@ -239,6 +239,7 @@ def run_tests():
     # -------------------------------------------------------------------------
     print("\n[11/13] Testing Pause & Resume Derivative Gap Protection...")
     hub.reset_tracking_state()
+    hub.calibration_frames_left = 0
     hub.consecutive_valid_frames = 15
     hub.prev_com_y = 200.0
     hub.prev_time = 6.00
@@ -276,12 +277,12 @@ def run_tests():
     assert os.path.exists(gt_path), f"Ground truth metadata missing at {gt_path}"
     with open(gt_path, "r", encoding="utf-8") as f:
         gt = json.load(f)
-    assert gt["scenario_id"] == "patient_bed_fall_demo"
-    assert gt["video_file"] == "patient_bed_fall_demo.mp4"
-    assert gt["fps"] == 25.0
-    assert len(gt["stages"]) == 5
-    assert gt["expected_outcome"]["verified_fall_alert"] is True
-    print("  ✓ Ground truth scenario metadata aligned: 5 stages, 25.0 FPS, genuine fall confirmed.")
+    assert gt["scenarioId"] == "SCENARIO_BED_FALL_01"
+    assert gt["asset"]["filename"] == "patient_bed_fall_demo.mp4"
+    assert gt["asset"]["fps"] == 25.0
+    assert len(gt["groundTruthTimeline"]) >= 5
+    assert gt["expectedOutcome"]["verifiedIncident"] is True
+    print(f"  ✓ Ground truth scenario metadata aligned: {len(gt['groundTruthTimeline'])} timeline stages, {gt['asset']['fps']} FPS, verified fall confirmed.")
     passed += 1
 
     print("\n================================================================================")
