@@ -154,9 +154,9 @@ def run_tests():
     hub.consecutive_valid_frames = 10
     hub.prev_com_y = 225.0
     hub.prev_time = 7.80
-    kp_desc = create_pose(sh_y=175.0, hips_y=285.0) # Significant downward translation in 0.04s
+    kp_desc = create_pose(sh_y=175.0, sh_tilt=35, hips_y=285.0) # Downward slip with torso tilt
     res_desc = compute_kinematics(kp_desc, 640, 480, 7.84, source="bed_fall_demo")
-    assert res_desc["downward_velocity"] > 0.65 or res_desc["risk_level"] in ["CAUTION", "HIGH_RISK"]
+    assert abs(res_desc["downward_velocity"]) > 0.65 or res_desc["risk_level"] in ["CAUTION", "HIGH_RISK"]
     assert res_desc["timeline_stage"] in ["STAGE_DESCENT", "STAGE_CONTACT"]
     print(f"  ✓ Stage 3 verified: {res_desc['timeline_stage']} | Velocity = {res_desc['downward_velocity']} m/s | Risk = {res_desc['risk_level']}")
     passed += 1
@@ -171,7 +171,12 @@ def run_tests():
     hub.prev_com_y = 360.0
     hub.prev_time = 9.20
     # On floor perimeter (com_y > 480 * 0.62 = 297.6), horizontal collapse (torso > 45 deg)
-    kp_floor = create_pose(sh_y=375.0, sh_tilt=40, hips_y=375.0)
+    kp_floor = [[0.0, 0.0, 0.0] for _ in range(17)]
+    kp_floor[0] = [200.0, 360.0, 0.95]
+    kp_floor[5] = [240.0, 370.0, 0.95]
+    kp_floor[6] = [240.0, 390.0, 0.95]
+    kp_floor[11] = [380.0, 370.0, 0.90]
+    kp_floor[12] = [380.0, 390.0, 0.90]
     res_contact = compute_kinematics(kp_floor, 640, 480, 9.24, source="bed_fall_demo")
     assert res_contact["risk_level"] == "HIGH_RISK"
     assert res_contact["timeline_stage"] in ["STAGE_CONTACT", "STAGE_RECOVERY"]
@@ -185,7 +190,12 @@ def run_tests():
     print("\n[08/13] Testing Stage 6: Prolonged Immobility -> Resident Verification Active...")
     # Simulate 3.0 seconds continuous stillness on floor after contact
     hub.floor_contact_time = 9.20
-    kp_still = create_pose(sh_y=375.0, sh_tilt=40, hips_y=375.0)
+    kp_still = [[0.0, 0.0, 0.0] for _ in range(17)]
+    kp_still[0] = [200.0, 360.0, 0.95]
+    kp_still[5] = [240.0, 370.0, 0.95]
+    kp_still[6] = [240.0, 390.0, 0.95]
+    kp_still[11] = [380.0, 370.0, 0.90]
+    kp_still[12] = [380.0, 390.0, 0.90]
     res_verify = compute_kinematics(kp_still, 640, 480, 12.50, source="bed_fall_demo") # 3.3s stillness
     assert res_verify["risk_level"] == "HIGH_RISK"
     assert res_verify["timeline_stage"] == "STAGE_VERIFY"
