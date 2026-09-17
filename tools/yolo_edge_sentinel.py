@@ -459,6 +459,24 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         ]
         counter_evidence = ["Recovery observation window active (<3s)"]
         recovery_status = "MONITORING"
+    elif velocity_down > 0.25 and torso_angle_deg <= 30.0 and not is_on_floor:
+        # Controlled descent: sitting down (muscular deceleration with upright spine)
+        risk_level = "SAFE"
+        event_state = "NORMAL"
+        probable_mechanism = "INTENTIONAL_SITTING"
+        posture = "Controlled Sitting / Intentional Descent"
+        stage = "STAGE_BED_EDGE"
+        hypothesis = {
+            "id": "H2",
+            "label": "Controlled Sitting",
+            "mechanism": f"Controlled descent ({velocity_down} m/s) with upright spine ({torso_angle_deg}°). Muscular deceleration intact."
+        }
+        det_conf = 30
+        mech_conf = 95
+        sev_conf = 0
+        evidence = ["Muscular deceleration intact", f"Spine vertical ({torso_angle_deg}°)", "Zero floor impact shock"]
+        counter_evidence = ["Intentional sitting trajectory"]
+        recovery_status = "NOT_APPLICABLE"
     elif velocity_down > 0.65 and not is_on_floor:
         risk_level = "CAUTION"
         event_state = "ANOMALY"
@@ -510,24 +528,6 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         sev_conf = 0
         evidence = ["Mattress perimeter proximity", "Zero downward velocity"]
         counter_evidence = ["Supine bed rest intentional", "Stable vitals baseline"]
-        recovery_status = "NOT_APPLICABLE"
-    elif velocity_down > 0.30 and torso_angle_deg < 30.0:
-        # Controlled descent: sitting down
-        risk_level = "SAFE"
-        event_state = "NORMAL"
-        probable_mechanism = "INTENTIONAL_SITTING"
-        posture = "Controlled Sitting / Intentional Descent"
-        stage = "STAGE_BED_EDGE"
-        hypothesis = {
-            "id": "H2",
-            "label": "Controlled Sitting",
-            "mechanism": f"Controlled descent ({velocity_down} m/s) with upright spine ({torso_angle_deg}°). Muscular deceleration intact."
-        }
-        det_conf = 25
-        mech_conf = 92
-        sev_conf = 5
-        evidence = ["Controlled downward speed (<0.6 m/s)", "Spine retained vertical alignment (<30°)"]
-        counter_evidence = ["Controlled muscular deceleration", "Zero ground impact shock"]
         recovery_status = "NOT_APPLICABLE"
     elif torso_angle_deg > 32.0 or velocity_down > 0.40:
         risk_level = "CAUTION"

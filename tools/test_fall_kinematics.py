@@ -78,10 +78,10 @@ assert res4['risk_level'] == "SAFE"
 # Test 5: Controlled Sitting (Muscular deceleration)
 hub.calibration_frames_left = 0
 hub.consecutive_valid_frames = 10
-hub.prev_com_y = 200.0
+hub.prev_com_y = 320.0 # Previous hips at sh_y 200 (200 + 120 = 320)
 hub.prev_time = 110.0
 kp5 = make_keypoints(sh_y=210, sh_tilt=0, head_drop=False, include_hips=True) # Gentle 10px in 33ms (~0.35 m/s)
-res5 = compute_kinematics(kp5, 640, 480, 110.033)
+res5 = compute_kinematics(kp5, 640, 480, 110.033, source="webcam")
 print(f"Test 5 [Controlled Sitting]: Velocity = {res5['downward_velocity']} | Risk = {res5['risk_level']} | Mechanism = {res5['canonical_event']['probableMechanism']}")
 assert res5['risk_level'] == "SAFE"
 assert res5['canonical_event']['probableMechanism'] in ["INTENTIONAL_SITTING", "NORMAL_ACTIVITY"]
