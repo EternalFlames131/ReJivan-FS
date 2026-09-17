@@ -329,6 +329,14 @@
   - **Temporal Keypoint Persistence & Watchdog:** Added 1500ms inflight watchdog and 1.8s keypoint persistence in `CameraZonesView.jsx`, ensuring the 17-point pose skeleton remains continuous without dropping out during rapid motion or occlusions.
   - **Rebuilt & Verified:** Rebuilt web bundle (`node tools/build_web.js` &rarr; 283,337 bytes); 7/7 kinematics unit tests passed; 23/23 false positive lab scenarios passed with 100% precision.
 
+- **2026-09-17 00:15 | Purged Old PDFs & Built Unified Features + Recommended Fixes Document:**
+  - **Purged Old PDFs:** Removed all 3 legacy PDF files from `docs/` (`ReJivan_Comprehensive_Project_Briefing.pdf`, `ReJivan_Concept_Document_v1.1.pdf`, and `ReJivan_Implementation_Audit_And_ChatGPT_Consultation.pdf`), leaving only the new unified documentation.
+  - **Created Comprehensive Master Source (`docs/source/ReJivan_Features_And_Recommended_Fixes.html`):** Drafted extensive, publication-grade HTML document detailing the complete ReJivan architecture, regional Andaman & Nicobar healthcare context (GB Pant Hospital, outer-island logistics), exhaustive catalog of all added features (telemetry drift engine, NEWS2 rules, 11 medical devices, hardware YOLO on GTX 1650 CUDA, browser frame bridge, continuous watchdog, 9-hypothesis arbitration, 30s verification dialog, emergency call ladder, native Android app), complete real vs simulated matrix, and prioritized engineering fixes.
+  - **Built & Verified Production PDF (`docs/ReJivan_Features_And_Recommended_Fixes.pdf`):** Rendered 10-page master PDF (281,637 bytes) via Edge headless with clean print styling. Verified 100% pass across all 5 verification keywords via `tools/verify_pdf.py`.
+  - **Updated Automation Pipelines:** Updated `tools/build_pdf.ps1`, `tools/build_features_pdf.ps1`, `tools/verify_pdf.py`, and `.githooks/pre-commit` to ensure future commits automatically regenerate and stage the new unified PDF.
+
+
+
 
 
 
