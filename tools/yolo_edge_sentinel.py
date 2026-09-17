@@ -564,7 +564,7 @@ def compute_kinematics(
         evidence = [f"Downward descent velocity: {velocity_down} m/s", "Displacement toward floor boundary"]
         counter_evidence = ["Floor impact pending confirmation", "Upright recovery possible"]
         recovery_status = "MONITORING"
-    elif is_in_bed and torso_angle_deg <= 35.0:
+    elif is_in_bed and torso_angle_deg <= 25.0:
         risk_level = "SAFE"
         event_state = "NORMAL"
         probable_mechanism = "INTENTIONAL_SITTING"
