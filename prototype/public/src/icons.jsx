@@ -620,18 +620,6 @@ const Settings = (props) => (
   />
 );
 
-const Plus = (props) => (
-  <IconBase
-    {...props}
-    d={
-      <>
-        <path d="M5 12h14" />
-        <path d="M12 5v14" />
-      </>
-    }
-  />
-);
-
 const Trash2 = (props) => (
   <IconBase
     {...props}
@@ -642,32 +630,6 @@ const Trash2 = (props) => (
         <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
         <line x1="10" x2="10" y1="11" y2="17" />
         <line x1="14" x2="14" y1="11" y2="17" />
-      </>
-    }
-  />
-);
-
-const Video = (props) => (
-  <IconBase
-    {...props}
-    d={
-      <>
-        <path d="m22 8-6 4 6 4V8Z" />
-        <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
-      </>
-    }
-  />
-);
-
-const Wifi = (props) => (
-  <IconBase
-    {...props}
-    d={
-      <>
-        <path d="M12 20h.01" />
-        <path d="M2 8.82a15 15 0 0 1 20 0" />
-        <path d="M5 12.859a10 10 0 0 1 14 0" />
-        <path d="M8.5 16.429a5 5 0 0 1 7 0" />
       </>
     }
   />
@@ -707,16 +669,5 @@ const Server = (props) => (
   />
 );
 
-const X = (props) => (
-  <IconBase
-    {...props}
-    d={
-      <>
-        <path d="M18 6 6 18" />
-        <path d="m6 6 12 12" />
-      </>
-    }
-  />
-);
 
 
