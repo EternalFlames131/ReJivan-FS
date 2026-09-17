@@ -1,0 +1,41 @@
+[
+  {
+    "cameraId": "cam-prerecorded-demo",
+    "cameraName": "GB Pant Ward 3 - Bed-Fall Clinical Demo Video",
+    "sourceType": "PRERECORDED_VIDEO",
+    "zone": "GB Pant Hospital · Virtual Ward Bed 1",
+    "residentId": "P3",
+    "bedId": "BED1",
+    "resolution": "1280x720",
+    "targetFps": 25.0,
+    "enabled": true,
+    "lifecycleState": "ONLINE",
+    "videoPath": "patient_bed_fall_demo.mp4"
+  },
+  {
+    "cameraId": "cam-webcam-01",
+    "cameraName": "Built-in Caregiver HD Webcam",
+    "sourceType": "LOCAL_WEBCAM",
+    "zone": "Junglighat Home · Bedroom",
+    "residentId": "P1",
+    "bedId": "BED1",
+    "resolution": "640x480",
+    "targetFps": 30.0,
+    "enabled": true,
+    "lifecycleState": "OFFLINE",
+    "deviceIndex": 0
+  },
+  {
+    "cameraId": "cam-rtsp-ward-01",
+    "cameraName": "GB Pant Virtual Ward · Bed 1 CCTV",
+    "sourceType": "RTSP_CCTV",
+    "zone": "GB Pant Hospital · Virtual Ward Bed 1",
+    "residentId": "P1",
+    "bedId": "BED1",
+    "resolution": "1280x720",
+    "targetFps": 25.0,
+    "enabled": true,
+    "lifecycleState": "ONLINE",
+    "rtspUrl": "rtsp://admin:HospitalSecurePass2026@192.168.1.50:554/live/ch0"
+  }
+]
