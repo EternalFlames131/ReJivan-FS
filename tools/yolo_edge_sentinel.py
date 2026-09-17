@@ -329,8 +329,8 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
     # Guard against track acquisition / reacquisition spikes:
     # Require at least 4 consecutive valid frames before taking derivatives.
     time_since_prev = (current_time - hub.prev_time) if hub.prev_time is not None else 999.0
-    if hub.prev_com_y is None or time_since_prev > 0.35:
-        # New track or tracking gap: reset history cleanly
+    if hub.prev_com_y is None or time_since_prev > 0.35 or time_since_prev <= 0.001:
+        # New track or tracking gap or paused: reset history cleanly
         hub.consecutive_valid_frames = 1
         hub.smooth_velocity = 0.0
         velocity_down = 0.0
@@ -806,20 +806,52 @@ def camera_processing_thread():
             frame_counter = 0
             consecutive_fails = 0
 
+        # Check if video playback is paused or stopped
+        if current_source == "bed_fall_demo":
+            if hub.playback_state in ["PAUSED", "STOPPED", "VIDEO_ENDED"]:
+                time.sleep(0.04)
+                continue
+
         # Read video frame
         frame_read_start = time.time()
         ret, frame = cap.read()
         if not ret or frame is None:
             if current_source == "bed_fall_demo":
-                # Continuous seamless looping of clinical bed fall demo
-                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                hub.prev_com_y = None
-                hub.prev_time = None
-                hub.smooth_velocity = 0.0
-                hub.recent_drop_time = 0.0
-                hub.recent_drop_velocity = 0.0
-                hub.fall_latched = False
-                ret, frame = cap.read()
+                # Video reached EOF cleanly: transition safely without emergency latch
+                print("[*] Demonstration video reached EOF. Transitioning to VIDEO_ENDED / MONITORING_IDLE.")
+                with hub.lock:
+                    hub.playback_state = "VIDEO_ENDED"
+                    hub.camera_state = "VIDEO_ENDED"
+                    hub.reset_tracking_state()
+                    hub.telemetry.update({
+                        "status": "VIDEO_ENDED",
+                        "camera_state": "VIDEO_ENDED",
+                        "playback_state": "VIDEO_ENDED",
+                        "event_state": "MONITORING_IDLE",
+                        "posture": "Demonstration Concluded (Monitoring Idle)",
+                        "risk_level": "SAFE",
+                        "confidence": 100.0,
+                        "timeline_stage": "STAGE_RESOLVED",
+                        "stage": "STAGE_RESOLVED",
+                        "hypothesis": {
+                            "id": "H0",
+                            "label": "Demonstration Concluded",
+                            "mechanism": "Pre-recorded footage finished. Monitoring transitioned to idle without false alert."
+                        },
+                        "canonical_event": {
+                            "eventId": f"EVT-END-{int(time.time())}",
+                            "state": "RESOLVED",
+                            "probableMechanism": "NORMAL_ACTIVITY",
+                            "detectionConfidence": 0,
+                            "mechanismConfidence": 100,
+                            "severityConfidence": 0,
+                            "recoveryStatus": "NOT_APPLICABLE",
+                            "evidence": ["End of demonstration video reached"],
+                            "counterEvidence": ["Monitoring transitioned safely to idle"]
+                        }
+                    })
+                time.sleep(0.05)
+                continue
 
             if not ret or frame is None:
                 consecutive_fails += 1
@@ -835,10 +867,14 @@ def camera_processing_thread():
                 time.sleep(0.02)
                 continue
 
-        # Pace video playback for realistic ~25 FPS when streaming video file
+        # Pace video playback based on playback_speed for realistic FPS
         if current_source == "bed_fall_demo":
+            hub.video_frame_index += 1
+            hub.video_time = round(hub.video_frame_index / hub.video_fps, 2)
+            effective_speed = max(0.25, min(hub.playback_speed, 4.0))
+            frame_target_dt = 1.0 / (hub.video_fps * effective_speed)
             read_elapsed = time.time() - frame_read_start
-            sleep_target = max(0.005, (1.0 / 25.0) - read_elapsed)
+            sleep_target = max(0.002, frame_target_dt - read_elapsed)
             time.sleep(sleep_target)
 
         consecutive_fails = 0
