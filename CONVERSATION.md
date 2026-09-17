@@ -1817,6 +1817,16 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Regression suites verified:
      - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
      - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
-     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
 
+---
 
+## 2026-09-17 (Day 9 — Live Camera Feed Restoration & Verification for YOLO / Motion Monitoring)
+
+### What the user asked:
+- "why did you remove the live cmaera feed for the verification of yolo or any motion monitoring system add it as well and for the demo video i will provide the video later note that"
+- Ensure live camera feed is active and clearly accessible for live verification of YOLO and motion monitoring.
+- Note that the evaluator/demo video will be provided by the user later.
+
+### In Progress:
+- Investigating `CameraZonesView.jsx` and video feed rendering to ensure live camera feed (webcam / YOLO stream / motion monitoring) is front-and-center and never hidden during verification or motion monitoring.
+- Ensuring the user can seamlessly test live camera motion and pose tracking directly, while keeping the pre-recorded video slot ready for when the user provides the final video.
