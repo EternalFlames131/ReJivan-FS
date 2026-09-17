@@ -173,14 +173,25 @@ class SentinelHub:
             software_version="2.4.0-edge"
         )
 
-        # 1. Local Webcam Source
+        # 1A. Local Phone / Mobile Connected Camera (Index 0)
         self.webcam_source = LocalWebcamSource(
             camera_id="cam-webcam-01",
-            camera_name="Built-in Caregiver HD Webcam",
-            device_index=self.camera_index,
+            camera_name="Connected Phone / Mobile Camera (Index 0)",
+            device_index=0,
             zone="Home Living Room",
             resident_id="P1",
             resolution=(640, 480),
+            target_fps=30.0
+        )
+
+        # 1B. Integrated Laptop HD Webcam (Index 1)
+        self.laptop_webcam_source = LocalWebcamSource(
+            camera_id="cam-webcam-02",
+            camera_name="Integrated Laptop HD Webcam (Index 1)",
+            device_index=1,
+            zone="Home Living Room",
+            resident_id="P1",
+            resolution=(1280, 720),
             target_fps=30.0
         )
 
@@ -209,6 +220,7 @@ class SentinelHub:
         )
 
         self.edge_node.register_camera(self.webcam_source)
+        self.edge_node.register_camera(self.laptop_webcam_source)
         self.edge_node.register_camera(self.rtsp_source)
         self.edge_node.register_camera(self.demo_source)
         self.edge_node.set_active_camera("cam-prerecorded-demo")
@@ -406,20 +418,44 @@ def compute_kinematics(
 
     torso_angle_deg = min(90.0, max(0.0, torso_angle_deg))
 
-    # 4. Track Continuity & Vertical Velocity Calculation
-    # Guard against track acquisition spikes and temporal gaps > 350ms
+    # 4. Track Continuity, Motion Energy & Vertical Velocity Calculation
+    # Guard against track acquisition spikes and temporal gaps
     time_since_prev = (current_time - ctx.prev_time) if ctx.prev_time is not None else 999.0
-    if ctx.prev_com_y is None or time_since_prev > 0.35 or time_since_prev <= 0.001:
+    src = source or "webcam"
+    is_browser_frame = (src in ["browser_frame", "LIVE_WEBCAM", "webcam_browser"])
+    max_gap = 1.2 if is_browser_frame else 0.45
+    min_valid_frames = 2 if is_browser_frame else 4
+
+    # Dynamic Keypoint Motion Energy Calculation (0% - 100%)
+    motion_energy = 6
+    if hasattr(ctx, "prev_kp") and ctx.prev_kp is not None:
+        total_disp = 0.0
+        kp_count = 0
+        for i in range(min(len(kp), len(ctx.prev_kp))):
+            if kp[i][2] > 0.25 and ctx.prev_kp[i][2] > 0.25:
+                dx_k = kp[i][0] - ctx.prev_kp[i][0]
+                dy_k = kp[i][1] - ctx.prev_kp[i][1]
+                total_disp += math.hypot(dx_k, dy_k)
+                kp_count += 1
+        if kp_count > 0:
+            avg_disp = total_disp / kp_count
+            dt_motion = max(0.015, min(0.35, time_since_prev if time_since_prev < 900.0 else 0.04))
+            motion_speed = (avg_disp / max(img_h, 1)) / dt_motion
+            # Scale so normal conversational gesture ~ 25-45%, rapid descent ~ 80-100%
+            motion_energy = min(100, max(4, int(motion_speed * 420)))
+    ctx.prev_kp = np.array(kp, copy=True)
+
+    if ctx.prev_com_y is None or time_since_prev > max_gap or time_since_prev <= 0.001:
         ctx.consecutive_valid_frames = 1
         ctx.smooth_velocity = 0.0
         velocity_down = 0.0
     else:
         ctx.consecutive_valid_frames += 1
-        if ctx.consecutive_valid_frames < 4:
+        if ctx.consecutive_valid_frames < min_valid_frames:
             ctx.smooth_velocity = 0.0
             velocity_down = 0.0
         else:
-            dt = max(min(time_since_prev, 0.1), 0.015)
+            dt = max(min(time_since_prev, 0.25), 0.015)
             dy_pixels = com_y - ctx.prev_com_y
             # Discard extreme optical teleports (>65% of screen in one frame)
             if abs(dy_pixels) > (img_h * 0.65):
@@ -666,6 +702,7 @@ def compute_kinematics(
         "person_detected": True,
         "torso_angle": torso_angle_deg,
         "downward_velocity": -velocity_down,
+        "motion_energy_percent": motion_energy,
         "posture": posture,
         "risk_level": risk_level,
         "confidence": mech_conf,

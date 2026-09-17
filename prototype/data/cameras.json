@@ -14,7 +14,7 @@
   },
   {
     "cameraId": "cam-webcam-01",
-    "cameraName": "Built-in Caregiver HD Webcam",
+    "cameraName": "Caregiver Phone / Mobile Camera (Device 0)",
     "sourceType": "LOCAL_WEBCAM",
     "zone": "Junglighat Home · Bedroom",
     "residentId": "P1",
@@ -22,8 +22,21 @@
     "resolution": "640x480",
     "targetFps": 30.0,
     "enabled": true,
-    "lifecycleState": "OFFLINE",
+    "lifecycleState": "ONLINE",
     "deviceIndex": 0
+  },
+  {
+    "cameraId": "cam-webcam-02",
+    "cameraName": "Integrated Laptop HD Webcam (Device 1)",
+    "sourceType": "LOCAL_WEBCAM",
+    "zone": "Junglighat Home · Bedroom",
+    "residentId": "P1",
+    "bedId": "BED1",
+    "resolution": "1280x720",
+    "targetFps": 30.0,
+    "enabled": true,
+    "lifecycleState": "ONLINE",
+    "deviceIndex": 1
   },
   {
     "cameraId": "cam-rtsp-ward-01",
