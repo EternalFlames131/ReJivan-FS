@@ -129,6 +129,8 @@ class TrackingContext:
     immobility_start_time: Optional[float] = None
     floor_contact_time: Optional[float] = None
     calibration_frames_left: int = DEFAULT_CALIBRATION_FRAMES
+    CALIBRATION_FRAMES_REQUIRED: int = DEFAULT_CALIBRATION_FRAMES
+    source: str = "PRERECORDED_VIDEO"
     timeline_stage: str = "STAGE_RESTING"
 
     def reset(self):

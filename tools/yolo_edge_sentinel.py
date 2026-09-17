@@ -1,8 +1,8 @@
 # tools/yolo_edge_sentinel.py
 # ReJivan Real Edge Sentinel Daemon
-# Powered by Ultralytics YOLO-Pose on System Hardware
-# Supports NVIDIA GeForce GTX 1650 (CUDA) & Optimized CPU Pipeline
-# Direct Webcam Hardware Capture + MJPEG Stream + JSON Kinematics Telemetry
+# Powered by Ultralytics YOLO-Pose on System Hardware (NVIDIA GeForce GTX 1650 CUDA / CPU Pipeline)
+# Unified Camera-Ingestion Architecture: LOCAL_WEBCAM, RTSP_CCTV, and PRERECORDED_VIDEO
+# All sources feed the exact same downstream pose inference, temporal kinematics, and event reconstruction.
 
 import sys
 import os
@@ -10,6 +10,7 @@ import time
 import json
 import math
 import base64
+import socket
 import threading
 from urllib.parse import urlparse, parse_qs
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -35,10 +36,29 @@ except ImportError:
     print("[ERROR] Ultralytics/PyTorch not found. Please install: pip install ultralytics torch")
     sys.exit(1)
 
-print("=" * 72)
+# Import Camera Provider Abstraction & Data Models
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from camera_providers import (
+    CameraLifecycleState,
+    CameraSourceType,
+    FrameHealthMetrics,
+    NormalizedFrame,
+    TrackingContext,
+    CameraSource,
+    LocalWebcamSource,
+    RtspCctvSource,
+    PrerecordedVideoSource,
+    EdgeNode,
+    mask_rtsp_url,
+    validate_rtsp_url,
+    DEFAULT_CALIBRATION_FRAMES
+)
+
+print("=" * 76)
 print("   ReJivan Real Edge Sentinel Daemon - Ultralytics YOLO-Pose")
-print("   Hardware Platform: System Camera & GPU Acceleration")
-print("=" * 72)
+print("   Unified Camera Ingestion Architecture: WEBCAM | RTSP CCTV | VIRTUAL VIDEO")
+print("   Hardware Platform: NVIDIA GeForce GTX 1650 (CUDA) & Optimized CPU Pipeline")
+print("=" * 76)
 
 # Hardware & Model Configuration
 CUDA_AVAILABLE = torch.cuda.is_available()
@@ -86,17 +106,21 @@ KEYPOINT_NAMES = [
     "left_knee", "right_knee", "left_ankle", "right_ankle"
 ]
 
-# Thread-safe global state & inference mutex
+# Thread-safe global inference mutex
 inference_lock = threading.Lock()
 
 class SentinelHub:
+    """
+    Central coordinator managing EdgeNode, active camera selection,
+    and serving MJPEG / JSON telemetry.
+    """
     def __init__(self):
         self.lock = threading.Lock()
         self.running = True
         self.camera_active = False # On-demand hardware lifecycle (Camera OFF by default)
         self.active_streamers = 0  # Active MJPEG client count
         self.camera_index = 0
-        self.source = "PRERECORDED_VIDEO" # Default: "PRERECORDED_VIDEO", "LIVE_WEBCAM", "RTSP_CAMERA"
+        self.source = "PRERECORDED_VIDEO" # "PRERECORDED_VIDEO", "LIVE_WEBCAM", "RTSP_CAMERA"
         self.camera_source_type = "PRERECORDED_VIDEO"
         self.playback_state = "STOPPED"   # "STOPPED", "CALIBRATING", "PLAYING", "PAUSED", "VIDEO_ENDED"
         self.playback_speed = 1.0         # 0.5, 1.0, 2.0
@@ -112,7 +136,7 @@ class SentinelHub:
         self.demo_video_path = os.path.join(repo_root, "video", "patient_bed_fall_demo.mp4")
         if not os.path.exists(self.demo_video_path):
             self.demo_video_path = os.path.join(repo_root, "prototype", "public", "videos", "patient_bed_fall_demo.mp4")
-        self.cap = None
+
         self.latest_raw_frame = None
         self.latest_rendered_frame = None
         self.latest_radar_frame = None
@@ -120,13 +144,12 @@ class SentinelHub:
         self.last_seen = time.time()
         self.last_inference_latency = 0.015
 
-        # Camera Lifecycle Management:
-        # CAMERA_OFFLINE -> CAMERA_STARTING -> CAMERA_CALIBRATING -> MONITORING
+        # Camera Lifecycle Management (Default context)
         self.camera_state = "CAMERA_OFFLINE"
         self.calibration_frames_left = 0
-        self.CALIBRATION_FRAMES_REQUIRED = 35 # ~1.2s at 30fps
+        self.CALIBRATION_FRAMES_REQUIRED = DEFAULT_CALIBRATION_FRAMES
 
-        # Kinematic Tracking History & Temporal Stability
+        # Kinematic Tracking History (Global fallback for test compatibility)
         self.consecutive_valid_frames = 0
         self.prev_com_y = None
         self.prev_time = None
@@ -140,11 +163,63 @@ class SentinelHub:
         self.last_high_risk_time = 0.0
         self.immobility_start_time = None
 
+        # ---------------------------------------------------------------------
+        # EdgeNode & Camera Ingestion Providers
+        # ---------------------------------------------------------------------
+        self.edge_node = EdgeNode(
+            edge_id="edge-node-an-01",
+            name="ReJivan GB Pant Hospital Edge Sentinel",
+            host_identifier=socket.gethostname(),
+            software_version="2.4.0-edge"
+        )
+
+        # 1. Local Webcam Source
+        self.webcam_source = LocalWebcamSource(
+            camera_id="cam-webcam-01",
+            camera_name="Built-in Caregiver HD Webcam",
+            device_index=self.camera_index,
+            zone="Home Living Room",
+            resident_id="P1",
+            resolution=(640, 480),
+            target_fps=30.0
+        )
+
+        # 2. Production RTSP CCTV Source (Configurable via REJIVAN_RTSP_URL env var)
+        default_rtsp = os.environ.get("REJIVAN_RTSP_URL", "rtsp://admin:ward123@192.168.1.120:554/stream1")
+        self.rtsp_source = RtspCctvSource(
+            camera_id="cam-rtsp-ward-01",
+            camera_name="GB Pant Virtual Ward · Bed 1 CCTV",
+            rtsp_url=default_rtsp,
+            zone="GB Pant Hospital · Virtual Ward Bed 1",
+            resident_id="P3",
+            bed_id="BED1",
+            resolution=(1280, 720),
+            target_fps=25.0
+        )
+
+        # 3. Pre-recorded Demonstration Virtual Camera Source
+        self.demo_source = PrerecordedVideoSource(
+            camera_id="cam-prerecorded-demo",
+            camera_name="GB Pant Ward 3 - Bed-Fall Clinical Demo Video",
+            video_path=self.demo_video_path,
+            zone="GB Pant Hospital · Virtual Ward Bed 1",
+            resident_id="P3",
+            bed_id="BED1",
+            target_fps=25.0
+        )
+
+        self.edge_node.register_camera(self.webcam_source)
+        self.edge_node.register_camera(self.rtsp_source)
+        self.edge_node.register_camera(self.demo_source)
+        self.edge_node.set_active_camera("cam-prerecorded-demo")
+
         # Telemetry State (Privacy-First Default: Hardware Powered Off)
         self.telemetry = {
             "status": "STANDBY_AWAITING_CONSENT",
             "camera_state": "CAMERA_OFFLINE",
             "camera_source_type": "PRERECORDED_VIDEO",
+            "camera_id": "cam-prerecorded-demo",
+            "edge_id": self.edge_node.edge_id,
             "playback_state": "STOPPED",
             "playback_speed": 1.0,
             "video_time": 0.0,
@@ -184,6 +259,15 @@ class SentinelHub:
             "timestamp": time.time()
         }
 
+    @property
+    def cap(self):
+        active = self.edge_node.get_active_camera()
+        return getattr(active, "cap", None) if active else None
+
+    @cap.setter
+    def cap(self, val):
+        pass
+
     def reset_tracking_state(self):
         """Cleanly resets all temporal history, velocity, floor contact, and latches."""
         self.consecutive_valid_frames = 0
@@ -200,33 +284,44 @@ class SentinelHub:
         self.calibration_frames_left = 25
         self.timeline_stage = "STAGE_RESTING"
 
+        if hasattr(self, "edge_node") and self.edge_node:
+            active = self.edge_node.get_active_camera()
+            if active:
+                active.reset_tracking()
+
 hub = SentinelHub()
 
-def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
+def compute_kinematics(
+    keypoints,
+    img_w,
+    img_h,
+    current_time,
+    source=None,
+    tracking_context=None,
+    camera_id=None,
+    edge_id=None
+):
     """
     Computes genuine physical biomechanics from COCO 17 keypoints:
-    - Torso Angle theta (0 upright to 90 horizontal):
-      * Full-body mode: angle between shoulder-midpoint and hip-midpoint.
-      * Upper-body/webcam mode: synthesized from head-to-shoulder tilt and shoulder slope.
-    - Center of Mass (CoM) vertical position and velocity.
-    - Camera Calibration & Track Acquisition Safety:
-      * Discards velocity deltas during calibration and track reacquisition.
-    - Multi-Hypothesis & Counterfactual Evaluation:
-      * NORMAL_ACTIVITY, INTENTIONAL_SITTING, INTENTIONAL_LYING, TRIP, FALL.
-    - Recovery Detection:
-      * Immediate clearing of fall latch when upright equilibrium is restored (<24 deg).
+    - Torso Angle theta (0 upright to 90 horizontal)
+    - Center of Mass (CoM) vertical position and velocity
+    - Camera Calibration & Track Acquisition Safety
+    - Multi-Hypothesis & Counterfactual Evaluation
+    - Recovery Detection (<24 deg upright equilibrium)
+    Operates on the provided tracking_context (or defaults to hub for backwards compatibility).
     """
+    ctx = tracking_context if tracking_context is not None else hub
     kp = keypoints # (17, 3) -> [x, y, confidence]
 
     # 1. Calibration Phase Check
-    if hub.calibration_frames_left > 0:
-        hub.calibration_frames_left -= 1
-        hub.consecutive_valid_frames += 1
+    if ctx.calibration_frames_left > 0:
+        ctx.calibration_frames_left -= 1
+        ctx.consecutive_valid_frames += 1
         return {
             "person_detected": True,
             "torso_angle": 12.0,
             "downward_velocity": 0.0,
-            "posture": f"Calibrating Spatial Baseline ({hub.calibration_frames_left} frames left)...",
+            "posture": f"Calibrating Spatial Baseline ({ctx.calibration_frames_left} frames left)...",
             "risk_level": "SAFE",
             "confidence": 99.0,
             "hypothesis": {
@@ -236,87 +331,58 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
             },
             "canonical_event": {
                 "eventId": f"EVT-CALIB-{int(current_time)}",
+                "cameraId": camera_id or getattr(ctx, "camera_id", "cam-default"),
+                "edgeId": edge_id or "edge-node-an-01",
+                "sourceType": source or getattr(ctx, "source", "PRERECORDED_VIDEO"),
                 "state": "NORMAL",
                 "probableMechanism": "NORMAL_ACTIVITY",
                 "detectionConfidence": 5,
                 "mechanismConfidence": 98,
                 "severityConfidence": 0,
                 "recoveryStatus": "NOT_APPLICABLE",
-                "evidence": [f"Calibration frame {hub.CALIBRATION_FRAMES_REQUIRED - hub.calibration_frames_left}/{hub.CALIBRATION_FRAMES_REQUIRED}"],
+                "evidence": [f"Calibration frame {DEFAULT_CALIBRATION_FRAMES - ctx.calibration_frames_left}/{DEFAULT_CALIBRATION_FRAMES}"],
                 "counterEvidence": ["Camera startup calibration active"]
             }
         }
 
     # 2. Keypoint Availability Checks (Confidence threshold 0.25)
-    has_shoulders = kp[5][2] > 0.25 and kp[6][2] > 0.25
-    has_hips = kp[11][2] > 0.25 and kp[12][2] > 0.25
-    has_head = kp[0][2] > 0.25 or (kp[1][2] > 0.25 and kp[2][2] > 0.25)
+    def is_valid(idx):
+        return idx < len(kp) and len(kp[idx]) >= 3 and kp[idx][2] > 0.25
 
-    if not has_shoulders and not has_head:
-        # Partial tracking: Reset velocity state to prevent spikes across occlusions
-        hub.consecutive_valid_frames = 0
-        hub.prev_com_y = None
-        hub.prev_time = None
-        return {
-            "person_detected": True,
-            "torso_angle": 12.0,
-            "downward_velocity": 0.0,
-            "posture": "Partial Detection (Landmarks Occluded)",
-            "risk_level": "SAFE",
-            "confidence": 75.0,
-            "hypothesis": {
-                "id": "H0",
-                "label": "Partial Subject Tracking",
-                "mechanism": "Key anatomical landmarks occluded. Zero derivative spike."
-            },
-            "canonical_event": {
-                "eventId": f"EVT-OCCL-{int(current_time)}",
-                "state": "UNKNOWN",
-                "probableMechanism": "UNKNOWN",
-                "detectionConfidence": 20,
-                "mechanismConfidence": 30,
-                "severityConfidence": 0,
-                "recoveryStatus": "NOT_APPLICABLE",
-                "evidence": ["Partial anatomical landmarks visible"],
-                "counterEvidence": ["Key landmarks occluded; derivatives suppressed"]
-            }
-        }
+    has_shoulders = is_valid(5) and is_valid(6)
+    has_hips = is_valid(11) and is_valid(12)
+    has_head = is_valid(0)
 
-    # 3. Extract Landmarks & Reference Points
-    if has_shoulders:
-        sh_x = (kp[5][0] + kp[6][0]) / 2.0
-        sh_y = (kp[5][1] + kp[6][1]) / 2.0
-        dx_sh = kp[6][0] - kp[5][0]
-        dy_sh = kp[6][1] - kp[5][1]
-        shoulder_tilt_deg = abs(math.degrees(math.atan2(abs(dy_sh), max(abs(dx_sh), 1.0))))
-    else:
-        sh_x = kp[0][0]
-        sh_y = kp[0][1] + (img_h * 0.15)
-        shoulder_tilt_deg = 0.0
+    # 3. Center of Mass & Spine Vector Calculations
+    if has_shoulders and has_hips:
+        sh_mid_x = (kp[5][0] + kp[6][0]) / 2.0
+        sh_mid_y = (kp[5][1] + kp[6][1]) / 2.0
+        hip_mid_x = (kp[11][0] + kp[12][0]) / 2.0
+        hip_mid_y = (kp[11][1] + kp[12][1]) / 2.0
 
-    head_tilt_deg = 0.0
-    if has_head and has_shoulders:
-        head_x = kp[0][0] if kp[0][2] > 0.25 else (kp[1][0] + kp[2][0]) / 2.0
-        head_y = kp[0][1] if kp[0][2] > 0.25 else (kp[1][1] + kp[2][1]) / 2.0
-        dx_head = head_x - sh_x
-        dy_head = sh_y - head_y # In upright posture, head is above shoulders, dy_head > 0
-        if dy_head > 12.0:
-            head_tilt_deg = abs(math.degrees(math.atan2(abs(dx_head), dy_head)))
-        else:
-            # Head dropped level with shoulders
-            head_tilt_deg = 45.0 + min(30.0, abs(dy_head) * 1.5)
+        com_x = (sh_mid_x + hip_mid_x) / 2.0
+        com_y = (sh_mid_y + hip_mid_y) / 2.0
 
-    # 4. Torso Angle Calculation
-    if has_hips and has_shoulders:
-        com_x = (kp[11][0] + kp[12][0]) / 2.0
-        com_y = (kp[11][1] + kp[12][1]) / 2.0
-        dx_torso = sh_x - com_x
-        dy_torso = com_y - sh_y
-        torso_angle_hips = abs(math.degrees(math.atan2(abs(dx_torso), max(dy_torso, 1.0))))
-        torso_angle_deg = round(max(torso_angle_hips, shoulder_tilt_deg * 0.8), 1)
+        dx = abs(sh_mid_x - hip_mid_x)
+        dy = abs(sh_mid_y - hip_mid_y) + 1e-5
+        angle_rad = math.atan2(dx, dy)
+        torso_angle_deg = round(math.degrees(angle_rad), 1)
     elif has_shoulders:
-        com_x = sh_x
-        com_y = sh_y
+        sh_mid_x = (kp[5][0] + kp[6][0]) / 2.0
+        sh_mid_y = (kp[5][1] + kp[6][1]) / 2.0
+        com_x = sh_mid_x
+        com_y = sh_mid_y
+
+        dx_sh = abs(kp[5][0] - kp[6][0])
+        dy_sh = abs(kp[5][1] - kp[6][1]) + 1e-5
+        shoulder_tilt_deg = math.degrees(math.atan2(dy_sh, dx_sh))
+
+        head_tilt_deg = 0.0
+        if has_head:
+            dx_h = abs(kp[0][0] - sh_mid_x)
+            dy_h = abs(kp[0][1] - sh_mid_y) + 1e-5
+            head_tilt_deg = math.degrees(math.atan2(dx_h, dy_h))
+
         torso_angle_deg = round(max(shoulder_tilt_deg * 0.7, head_tilt_deg * 0.7), 1)
     else:
         com_x = kp[0][0]
@@ -325,80 +391,76 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
 
     torso_angle_deg = min(90.0, max(0.0, torso_angle_deg))
 
-    # 5. Track Continuity & Vertical Velocity Calculation
-    # Guard against track acquisition / reacquisition spikes:
-    # Require at least 4 consecutive valid frames before taking derivatives.
-    time_since_prev = (current_time - hub.prev_time) if hub.prev_time is not None else 999.0
-    if hub.prev_com_y is None or time_since_prev > 0.35 or time_since_prev <= 0.001:
-        # New track or tracking gap or paused: reset history cleanly
-        hub.consecutive_valid_frames = 1
-        hub.smooth_velocity = 0.0
+    # 4. Track Continuity & Vertical Velocity Calculation
+    # Guard against track acquisition spikes and temporal gaps > 350ms
+    time_since_prev = (current_time - ctx.prev_time) if ctx.prev_time is not None else 999.0
+    if ctx.prev_com_y is None or time_since_prev > 0.35 or time_since_prev <= 0.001:
+        ctx.consecutive_valid_frames = 1
+        ctx.smooth_velocity = 0.0
         velocity_down = 0.0
     else:
-        hub.consecutive_valid_frames += 1
-        if hub.consecutive_valid_frames < 4:
-            hub.smooth_velocity = 0.0
+        ctx.consecutive_valid_frames += 1
+        if ctx.consecutive_valid_frames < 4:
+            ctx.smooth_velocity = 0.0
             velocity_down = 0.0
         else:
             dt = max(min(time_since_prev, 0.1), 0.015)
-            dy_pixels = com_y - hub.prev_com_y
-            # Discard extreme optical teleports (>35% of screen in one frame is tracking flicker, not gravity)
+            dy_pixels = com_y - ctx.prev_com_y
             if abs(dy_pixels) > (img_h * 0.35):
                 dy_pixels = 0.0
             instant_vel = (dy_pixels / img_h) / dt * 2.2
-            hub.smooth_velocity = 0.50 * instant_vel + 0.50 * hub.smooth_velocity
-            velocity_down = round(hub.smooth_velocity, 2)
+            ctx.smooth_velocity = 0.50 * instant_vel + 0.50 * ctx.smooth_velocity
+            velocity_down = round(ctx.smooth_velocity, 2)
 
             if velocity_down > 0.65:
-                hub.recent_drop_time = current_time
-                hub.recent_drop_velocity = velocity_down
+                ctx.recent_drop_time = current_time
+                ctx.recent_drop_velocity = velocity_down
 
-    hub.prev_com_y = com_y
-    hub.prev_time = current_time
+    ctx.prev_com_y = com_y
+    ctx.prev_time = current_time
 
-    # 6. Physical Mechanism Classification & Counterfactual Reasoning
-    is_recent_drop = (current_time - hub.recent_drop_time) < 2.0
-    src = source or hub.source
-    is_overhead = (src in ["PRERECORDED_VIDEO", "bed_fall_demo", "RTSP_CAMERA"])
+    # 5. Physical Mechanism Classification & Multi-Hypothesis Evaluation
+    is_recent_drop = (current_time - ctx.recent_drop_time) < 2.0
+    src = source or getattr(ctx, "source", hub.source)
+    is_overhead = (src in ["PRERECORDED_VIDEO", "bed_fall_demo", "RTSP_CAMERA", "RTSP_CCTV"])
 
     if is_overhead:
         is_on_floor = com_y > (img_h * 0.62)
         is_in_bed = com_y <= (img_h * 0.55)
     else:
-        # Genuine webcam mode
         is_on_floor = has_hips and (com_y > img_h * 0.82)
         is_in_bed = False
 
-    # Check for recovery
+    # Check for recovery (<24 deg restores equilibrium)
     is_recovered = False
-    if (hub.floor_contact_time is not None or hub.fall_latched):
+    if (ctx.floor_contact_time is not None or ctx.fall_latched):
         if torso_angle_deg < 24.0 and velocity_down < 0.25:
-            hub.floor_contact_time = None
-            hub.fall_latched = False
+            ctx.floor_contact_time = None
+            ctx.fall_latched = False
             is_recovered = True
 
     # Floor stillness tracking
     floor_stillness = 0.0
     if is_on_floor and torso_angle_deg > 45.0:
-        if hub.floor_contact_time is None:
-            hub.floor_contact_time = current_time
-        floor_stillness = max(0.0, current_time - hub.floor_contact_time)
-        hub.fall_latched = True
-        hub.last_high_risk_time = current_time
+        if ctx.floor_contact_time is None:
+            ctx.floor_contact_time = current_time
+        floor_stillness = max(0.0, current_time - ctx.floor_contact_time)
+        ctx.fall_latched = True
+        ctx.last_high_risk_time = current_time
     elif not is_on_floor and torso_angle_deg < 35.0:
-        hub.floor_contact_time = None
+        ctx.floor_contact_time = None
 
-    # Check for genuine fall trigger:
+    # Check for genuine fall trigger
     fall_active = (velocity_down > 0.85 and torso_angle_deg > 40.0)
     fall_post_drop = is_recent_drop and (torso_angle_deg > 50.0 or is_on_floor)
     is_fall = fall_active or fall_post_drop or (is_on_floor and torso_angle_deg > 45.0)
 
-    if is_fall and not hub.fall_latched:
-        hub.fall_latched = True
-        hub.fall_latch_start_time = current_time
-        hub.last_high_risk_time = current_time
+    if is_fall and not ctx.fall_latched:
+        ctx.fall_latched = True
+        ctx.fall_latch_start_time = current_time
+        ctx.last_high_risk_time = current_time
 
-    # 7. Final State & Hypothesis Determination
+    # 6. Final State & Hypothesis Determination
     if is_recovered:
         risk_level = "SAFE"
         event_state = "RESOLVED"
@@ -412,12 +474,11 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         }
         det_conf = 70
         mech_conf = 85
-        sev_conf = 10 # Low severity due to rapid recovery
+        sev_conf = 10
         evidence = ["Upright posture restored (<24°)", "Locomotion resumed"]
         counter_evidence = ["Rapid recovery observed (<4s)", "Zero lingering floor immobility"]
         recovery_status = "RECOVERED_RAPID"
-    elif hub.floor_contact_time is not None and floor_stillness >= 2.5:
-        # Prolonged unrecovered floor immobility -> VERIFICATION / FALL_WITH_IMMOBILITY
+    elif ctx.floor_contact_time is not None and floor_stillness >= 2.5:
         risk_level = "HIGH_RISK"
         event_state = "VERIFICATION"
         probable_mechanism = "FALL_WITH_IMMOBILITY"
@@ -426,19 +487,19 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         hypothesis = {
             "id": "H7",
             "label": "Fall with Prolonged Post-Impact Immobility",
-            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) followed by {floor_stillness:.1f}s immobility at {torso_angle_deg}° on floor."
+            "mechanism": f"Rapid descent ({max(velocity_down, ctx.recent_drop_velocity)} m/s) followed by {floor_stillness:.1f}s immobility at {torso_angle_deg}° on floor."
         }
         det_conf = 97
         mech_conf = 94
         sev_conf = 88
         evidence = [
-            f"Descent velocity: {max(velocity_down, hub.recent_drop_velocity)} m/s",
+            f"Descent velocity: {max(velocity_down, ctx.recent_drop_velocity)} m/s",
             f"Torso horizontal on floor: {torso_angle_deg}°",
             f"Floor immobility: {floor_stillness:.1f}s"
         ]
         counter_evidence = ["Zero upright postural recovery observed (<24°)", "Resident check-in grace window open"]
         recovery_status = "UNRECOVERED_STILLNESS"
-    elif hub.fall_latched or (is_on_floor and torso_angle_deg > 45.0):
+    elif ctx.fall_latched or (is_on_floor and torso_angle_deg > 45.0):
         risk_level = "HIGH_RISK"
         event_state = "CONTACT_OR_FALL" if floor_stillness < 1.0 else "RECOVERY_MONITORING"
         probable_mechanism = "FALL"
@@ -447,20 +508,20 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         hypothesis = {
             "id": "H1",
             "label": "Sudden Fall Event Detected",
-            "mechanism": f"Rapid descent ({max(velocity_down, hub.recent_drop_velocity)} m/s) with impact collapse at {torso_angle_deg}°."
+            "mechanism": f"Rapid descent ({max(velocity_down, ctx.recent_drop_velocity)} m/s) with impact collapse at {torso_angle_deg}°."
         }
         det_conf = 95
         mech_conf = 88
         sev_conf = 75
         evidence = [
-            f"Descent velocity: {max(velocity_down, hub.recent_drop_velocity)} m/s",
+            f"Descent velocity: {max(velocity_down, ctx.recent_drop_velocity)} m/s",
             f"Torso angle: {torso_angle_deg}°",
             "Body collapsed onto floor perimeter"
         ]
         counter_evidence = ["Recovery observation window active (<3s)"]
         recovery_status = "MONITORING"
     elif velocity_down > 0.25 and torso_angle_deg <= 30.0 and not is_on_floor:
-        # Controlled descent: sitting down (muscular deceleration with upright spine)
+        # Controlled descent: intentional sitting transfer
         risk_level = "SAFE"
         event_state = "NORMAL"
         probable_mechanism = "INTENTIONAL_SITTING"
@@ -495,7 +556,6 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         counter_evidence = ["Floor impact pending confirmation", "Upright recovery possible"]
         recovery_status = "MONITORING"
     elif is_in_bed and torso_angle_deg <= 35.0:
-        # Controlled bed-edge sitting
         risk_level = "SAFE"
         event_state = "NORMAL"
         probable_mechanism = "INTENTIONAL_SITTING"
@@ -564,10 +624,15 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
         counter_evidence = ["Zero downward acceleration", "Continuous equilibrium"]
         recovery_status = "NOT_APPLICABLE"
 
-    hub.timeline_stage = stage
+    ctx.timeline_stage = stage
+    if ctx is not hub:
+        hub.timeline_stage = stage
 
     canonical_event = {
-        "eventId": f"EVT-YOLO-{int(current_time * 1000)}",
+        "eventId": f"EVT-{source or getattr(ctx, 'source_type', 'CAM')}-{int(current_time * 1000)}",
+        "cameraId": camera_id or getattr(ctx, "camera_id", "cam-default"),
+        "edgeId": edge_id or "edge-node-an-01",
+        "sourceType": source or getattr(ctx, "source_type", "PRERECORDED_VIDEO"),
         "state": event_state,
         "probableMechanism": probable_mechanism,
         "stage": stage,
@@ -601,15 +666,13 @@ def compute_kinematics(keypoints, img_w, img_h, current_time, source=None):
 
 def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
     """
-    Renders medical-grade skeletal vectors, keypoints, and targeting brackets
-    without cartoonish visuals. In Privacy Mode, renders over a clean dark radar grid.
+    Renders skeletal vectors, keypoints, and targeting brackets.
+    In Privacy Mode, renders over dark navy radar grid (DPDP Act compliance).
     """
     h, w = frame.shape[:2]
-    
+
     if privacy_mode:
-        # Privacy Mode: Blank out all real video pixels completely (DPDP Act compliance)
         canvas = np.full((h, w, 3), (18, 13, 9), dtype=np.uint8) # Dark clinical navy
-        # Draw subtle grid lines
         grid_step = 40
         for x in range(0, w, grid_step):
             cv2.line(canvas, (x, 0), (x, h), (38, 29, 20), 1)
@@ -617,9 +680,8 @@ def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
             cv2.line(canvas, (0, y), (w, y), (38, 29, 20), 1)
     else:
         canvas = frame.copy()
-        
+
     if not results or len(results[0].boxes) == 0:
-        # No person detected overlay
         cv2.putText(canvas, "Prajna Vision Sentinel: Scanning Perimeter...", (20, 35),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (140, 140, 140), 1, cv2.LINE_AA)
         return canvas
@@ -627,8 +689,7 @@ def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
     r = results[0]
     is_danger = kinematics.get("risk_level") == "HIGH_RISK"
     is_caution = kinematics.get("risk_level") == "CAUTION"
-    
-    # Theme colors (BGR)
+
     if is_danger:
         accent_color = (94, 63, 244)   # Rose Red
         joint_color = (120, 100, 255)
@@ -639,54 +700,49 @@ def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
         accent_color = (129, 185, 16)   # Emerald Green
         joint_color = (180, 220, 50)
 
-    # Process each detected person (highlight primary person)
     boxes = r.boxes.xyxy.cpu().numpy()
     kpts_list = r.keypoints.data.cpu().numpy() if r.keypoints is not None else []
-    
+
     for i, (box, kp) in enumerate(zip(boxes, kpts_list)):
         bx1, by1, bx2, by2 = map(int, box[:4])
         bw, bh = bx2 - bx1, by2 - by1
-        
-        # 1. Corner targeting brackets (only for primary person i == 0)
-        if i == 0:
-            arm = min(20, int(bw * 0.18))
-            thick = 2
-            # Top-Left
-            cv2.line(canvas, (bx1, by1), (bx1 + arm, by1), accent_color, thick)
-            cv2.line(canvas, (bx1, by1), (bx1, by1 + arm), accent_color, thick)
-            # Top-Right
-            cv2.line(canvas, (bx2, by1), (bx2 - arm, by1), accent_color, thick)
-            cv2.line(canvas, (bx2, by1), (bx2, by1 + arm), accent_color, thick)
-            # Bottom-Left
-            cv2.line(canvas, (bx1, by2), (bx1 + arm, by2), accent_color, thick)
-            cv2.line(canvas, (bx1, by2), (bx1, by2 - arm), accent_color, thick)
-            # Bottom-Right
-            cv2.line(canvas, (bx2, by2), (bx2 - arm, by2), accent_color, thick)
-            cv2.line(canvas, (bx2, by2), (bx2, by2 - arm), accent_color, thick)
 
-        # 2. Draw 17 COCO Skeletal Bones
+        # Corner brackets on primary person
+        if i == 0:
+            corner_len = max(14, int(min(bw, bh) * 0.18))
+            thick = 2
+            # Top-left
+            cv2.line(canvas, (bx1, by1), (bx1 + corner_len, by1), accent_color, thick, cv2.LINE_AA)
+            cv2.line(canvas, (bx1, by1), (bx1, by1 + corner_len), accent_color, thick, cv2.LINE_AA)
+            # Top-right
+            cv2.line(canvas, (bx2, by1), (bx2 - corner_len, by1), accent_color, thick, cv2.LINE_AA)
+            cv2.line(canvas, (bx2, by1), (bx2, by1 + corner_len), accent_color, thick, cv2.LINE_AA)
+            # Bottom-left
+            cv2.line(canvas, (bx1, by2), (bx1 + corner_len, by2), accent_color, thick, cv2.LINE_AA)
+            cv2.line(canvas, (bx1, by2), (bx1, by2 - corner_len), accent_color, thick, cv2.LINE_AA)
+            # Bottom-right
+            cv2.line(canvas, (bx2, by2), (bx2 - corner_len, by2), accent_color, thick, cv2.LINE_AA)
+            cv2.line(canvas, (bx2, by2), (bx2, by2 - corner_len), accent_color, thick, cv2.LINE_AA)
+
+        # Draw COCO skeletal bones
         for p1_idx, p2_idx in SKELETON_PAIRS:
             if p1_idx < len(kp) and p2_idx < len(kp):
-                x1, y1, conf1 = kp[p1_idx]
-                x2, y2, conf2 = kp[p2_idx]
-                if conf1 > 0.4 and conf2 > 0.4:
-                    pt1 = (int(x1), int(y1))
-                    pt2 = (int(x2), int(y2))
-                    cv2.line(canvas, pt1, pt2, accent_color, 2, cv2.LINE_AA)
-                    
-        # 3. Draw Keypoint Nodes
-        for k_idx, (kx, ky, kconf) in enumerate(kp):
-            if kconf > 0.4:
+                pt1, pt2 = kp[p1_idx], kp[p2_idx]
+                if pt1[2] > 0.25 and pt2[2] > 0.25:
+                    cv2.line(canvas, (int(pt1[0]), int(pt1[1])),
+                             (int(pt2[0]), int(pt2[1])), accent_color, 2, cv2.LINE_AA)
+
+        # Draw joint nodes
+        for k_idx, pt in enumerate(kp):
+            if pt[2] > 0.25:
+                kx, ky = pt[0], pt[1]
                 radius = 3 if k_idx > 4 else 2
                 cv2.circle(canvas, (int(kx), int(ky)), radius, joint_color, -1, cv2.LINE_AA)
 
-    # 4. Top Telemetry HUD Strip
-    hud_bg = canvas[0:45, 0:w].copy()
+    # Top Telemetry HUD Strip
     cv2.rectangle(canvas, (0, 0), (w, 45), (10, 10, 10), -1)
-    
     status_text = f"YOLO11-Pose | {kinematics.get('posture', 'Active')} | {hub.fps:.1f} FPS"
     risk_text = f"RISK: {kinematics.get('risk_level', 'SAFE')} (Torso: {kinematics.get('torso_angle', 0)} deg)"
-    
     cv2.putText(canvas, status_text, (15, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (230, 230, 230), 1, cv2.LINE_AA)
     cv2.putText(canvas, risk_text, (15, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.44, accent_color, 1, cv2.LINE_AA)
 
@@ -694,36 +750,24 @@ def draw_pose_overlays(frame, results, kinematics, privacy_mode=False):
 
 def camera_processing_thread():
     """
-    Continuous background worker with DPDP Act 2023 On-Demand Hardware Lifecycle:
-    - Camera hardware is NOT opened at startup. Physical LED remains completely OFF.
-    - Camera hardware ONLY opens when an active subscriber connects to the stream.
-    - When all viewers disconnect or stream pauses, camera is immediately released,
-      extinguishing the physical LED.
+    Continuous background worker reading from the active CameraSource on EdgeNode.
+    Maintains on-demand privacy, paces playback for virtual video, and updates telemetry.
     """
-    print("[*] Camera processing worker initialized in STANDBY (Camera hardware released, LED OFF).")
-    cap = None
-    current_source = None
+    print("[*] Unified Camera Ingestion Worker initialized (Interchangeable Sources: WEBCAM, RTSP, PRERECORDED).")
+    active_camera: Optional[CameraSource] = None
     frame_counter = 0
-    consecutive_fails = 0
-    t_start = time.time()
 
     while hub.running:
         with hub.lock:
             should_run = bool(hub.camera_active or hub.active_streamers > 0)
-            active_source = hub.source
+            target_camera = hub.edge_node.get_active_camera()
 
-        # Standby: No active viewers requested the camera
         if not should_run:
-            if cap is not None:
-                print("[*] Privacy Protection Gate: Zero active stream clients. Powering down camera hardware (LED OFF)...")
-                try:
-                    cap.release()
-                except Exception:
-                    pass
-                cap = None
-                current_source = None
+            if active_camera is not None:
+                print(f"[*] Privacy Gate: Zero active stream clients. Releasing camera {active_camera.camera_id}...")
+                active_camera.release()
+                active_camera = None
                 with hub.lock:
-                    hub.cap = None
                     hub.fps = 0.0
                     hub.latest_rendered_frame = None
                     hub.latest_radar_frame = None
@@ -732,97 +776,49 @@ def camera_processing_thread():
                         "fps": 0.0,
                         "person_detected": False,
                         "persons_count": 0,
-                        "posture": "Hardware Standby (Webcam Powered Off · Privacy Safe)",
+                        "posture": "Hardware Standby (Camera Released · Privacy Safe)",
                         "risk_level": "SAFE",
                         "confidence": 100.0,
                         "hypothesis": {
                             "id": "H0",
-                            "label": "Camera Hardware Standby",
-                            "mechanism": "Physical webcam uninitialized and LED indicator extinguished."
+                            "label": "Camera Standby",
+                            "mechanism": "Camera monitoring idle. Privacy safe."
                         }
                     })
             time.sleep(0.1)
             continue
 
-        # If source has been switched dynamically while active, release current capture handle
-        if cap is not None and current_source != active_source:
-            print(f"[*] Switching active video source from '{current_source}' to '{active_source}'...")
-            try:
-                cap.release()
-            except Exception:
-                pass
-            cap = None
-            current_source = None
+        # Check if active camera selection changed dynamically
+        if active_camera is not None and active_camera.camera_id != (target_camera.camera_id if target_camera else None):
+            print(f"[*] Switching active camera from {active_camera.camera_id} to {target_camera.camera_id}...")
+            active_camera.release()
+            active_camera = None
 
-        # Active: Open camera hardware or clinical demo video on-demand
-        if cap is None:
-            current_source = active_source
-            if current_source == "bed_fall_demo":
-                if os.path.exists(hub.demo_video_path):
-                    print(f"[*] On-Demand Activation: Opening Bed-Fall Clinical Demo Video from {hub.demo_video_path}...")
-                    cap = cv2.VideoCapture(hub.demo_video_path)
-                else:
-                    print(f"[!] Warning: Demo video not found at {hub.demo_video_path}. Falling back to webcam...")
-                    cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
-                    current_source = "webcam"
-            else:
-                print(f"[*] On-Demand Activation: Initializing hardware webcam (index {hub.camera_index})...")
-                cap = cv2.VideoCapture(hub.camera_index, cv2.CAP_DSHOW)
-                if not cap.isOpened():
-                    print(f"[!] Warning: Camera index {hub.camera_index} with CAP_DSHOW not opened. Trying default backend...")
-                    cap = cv2.VideoCapture(hub.camera_index)
-                
-            if not cap.isOpened():
-                print(f"[!] ERROR: Unable to access video source '{current_source}'.")
+        active_camera = target_camera
+        if active_camera is None:
+            time.sleep(0.1)
+            continue
+
+        # Open camera on-demand if not already open
+        if active_camera.lifecycle_state in [CameraLifecycleState.OFFLINE, CameraLifecycleState.STOPPED]:
+            success = active_camera.open()
+            if not success:
                 with hub.lock:
                     hub.telemetry["status"] = "CAMERA_UNAVAILABLE"
-                    hub.camera_active = False
-                cap = None
-                current_source = None
-                time.sleep(1.0)
+                    hub.camera_state = active_camera.lifecycle_state
+                time.sleep(0.5)
                 continue
 
-            if current_source == "webcam":
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                cap.set(cv2.CAP_PROP_FPS, 30)
-                try:
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                except Exception:
-                    pass
-            
-            with hub.lock:
-                hub.cap = cap
-                hub.camera_state = "CAMERA_CALIBRATING"
-                hub.calibration_frames_left = hub.CALIBRATION_FRAMES_REQUIRED
-                hub.consecutive_valid_frames = 0
-                hub.prev_com_y = None
-                hub.prev_time = None
-                hub.fall_latched = False
-                hub.telemetry["status"] = "CAMERA_CALIBRATING"
-                hub.telemetry["camera_state"] = "CAMERA_CALIBRATING"
-            print(f"[+] Source '{current_source}' online (Physical LED: {'ON' if current_source == 'webcam' else 'OFF (Demo Video)'}). Calibrating baseline ({hub.CALIBRATION_FRAMES_REQUIRED} frames)...")
-            t_start = time.time()
-            frame_counter = 0
-            consecutive_fails = 0
-
-        # Check if video playback is paused or stopped
-        if current_source == "bed_fall_demo":
-            if hub.playback_state in ["PAUSED", "STOPPED", "VIDEO_ENDED"]:
-                time.sleep(0.04)
-                continue
-
-        # Read video frame
+        # Read normalized frame from current camera source
         frame_read_start = time.time()
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            if current_source == "bed_fall_demo":
-                # Video reached EOF cleanly: transition safely without emergency latch
-                print("[*] Demonstration video reached EOF. Transitioning to VIDEO_ENDED / MONITORING_IDLE.")
+        norm_frame = active_camera.read_frame()
+
+        if norm_frame is None:
+            state = active_camera.lifecycle_state
+            if state == CameraLifecycleState.VIDEO_ENDED:
                 with hub.lock:
                     hub.playback_state = "VIDEO_ENDED"
                     hub.camera_state = "VIDEO_ENDED"
-                    hub.reset_tracking_state()
                     hub.telemetry.update({
                         "status": "VIDEO_ENDED",
                         "camera_state": "VIDEO_ENDED",
@@ -830,93 +826,81 @@ def camera_processing_thread():
                         "event_state": "MONITORING_IDLE",
                         "posture": "Demonstration Concluded (Monitoring Idle)",
                         "risk_level": "SAFE",
-                        "confidence": 100.0,
                         "timeline_stage": "STAGE_RESOLVED",
-                        "stage": "STAGE_RESOLVED",
-                        "hypothesis": {
-                            "id": "H0",
-                            "label": "Demonstration Concluded",
-                            "mechanism": "Pre-recorded footage finished. Monitoring transitioned to idle without false alert."
-                        },
-                        "canonical_event": {
-                            "eventId": f"EVT-END-{int(time.time())}",
-                            "state": "RESOLVED",
-                            "probableMechanism": "NORMAL_ACTIVITY",
-                            "detectionConfidence": 0,
-                            "mechanismConfidence": 100,
-                            "severityConfidence": 0,
-                            "recoveryStatus": "NOT_APPLICABLE",
-                            "evidence": ["End of demonstration video reached"],
-                            "counterEvidence": ["Monitoring transitioned safely to idle"]
-                        }
+                        "stage": "STAGE_RESOLVED"
+                    })
+                time.sleep(0.04)
+                continue
+            elif state == CameraLifecycleState.RECONNECTING:
+                with hub.lock:
+                    hub.camera_state = "RECONNECTING"
+                    hub.telemetry.update({
+                        "status": "CAMERA_RECONNECTING",
+                        "camera_state": "RECONNECTING",
+                        "posture": "Camera Reconnecting (Infrastructure Recovery)",
+                        "risk_level": "SAFE" # NEVER trigger false patient emergency!
                     })
                 time.sleep(0.05)
                 continue
-
-            if not ret or frame is None:
-                consecutive_fails += 1
-                if consecutive_fails > 25:
-                    print("[!] Video stream stalled, re-initializing backend...")
-                    try:
-                        cap.release()
-                    except Exception:
-                        pass
-                    cap = None
-                    current_source = None
-                    consecutive_fails = 0
-                time.sleep(0.02)
+            elif state == CameraLifecycleState.OFFLINE:
+                with hub.lock:
+                    hub.camera_state = "OFFLINE"
+                    hub.telemetry.update({
+                        "status": "CAMERA_OFFLINE",
+                        "camera_state": "OFFLINE",
+                        "risk_level": "SAFE"
+                    })
+                time.sleep(0.2)
                 continue
+            time.sleep(0.02)
+            continue
 
-        # Pace video playback based on playback_speed for realistic FPS
-        if current_source == "bed_fall_demo":
-            hub.video_frame_index += 1
-            hub.video_time = round(hub.video_frame_index / hub.video_fps, 2)
-            effective_speed = max(0.25, min(hub.playback_speed, 4.0))
-            frame_target_dt = 1.0 / (hub.video_fps * effective_speed)
+        # Frame pacing for prerecorded video based on playback speed
+        if norm_frame.source_type == CameraSourceType.PRERECORDED_VIDEO:
+            speed = getattr(active_camera, "playback_speed", 1.0)
+            target_fps = getattr(active_camera, "target_fps", 25.0)
+            frame_target_dt = 1.0 / (target_fps * max(0.25, min(speed, 4.0)))
             read_elapsed = time.time() - frame_read_start
             sleep_target = max(0.002, frame_target_dt - read_elapsed)
             time.sleep(sleep_target)
 
-        consecutive_fails = 0
-        current_time = time.time()
+        current_time = norm_frame.timestamp
+        frame = norm_frame.frame
         frame_counter += 1
 
-        # Check if calibration completed
-        if hub.calibration_frames_left <= 0 and hub.camera_state == "CAMERA_CALIBRATING":
-            with hub.lock:
-                hub.camera_state = "MONITORING"
-                hub.telemetry["status"] = "ONLINE_STREAMING"
-                hub.telemetry["camera_state"] = "MONITORING"
-        
-        # Calculate real-time FPS every 10 frames
-        if frame_counter % 10 == 0:
-            elapsed = current_time - t_start
-            if elapsed > 0:
-                hub.fps = round(frame_counter / elapsed, 1)
-            frame_counter = 0
-            t_start = current_time
+        # Synchronize hub state with active camera
+        with hub.lock:
+            hub.camera_state = active_camera.lifecycle_state
+            hub.fps = active_camera.health_metrics.received_fps
+            hub.video_time = norm_frame.timestamp
+            hub.video_frame_index = norm_frame.frame_index
+            if hasattr(active_camera, "playback_state"):
+                hub.playback_state = active_camera.playback_state
+            if hasattr(active_camera, "playback_speed"):
+                hub.playback_speed = active_camera.playback_speed
 
-        # Run Ultralytics YOLO Pose Inference with latency measurement
+        # Run Ultralytics YOLO-Pose inference
         t_infer_start = time.time()
         with inference_lock:
             results = yolo_model(frame, imgsz=320, verbose=False, device=DEVICE_TARGET)
         hub.last_inference_latency = time.time() - t_infer_start
         r = results[0]
-        
+
         persons_count = len(r.boxes) if r.boxes is not None else 0
         h_img, w_img = frame.shape[:2]
 
-        # Check for Floor Occlusion Fall ONLY if fall was ALREADY latched by physical trajectory
-        is_latch = hub.fall_latched and (current_time - hub.fall_latch_start_time < 4.0)
+        ctx = active_camera.tracking_context
+        # Check floor occlusion latch
+        is_latch = ctx.fall_latched and (current_time - ctx.fall_latch_start_time < 4.0)
 
-        if is_latch:
+        if is_latch and persons_count == 0:
             kinematics_data = {
                 "person_detected": False,
                 "posture": "Acute Fall / Subject Below Camera View",
                 "risk_level": "HIGH_RISK",
                 "confidence": 92.0,
                 "torso_angle": 75.0,
-                "downward_velocity": -abs(hub.recent_drop_velocity or 0.8),
+                "downward_velocity": -abs(ctx.recent_drop_velocity or 0.8),
                 "hypothesis": {
                     "id": "H1",
                     "label": "Floor Occlusion Fall",
@@ -924,6 +908,9 @@ def camera_processing_thread():
                 },
                 "canonical_event": {
                     "eventId": f"EVT-OCCL-{int(current_time * 1000)}",
+                    "cameraId": active_camera.camera_id,
+                    "edgeId": hub.edge_node.edge_id,
+                    "sourceType": norm_frame.source_type,
                     "state": "CONTACT_OR_FALL",
                     "probableMechanism": "FALL",
                     "detectionConfidence": 90,
@@ -935,11 +922,11 @@ def camera_processing_thread():
                     "timestamp": current_time
                 }
             }
-        else:
-            hub.fall_latched = False
-            hub.prev_com_y = None
-            hub.prev_time = None
-            hub.consecutive_valid_frames = 0
+        elif persons_count == 0:
+            ctx.fall_latched = False
+            ctx.prev_com_y = None
+            ctx.prev_time = None
+            ctx.consecutive_valid_frames = 0
             kinematics_data = {
                 "person_detected": False,
                 "posture": "Perimeter Clear (No Subject)",
@@ -949,61 +936,53 @@ def camera_processing_thread():
                 "downward_velocity": 0.0,
                 "hypothesis": {
                     "id": "H0",
-                    "label": "Room Perimeter Clear",
-                    "mechanism": "Zero subjects detected in monitored camera zone."
+                    "label": "Clear Perimeter",
+                    "mechanism": "Zero subjects detected in monitored clinical zone."
                 },
                 "canonical_event": {
-                    "eventId": f"EVT-CLEAR-{int(current_time * 1000)}",
+                    "eventId": f"EVT-SCAN-{int(current_time * 1000)}",
+                    "cameraId": active_camera.camera_id,
+                    "edgeId": hub.edge_node.edge_id,
+                    "sourceType": norm_frame.source_type,
                     "state": "NORMAL",
                     "probableMechanism": "NORMAL_ACTIVITY",
                     "detectionConfidence": 0,
                     "mechanismConfidence": 100,
                     "severityConfidence": 0,
                     "recoveryStatus": "NOT_APPLICABLE",
-                    "evidence": ["No motion in monitored zone"],
-                    "counterEvidence": ["Perimeter clear"],
-                    "timestamp": current_time
+                    "evidence": [],
+                    "counterEvidence": []
                 }
             }
-        
-        keypoints_formatted = []
-        primary_bbox = None
-        
-        if persons_count > 0 and r.keypoints is not None and len(r.keypoints.data) > 0:
+        else:
             primary_kp = r.keypoints.data[0].cpu().numpy()
-            h_img, w_img = frame.shape[:2]
-            kin_time = hub.video_time if current_source == "bed_fall_demo" else current_time
-            kinematics_data = compute_kinematics(primary_kp, w_img, h_img, kin_time, source=current_source)
-            hub.timeline_stage = kinematics_data.get("timeline_stage", "STAGE_RESTING")
-            
-            for idx, (kx, ky, kconf) in enumerate(primary_kp):
-                keypoints_formatted.append({
-                    "name": KEYPOINT_NAMES[idx],
-                    "x": round(float(kx), 1),
-                    "y": round(float(ky), 1),
-                    "confidence": round(float(kconf), 2)
-                })
-                
-            box = r.boxes.xyxy[0].cpu().numpy()
-            primary_bbox = [int(box[0]), int(box[1]), int(box[2] - box[0]), int(box[3] - box[1])]
+            kinematics_data = compute_kinematics(
+                primary_kp, w_img, h_img, current_time,
+                source=norm_frame.source_type,
+                tracking_context=ctx,
+                camera_id=active_camera.camera_id,
+                edge_id=hub.edge_node.edge_id
+            )
 
         rendered_frame = draw_pose_overlays(frame, results, kinematics_data, privacy_mode=False)
         radar_frame = draw_pose_overlays(frame, results, kinematics_data, privacy_mode=True)
-        
+
         with hub.lock:
             hub.latest_raw_frame = frame
             hub.latest_rendered_frame = rendered_frame
             hub.latest_radar_frame = radar_frame
-            hub.last_seen = current_time
+            hub.last_seen = time.time()
             hub.telemetry = {
-                "status": "ONLINE_STREAMING" if hub.camera_state == "MONITORING" else hub.camera_state,
-                "camera_state": hub.camera_state,
-                "camera_source_type": hub.camera_source_type,
-                "playback_state": hub.playback_state,
-                "playback_speed": hub.playback_speed,
-                "video_time": hub.video_time,
-                "video_duration": hub.video_duration,
-                "video_frame_index": hub.video_frame_index,
+                "status": "ONLINE_STREAMING" if active_camera.lifecycle_state == CameraLifecycleState.ONLINE else active_camera.lifecycle_state,
+                "camera_state": active_camera.lifecycle_state,
+                "camera_source_type": norm_frame.source_type,
+                "camera_id": active_camera.camera_id,
+                "camera_name": active_camera.camera_name,
+                "edge_id": hub.edge_node.edge_id,
+                "playback_state": getattr(active_camera, "playback_state", "PLAYING"),
+                "playback_speed": getattr(active_camera, "playback_speed", 1.0),
+                "video_time": norm_frame.timestamp,
+                "video_duration": getattr(active_camera, "video_duration", 14.76),
                 "timeline_stage": kinematics_data.get("timeline_stage", "STAGE_RESTING"),
                 "stage": kinematics_data.get("stage", "STAGE_RESTING"),
                 "detection_confidence": kinematics_data.get("detection_confidence", 85),
@@ -1014,27 +993,22 @@ def camera_processing_thread():
                 "device": GPU_NAME,
                 "cuda_enabled": CUDA_AVAILABLE,
                 "engine": "Ultralytics YOLO11-Pose",
-                "fps": hub.fps,
+                "fps": active_camera.health_metrics.received_fps or hub.fps,
                 "inference_latency_ms": round(hub.last_inference_latency * 1000, 1),
                 "person_detected": persons_count > 0,
                 "persons_count": persons_count,
-                "keypoints": keypoints_formatted,
-                "bbox": primary_bbox,
-                "torso_angle": kinematics_data.get("torso_angle", 12.0),
-                "downward_velocity": kinematics_data.get("downward_velocity", -0.1),
-                "posture": kinematics_data.get("posture", "Upright Nominal"),
+                "torso_angle": kinematics_data.get("torso_angle", 0.0),
+                "downward_velocity": kinematics_data.get("downward_velocity", 0.0),
+                "posture": kinematics_data.get("posture", "Upright Ambulation"),
                 "risk_level": kinematics_data.get("risk_level", "SAFE"),
-                "confidence": kinematics_data.get("confidence", 98.5),
+                "confidence": kinematics_data.get("confidence", 95.0),
                 "hypothesis": kinematics_data.get("hypothesis", {}),
                 "canonical_event": kinematics_data.get("canonical_event", {}),
                 "timestamp": current_time
             }
 
-    if cap is not None:
-        try:
-            cap.release()
-        except Exception:
-            pass
+    if active_camera is not None:
+        active_camera.release()
     print("[*] Camera processing thread stopped.")
 
 class NumpyJSONEncoder(json.JSONEncoder):
@@ -1052,7 +1026,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
     def send_cors_headers(self, content_type="application/json"):
         self.send_header("Content-Type", content_type)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -1068,21 +1042,66 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
-        
-        # 1. Status Discovery Endpoint
+
+        # 1. Edge Discovery Endpoint
+        if path == "/api/yolo/edge":
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            with hub.lock:
+                hb = hub.edge_node.get_heartbeat(
+                    model_status="ONLINE",
+                    inference_latency_ms=hub.last_inference_latency * 1000
+                )
+            self.wfile.write(json.dumps(hb, indent=2, cls=NumpyJSONEncoder).encode("utf-8"))
+            return
+
+        # 2. Camera Registry Endpoint
+        if path == "/api/yolo/cameras":
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            with hub.lock:
+                cam_list = []
+                for c in hub.edge_node.cameras.values():
+                    item = c.to_config_dict()
+                    item.update(c.get_health())
+                    cam_list.append(item)
+                resp = {
+                    "ok": True,
+                    "activeCameraId": hub.edge_node.active_camera_id,
+                    "cameras": cam_list
+                }
+            self.wfile.write(json.dumps(resp, indent=2, cls=NumpyJSONEncoder).encode("utf-8"))
+            return
+
+        # 3. 7-Tier Hierarchy Health Endpoint
+        if path in ["/api/yolo/health/hierarchy", "/api/yolo/hierarchy"]:
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.end_headers()
+            with hub.lock:
+                h = hub.edge_node.get_hierarchy_health()
+            self.wfile.write(json.dumps(h, indent=2, cls=NumpyJSONEncoder).encode("utf-8"))
+            return
+
+        # 4. Status Discovery Endpoint (Preserved + Enhanced)
         if path in ["/api/yolo/status", "/"]:
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
             with hub.lock:
-                is_hardware_on = bool(hub.cap is not None and (hub.camera_active or hub.active_streamers > 0))
+                active_src = hub.edge_node.get_active_camera()
+                is_hardware_on = bool(active_src and active_src.lifecycle_state not in [CameraLifecycleState.OFFLINE, CameraLifecycleState.STOPPED])
                 status_payload = {
                     "engine": "Ultralytics YOLO11-Pose",
                     "device": GPU_NAME,
                     "cuda_enabled": CUDA_AVAILABLE,
                     "status": hub.telemetry.get("status", "STANDBY_AWAITING_CONSENT"),
                     "source": hub.source,
-                    "camera_source_type": hub.camera_source_type,
+                    "camera_source_type": active_src.source_type if active_src else hub.camera_source_type,
+                    "camera_id": active_src.camera_id if active_src else "cam-default",
+                    "edge_id": hub.edge_node.edge_id,
                     "playback_state": hub.playback_state,
                     "playback_speed": hub.playback_speed,
                     "video_time": hub.video_time,
@@ -1095,13 +1114,13 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     "fps": float(hub.fps),
                     "model": "yolo11n-pose.pt",
                     "camera_index": hub.camera_index,
-                    "active_zone": "Room_302_Main_View",
+                    "active_zone": active_src.zone if active_src else "Virtual Ward Bed 1",
                     "last_seen": float(hub.last_seen)
                 }
             self.wfile.write(json.dumps(status_payload, indent=2, cls=NumpyJSONEncoder).encode("utf-8"))
             return
 
-        # 2. Live Telemetry Endpoint
+        # 5. Live Telemetry Endpoint
         if path == "/api/yolo/telemetry":
             self.send_response(200)
             self.send_cors_headers("application/json")
@@ -1111,49 +1130,62 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(payload, cls=NumpyJSONEncoder).encode("utf-8"))
             return
 
-        # 2b. Edge Heartbeat Endpoint (System Health Monitoring)
+        # 6. Edge Heartbeat Endpoint (Every 2–5s)
         if path == "/api/yolo/heartbeat":
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
             with hub.lock:
-                is_hardware_on = bool(hub.cap is not None and (hub.camera_active or hub.active_streamers > 0))
+                active_src = hub.edge_node.get_active_camera()
+                is_hardware_on = bool(active_src and active_src.lifecycle_state not in [CameraLifecycleState.OFFLINE, CameraLifecycleState.STOPPED])
                 heartbeat_payload = {
-                    "edgeId": "edge-sentinel-gtx1650",
+                    "edgeId": hub.edge_node.edge_id,
+                    "name": hub.edge_node.name,
+                    "hostIdentifier": hub.edge_node.host_identifier,
                     "timestamp": time.time(),
                     "processStatus": "RUNNING",
-                    "cameraStatus": hub.camera_state if is_hardware_on else "STANDBY",
+                    "cameraStatus": active_src.lifecycle_state if active_src else "STANDBY",
                     "modelStatus": "MODEL_READY",
                     "fps": float(hub.fps),
                     "trackedPersons": int(hub.telemetry.get("persons_count", 0)),
                     "inferenceLatencyMs": round(float(hub.last_inference_latency) * 1000, 1),
-                    "version": "2.1.0",
+                    "version": hub.edge_node.software_version,
                     "device": GPU_NAME,
                     "cudaEnabled": CUDA_AVAILABLE,
-                    "status": "EDGE_ONLINE"
+                    "status": "EDGE_ONLINE",
+                    "activeCameraId": hub.edge_node.active_camera_id,
+                    "cameras": [c.get_health() for c in hub.edge_node.cameras.values()]
                 }
             self.wfile.write(json.dumps(heartbeat_payload, indent=2, cls=NumpyJSONEncoder).encode("utf-8"))
             return
 
-        # 3. Live MJPEG Video Stream (Engages camera hardware or demo video on-demand)
+        # 7. Live MJPEG Video Stream
         if path in ["/api/yolo/stream", "/api/yolo/video_feed"]:
             privacy = query.get("privacy", ["0"])[0] == "1"
             req_source = query.get("source", [None])[0]
-            
+
             with hub.lock:
-                if req_source in ["webcam", "bed_fall_demo"] and req_source != hub.source:
-                    hub.source = req_source
-                    print(f"[*] Stream query requested source change to '{req_source}'")
+                if req_source in ["webcam", "bed_fall_demo", "RTSP_CAMERA"]:
+                    if req_source == "webcam":
+                        hub.edge_node.set_active_camera("cam-webcam-01")
+                        hub.source = "webcam"
+                    elif req_source == "bed_fall_demo":
+                        hub.edge_node.set_active_camera("cam-prerecorded-demo")
+                        hub.source = "bed_fall_demo"
+                    elif req_source == "RTSP_CAMERA":
+                        hub.edge_node.set_active_camera("cam-rtsp-ward-01")
+                        hub.source = "RTSP_CAMERA"
+
                 hub.active_streamers += 1
                 hub.camera_active = True
-                print(f"[+] Client connected to video feed (Active viewers: {hub.active_streamers}, Source: {hub.source}).")
+                print(f"[+] Client connected to video feed (Viewers: {hub.active_streamers}, Active Camera: {hub.edge_node.active_camera_id}).")
 
             self.send_response(200)
             self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
-            
+
             try:
                 last_streamed_time = 0
                 while hub.running:
@@ -1162,7 +1194,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                             break
                         frame_to_stream = hub.latest_radar_frame if privacy else hub.latest_rendered_frame
                         current_frame_time = hub.last_seen
-                    
+
                     if frame_to_stream is not None and current_frame_time != last_streamed_time:
                         last_streamed_time = current_frame_time
                         ret, jpeg = cv2.imencode(".jpg", frame_to_stream, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
@@ -1175,7 +1207,7 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                             self.wfile.write(b"\r\n")
                     time.sleep(0.025)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
-                pass # Client disconnected or paused cleanly
+                pass
             finally:
                 with hub.lock:
                     hub.active_streamers = max(0, hub.active_streamers - 1)
@@ -1194,8 +1226,11 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
-        # Browser Camera Frame Inference Endpoint (Enables Browser Webcam to run on YOLO Ultralytics)
-        if self.path == "/api/yolo/process_frame":
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        # 1. Browser Camera Frame Inference Endpoint
+        if path == "/api/yolo/process_frame":
             try:
                 content_len = int(self.headers.get("Content-Length", 0))
                 raw_bytes = self.rfile.read(content_len) if content_len > 0 else None
@@ -1205,7 +1240,6 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 client_vtime = None
                 req_source = None
 
-                # Handle base64 JSON if sent from browser
                 if raw_bytes.startswith(b"{"):
                     req = json.loads(raw_bytes.decode("utf-8"))
                     b64_str = req.get("image", "")
@@ -1215,7 +1249,6 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                     client_vtime = req.get("video_timestamp", None)
                     req_source = req.get("source", None)
 
-                # Also inspect custom headers if sent as raw binary JPEG
                 if client_vtime is None and self.headers.get("X-Video-Timestamp"):
                     try:
                         client_vtime = float(self.headers.get("X-Video-Timestamp"))
@@ -1308,84 +1341,200 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
                 return
 
-        # Video Source Selection Endpoint (Unified Camera Abstraction)
-        if self.path == "/api/yolo/source":
+        # 2. Add / Configure Camera Source Endpoint
+        if path == "/api/yolo/cameras":
+            try:
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_len).decode("utf-8")) if content_len > 0 else {}
+                cid = body.get("cameraId") or f"cam-rtsp-{int(time.time())}"
+                stype = body.get("sourceType", "RTSP_CCTV")
+                cname = body.get("cameraName", "Hospital Ward Camera")
+                zone = body.get("zone", "GB Pant Hospital · Virtual Ward Bed 1")
+                resident_id = body.get("residentId", "P3")
+                bed_id = body.get("bedId", "BED1")
+
+                if stype == "RTSP_CCTV":
+                    rtsp_url = body.get("rtspUrl", "")
+                    valid, vmsg = validate_rtsp_url(rtsp_url)
+                    if not valid:
+                        self.send_response(400)
+                        self.send_cors_headers("application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"ok": False, "error": vmsg}).encode("utf-8"))
+                        return
+                    new_cam = RtspCctvSource(cid, cname, rtsp_url, zone=zone, resident_id=resident_id, bed_id=bed_id)
+                elif stype == "LOCAL_WEBCAM":
+                    didx = int(body.get("deviceIndex", 0))
+                    new_cam = LocalWebcamSource(cid, cname, device_index=didx, zone=zone, resident_id=resident_id)
+                else:
+                    vpath = body.get("videoPath")
+                    new_cam = PrerecordedVideoSource(cid, cname, video_path=vpath, zone=zone, resident_id=resident_id)
+
+                with hub.lock:
+                    hub.edge_node.register_camera(new_cam)
+
+                self.send_response(201)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": True, "camera": new_cam.to_config_dict()}).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
+
+        # 3. Test Camera Connection Endpoint (/api/yolo/cameras/<id>/test or /api/yolo/cameras/test)
+        if "/test" in path and "/api/yolo/cameras" in path:
+            try:
+                cam_id = path.replace("/api/yolo/cameras/", "").replace("/test", "")
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_len).decode("utf-8")) if content_len > 0 else {}
+
+                # If testing a raw RTSP URL before saving
+                test_url = body.get("rtspUrl")
+                if test_url:
+                    temp_cam = RtspCctvSource("temp-test", "Test Camera", test_url)
+                    ok, msg = temp_cam.test_connection()
+                    self.send_response(200)
+                    self.send_cors_headers("application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"ok": ok, "message": msg}).encode("utf-8"))
+                    return
+
+                with hub.lock:
+                    cam = hub.edge_node.get_camera(cam_id)
+                if not cam:
+                    self.send_response(404)
+                    self.send_cors_headers("application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"ok": False, "error": "Camera not found"}).encode("utf-8"))
+                    return
+
+                ok, msg = cam.test_connection()
+                self.send_response(200)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": ok, "message": msg}).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
+
+        # 4. Activate Camera Source Endpoint (/api/yolo/cameras/<id>/activate)
+        if "/activate" in path and "/api/yolo/cameras" in path:
+            try:
+                cam_id = path.replace("/api/yolo/cameras/", "").replace("/activate", "")
+                with hub.lock:
+                    success = hub.edge_node.set_active_camera(cam_id)
+                    if success:
+                        active = hub.edge_node.get_active_camera()
+                        hub.camera_source_type = active.source_type
+                        if active.source_type == CameraSourceType.PRERECORDED_VIDEO:
+                            hub.source = "bed_fall_demo"
+                        elif active.source_type == CameraSourceType.LOCAL_WEBCAM:
+                            hub.source = "webcam"
+                        else:
+                            hub.source = "RTSP_CAMERA"
+                        hub.camera_active = True
+                self.send_response(200 if success else 404)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": success, "activeCameraId": cam_id}).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
+
+        # 5. Video Source Selection Endpoint (Backwards-Compatible Abstraction)
+        if path == "/api/yolo/source":
             try:
                 content_len = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_len).decode("utf-8")
                 req_data = json.loads(body) if body else {}
                 target_src = req_data.get("source", "bed_fall_demo")
+
                 with hub.lock:
                     if target_src in ["PRERECORDED_VIDEO", "bed_fall_demo"]:
                         hub.camera_source_type = "PRERECORDED_VIDEO"
                         hub.source = "bed_fall_demo"
+                        hub.edge_node.set_active_camera("cam-prerecorded-demo")
                     elif target_src in ["LIVE_WEBCAM", "webcam"]:
                         hub.camera_source_type = "LIVE_WEBCAM"
                         hub.source = "webcam"
-                    elif target_src in ["RTSP_CAMERA"]:
+                        hub.edge_node.set_active_camera("cam-webcam-01")
+                    elif target_src in ["RTSP_CAMERA", "RTSP_CCTV"]:
                         hub.camera_source_type = "RTSP_CAMERA"
-                        hub.source = "bed_fall_demo" # Anchored to ward surveillance in prototype
+                        hub.source = "RTSP_CAMERA"
+                        hub.edge_node.set_active_camera("cam-rtsp-ward-01")
                     hub.camera_active = True
-                print(f"[+] Source switched via API to: {hub.source} ({hub.camera_source_type})")
+
+                print(f"[+] Source switched via API to: {hub.source} (Active: {hub.edge_node.active_camera_id})")
                 self.send_response(200)
                 self.send_cors_headers("application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "ok": True,
                     "source": hub.source,
-                    "camera_source_type": hub.camera_source_type
+                    "camera_source_type": hub.camera_source_type,
+                    "activeCameraId": hub.edge_node.active_camera_id
                 }).encode("utf-8"))
                 return
             except Exception as e:
-                pass
-            self.send_response(400)
-            self.send_cors_headers("application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": False, "error": "Invalid source"}).encode("utf-8"))
-            return
+                self.send_response(400)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
+                return
 
-        # Playback Control Endpoint (START, PAUSE, RESUME, STOP, RESTART, SPEED)
-        if self.path == "/api/yolo/control":
+        # 6. Playback Control Endpoint (START, PAUSE, RESUME, STOP, RESTART, SPEED)
+        if path == "/api/yolo/control":
             try:
                 content_len = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(content_len).decode("utf-8") if content_len > 0 else "{}"
                 data = json.loads(body) if body else {}
                 action = data.get("action", "start")
-                
+
                 with hub.lock:
+                    active_cam = hub.edge_node.get_active_camera()
                     if action in ["start", "play", "resume"]:
                         hub.playback_state = "PLAYING"
                         hub.camera_active = True
+                        if hasattr(active_cam, "resume"):
+                            active_cam.resume()
                         if hub.camera_state == "VIDEO_ENDED" or hub.playback_state == "STOPPED":
-                            if hub.cap is not None:
-                                hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                            hub.video_frame_index = 0
-                            hub.video_time = 0.0
                             hub.reset_tracking_state()
                             hub.camera_state = "MONITORING"
                     elif action == "pause":
                         hub.playback_state = "PAUSED"
+                        if hasattr(active_cam, "pause"):
+                            active_cam.pause()
                     elif action == "stop":
                         hub.playback_state = "STOPPED"
                         hub.camera_active = False
-                        if hub.cap is not None:
-                            hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                        hub.video_frame_index = 0
-                        hub.video_time = 0.0
+                        if hasattr(active_cam, "stop"):
+                            active_cam.stop()
                         hub.reset_tracking_state()
                     elif action == "restart":
-                        if hub.cap is not None:
-                            hub.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                        hub.video_frame_index = 0
-                        hub.video_time = 0.0
-                        hub.reset_tracking_state()
                         hub.playback_state = "PLAYING"
                         hub.camera_active = True
                         hub.camera_state = "CAMERA_CALIBRATING"
                         hub.calibration_frames_left = 20
+                        if hasattr(active_cam, "restart"):
+                            active_cam.restart()
+                        hub.reset_tracking_state()
                     elif action == "speed":
                         new_speed = float(data.get("speed", 1.0))
                         hub.playback_speed = max(0.25, min(new_speed, 4.0))
+                        if hasattr(active_cam, "set_speed"):
+                            active_cam.set_speed(hub.playback_speed)
 
                 self.send_response(200)
                 self.send_cors_headers("application/json")
@@ -1406,27 +1555,25 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"ok": False, "error": str(e)}).encode("utf-8"))
                 return
 
-        # Explicit Camera Start Endpoint
-        if self.path == "/api/yolo/start":
+        # 7. Explicit Camera Start Endpoint
+        if path == "/api/yolo/start":
             with hub.lock:
                 hub.camera_active = True
-            print(f"[+] Explicit /api/yolo/start command received: Engaging source '{hub.source}'...")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
             try:
-                led_state = "ON" if hub.source == "webcam" else "OFF (Demo Video)"
+                led_state = "ON" if hub.source == "webcam" else "OFF (Demo/RTSP)"
                 self.wfile.write(json.dumps({"ok": True, "camera_active": True, "source": hub.source, "camera_led": led_state}).encode("utf-8"))
             except Exception:
                 pass
             return
 
-        # Explicit Camera Stop / Pause Endpoint
-        if self.path in ["/api/yolo/stop", "/api/yolo/pause"]:
+        # 8. Explicit Camera Stop Endpoint
+        if path == "/api/yolo/stop":
             with hub.lock:
                 hub.camera_active = False
                 hub.active_streamers = 0
-            print("[*] Explicit /api/yolo/stop command received: Powering down stream...")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.end_headers()
@@ -1436,64 +1583,58 @@ class SentinelRequestHandler(BaseHTTPRequestHandler):
                 pass
             return
 
-        # Allow triggering a simulated fall for verification test
-        if self.path == "/api/yolo/simulate_fall":
+        # 404 Fallback
+        self.send_response(404)
+        self.send_cors_headers("application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"ok": False, "error": "Not found"}).encode("utf-8"))
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/yolo/cameras/"):
+            cam_id = path.replace("/api/yolo/cameras/", "").strip()
             with hub.lock:
-                hub.telemetry.update({
-                    "risk_level": "HIGH_RISK",
-                    "posture": "Acute Rapid Descent / Fall Trajectory (Simulated)",
-                    "torso_angle": 78.4,
-                    "downward_velocity": -1.94,
-                    "confidence": 98.2,
-                    "hypothesis": {
-                        "id": "H1",
-                        "label": "Acute Mechanical Fall (Test Verification)",
-                        "mechanism": "Simulated acute vertical descent (-1.94 m/s) with torso collapse to 78.4°."
-                    }
-                })
-            self.send_response(200)
+                removed = hub.edge_node.remove_camera(cam_id)
+            self.send_response(200 if removed else 404)
             self.send_cors_headers("application/json")
             self.end_headers()
-            try:
-                self.wfile.write(json.dumps({"ok": True, "message": "Simulated fall event activated for 7 seconds"}).encode("utf-8"))
-            except Exception:
-                pass
-            
-            # Reset after 7 seconds in background
-            def reset():
-                time.sleep(7.0)
-                with hub.lock:
-                    if hub.telemetry["posture"].startswith("Acute Rapid"):
-                        hub.telemetry["risk_level"] = "SAFE"
-                        hub.telemetry["posture"] = "Upright Equilibrium Restored"
-            threading.Thread(target=reset, daemon=True).start()
+            self.wfile.write(json.dumps({"ok": removed, "cameraId": cam_id}).encode("utf-8"))
             return
-            
+
         self.send_response(404)
+        self.send_cors_headers("application/json")
         self.end_headers()
+        self.wfile.write(json.dumps({"ok": False, "error": "Endpoint not found"}).encode("utf-8"))
 
-    def log_message(self, format, *args):
-        pass # Silent access logging
+def run_server(port=5050):
+    server_address = ("0.0.0.0", port)
+    httpd = ThreadingHTTPServer(server_address, SentinelRequestHandler)
+    print(f"\n[+] ReJivan Edge Sentinel REST API & MJPEG Server listening on 0.0.0.0:{port}")
+    print(f"[*] Discovery URL: http://127.0.0.1:{port}/api/yolo/status")
+    print(f"[*] Heartbeat URL: http://127.0.0.1:{port}/api/yolo/heartbeat")
+    print(f"[*] Camera Registry URL: http://127.0.0.1:{port}/api/yolo/cameras")
+    print(f"[*] Edge Health Hierarchy: http://127.0.0.1:{port}/api/yolo/health/hierarchy")
+    print(f"[*] Live Stream URL: http://127.0.0.1:{port}/api/yolo/video_feed\n")
 
-def start_server(port=5050):
-    server = ThreadingHTTPServer(("0.0.0.0", port), SentinelRequestHandler)
-    server.daemon_threads = True
-    print(f"\n[+] Local Sentinel Discovery API: http://localhost:{port}/api/yolo/status")
-    print(f"[+] Live MJPEG Video Stream:     http://localhost:{port}/api/yolo/video_feed")
-    print(f"[+] Privacy Radar Stream:         http://localhost:{port}/api/yolo/video_feed?privacy=1")
-    print(f"[+] Live Kinematics Telemetry:    http://localhost:{port}/api/yolo/telemetry\n")
-    server.serve_forever()
+    cam_thread = threading.Thread(target=camera_processing_thread, daemon=True)
+    cam_thread.start()
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[*] Shutting down ReJivan Edge Sentinel...")
+        hub.running = False
+        httpd.shutdown()
+        cam_thread.join(timeout=2.0)
+        print("[+] ReJivan Edge Sentinel daemon terminated cleanly.")
 
 if __name__ == "__main__":
-    # Start video capture & YOLO processing thread
-    cap_thread = threading.Thread(target=camera_processing_thread, daemon=True)
-    cap_thread.start()
-    
-    # Start HTTP server
-    try:
-        start_server(5050)
-    except KeyboardInterrupt:
-        print("\n[*] Stopping ReJivan Sentinel Daemon...")
-        hub.running = False
-        time.sleep(0.5)
-        sys.exit(0)
+    port_num = 5050
+    if len(sys.argv) > 1:
+        try:
+            port_num = int(sys.argv[1])
+        except ValueError:
+            pass
+    run_server(port_num)
