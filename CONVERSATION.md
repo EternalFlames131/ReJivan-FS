@@ -1683,6 +1683,7 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - **Contents of New PDF:**
   1. *Section 1:* Executive Summary & Andaman & Nicobar Geographic Imperative (GB Pant Hospital, outer-island logistics).
   2. *Section 2:* Complete Dual-Sentinel Architecture (Bio-Telemetry RPM + Edge Computer Vision).
+  2. *Section 2:* Dual-Sentinel Architecture (Bio-Telemetry RPM + Edge Computer Vision).
   3. *Section 3:* Key System Milestones & Operational State (Web, YOLO on GTX 1650 CUDA, Android APK).
   4. *Section 4:* Exhaustive Breakdown of All Added Features (13 major feature suites).
   5. *Section 5:* Architectural Honesty Matrix (What is 100% Real vs Simulated).
@@ -1690,8 +1691,21 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   7. *Section 7:* Comprehensive List of Recommended Technical Fixes (Add Patient flow, Cloud DB, MediaPipe Wasm, BLE hardware validation, WebRTC voice intercom, Multi-bed CCTV matrix).
   8. *Section 8 & 9:* HSC 2027 Competition Deliverables Plan & Scoring Rubric Mapping.
 
+---
 
+## 2026-09-17 (Day 9 — Unified Camera Source Abstraction & Prerecorded Video Monitoring Mode for Competition Demo)
 
-
-
-
+### What the user asked:
+- Implement a proper PRERECORDED VIDEO MONITORING MODE for the competition demonstration.
+- NOT a fake alert animation and NOT a separate demo-only alert system.
+- The prerecorded hospital/bed-fall video (`patient_bed_fall_demo.mp4`) must be treated as a virtual camera source (`PRERECORDED_VIDEO`) alongside `LIVE_WEBCAM` and `RTSP_CAMERA`.
+- Must pass through the same real vision, temporal, event-reconstruction, risk, verification, and alert pipeline.
+- Sequential frame decoding with video playback timestamps for kinematic calculations (not wall clock).
+- Initial startup state machine: `CAMERA_STARTING` -> `CAMERA_CALIBRATING` -> `MONITORING`, preventing false startup alerts.
+- In-bed and bed-edge activity must remain NORMAL / non-dangerous; sitting on bed edge must NOT automatically trigger a fall.
+- When descent/fall occurs, event engine evaluates physical hypotheses (`NORMAL_ACTIVITY`, `INTENTIONAL_SITTING`, `INTENTIONAL_LYING`, `KNEELING`, `TRIP`, `LOSS_OF_BALANCE`, `FALL`, `FALL_WITH_IMMOBILITY`, `UNKNOWN`).
+- Post-event recovery observation -> if immobility continues, open the resident verification workflow ("Are you okay?" modal with actions), then alert/escalation.
+- Controls: START, PAUSE, STOP, RESTART, Speed (0.5x, 1x, 2x; default 1x).
+- Visual status indicator: "CAMERA SOURCE: PRE-RECORDED DEMONSTRATION", source status panel, end-of-video idle handling, pause/restart reset.
+- Graceful degradation if YOLO is offline (EDGE OFFLINE / VISION UNAVAILABLE / MONITORING DEGRADED) with browser fallback.
+- Automated tests and demonstration event timeline with 3 confidence metrics (Detection, Mechanism, Severity) and incident reconstruction replay.
