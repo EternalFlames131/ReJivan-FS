@@ -2,31 +2,103 @@
 // Hardware Diagnostics & Sensor Telemetry Bar (Enterprise Clinical Grade)
 
 const HardwareDiagnosticsBar = ({
-  devices = [
-    {
-      model: "Omron HEM-7156T",
-      type: "BP Monitor",
-      status: "Connected",
-      battery: 92,
-      protocol: "BLE 5.2",
-    },
-    {
-      model: "TempTraq Continuous",
-      type: "Temp Sensor",
-      status: "Connected",
-      battery: 84,
-      protocol: "Patch Sensor",
-    },
-    {
-      model: "SanketLife 12-Lead",
-      type: "Clinical ECG",
-      status: "Connected",
-      battery: 78,
-      protocol: "CDSCO Cleared",
-    },
-  ],
+  devices: propDevices,
   reliabilityScore = 98,
+  currentUser,
+  activePatient,
 }) => {
+  const getHardwareForUser = (user, patient) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        hubText: "Cellular Gateway #AP-4109 (Hut Bay, Little Andaman)",
+        devices: [
+          {
+            model: "FreeStyle Libre 3",
+            type: "Continuous Glucose Monitor",
+            status: "Connected",
+            battery: 99,
+            protocol: "NFC/BLE Stream",
+          },
+          {
+            model: "Accu-Chek Instant",
+            type: "Capillary Glucometer",
+            status: "Synchronized",
+            battery: 88,
+            protocol: "BLE 5.0",
+          },
+          {
+            model: "Beurer BM 57",
+            type: "Upper Arm BP & Arrhythmia",
+            status: "Connected",
+            battery: 91,
+            protocol: "BLE Mesh",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        hubText: "Hospital Ward A Central Gateway #GW-8042 (Port Blair)",
+        devices: [
+          {
+            model: "GB Pant Ward Hub",
+            type: "Multi-Bed Gateway Array",
+            status: "Connected",
+            battery: 100,
+            protocol: "PoE Ethernet",
+          },
+          {
+            model: "Philips IntelliVue MP50",
+            type: "Bedside Telemetry Hub",
+            status: "Connected",
+            battery: 96,
+            protocol: "Hospital WLAN",
+          },
+          {
+            model: "Masimo Rad-97",
+            type: "Pulse CO-Oximeter",
+            status: "Connected",
+            battery: 94,
+            protocol: "Continuous BLE",
+          },
+        ],
+      };
+    }
+
+    return {
+      hubText: "BLE Mesh Hub Active (Port Blair Gateway)",
+      devices: [
+        {
+          model: "Omron HEM-7156T",
+          type: "BP Monitor",
+          status: "Connected",
+          battery: 92,
+          protocol: "BLE 5.2",
+        },
+        {
+          model: "TempTraq Continuous",
+          type: "Temp Sensor",
+          status: "Connected",
+          battery: 84,
+          protocol: "Patch Sensor",
+        },
+        {
+          model: "SanketLife 12-Lead",
+          type: "Clinical ECG",
+          status: "Connected",
+          battery: 78,
+          protocol: "CDSCO Cleared",
+        },
+      ],
+    };
+  };
+
+  const hardwareInfo = getHardwareForUser(currentUser, activePatient);
+  const devices = propDevices || hardwareInfo.devices;
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs">
       {/* Header */}
@@ -41,7 +113,7 @@ const HardwareDiagnosticsBar = ({
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>BLE Mesh Hub Active (Port Blair Gateway)</span>
+          <span>{hardwareInfo.hubText}</span>
         </div>
       </div>
 
