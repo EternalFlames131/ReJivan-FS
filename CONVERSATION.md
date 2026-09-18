@@ -2051,5 +2051,26 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ---
 
+## 2026-09-18 (Complete Account Switching & Data Isolation Across All Sections)
+
+### What the user asked
+- "why when we change accounts only the dashboard data changes, what about the other sections? change that as well"
+
+### Diagnosis & Plan
+1. **Analyze Account Switching in `App.jsx`:**
+   - How `handleLogin` / demo account buttons (`asharma@demo.in`, `rprakash@demo.in`, `wardnurse@demo.in`) work.
+   - Currently, `App.jsx` updates `user` state and changes the patient name in the `PatientOverviewCard` on the dashboard, but the child views (`MedicinesView.jsx`, `AlertsView.jsx`, `MedicalDevicesView.jsx`, `CameraZonesView.jsx`, and Modals) were hardcoded to Anita Sharma or did not receive the `user` context!
+2. **Examine Child View Components:**
+   - `MedicinesView.jsx`: hardcoded to Anita's prescriptions (Amlodipine, Aspirin, Atorvastatin). Ram Prakash should have diabetes medications (Metformin 500mg, Glimepiride 1mg, Atorvastatin 10mg); Ward Nurse should see full inpatient ward medication schedules.
+   - `AlertsView.jsx`: hardcoded to Anita's alerts and call chain. Ram Prakash should see his hypoglycemic/hyperglycemic alerts and family contact chain (Little Andaman); Ward Nurse should see the entire ward alert queue and triage.
+   - `MedicalDevicesView.jsx`: hardcoded to Anita's devices (Omron BP, TempTraq). Ram Prakash should see his FreeStyle Libre 3 CGM, Accu-Chek glucometer, and cellular gateway; Ward Nurse should see all hospital telemetry hubs.
+   - `CameraZonesView.jsx`: camera feeds and resident check-ins should isolate to the logged-in user (Anita Sharma living room vs Ram Prakash Hut Bay bedroom vs Ward Nurse hospital CCTV feeds).
+   - Global modals (`CallCaregiverModal`, `ClinicalExportModal`, `AddMedicationModal`, `ResidentCheckinModal`): dynamically reflect the active user.
+3. **Execute End-to-End Dynamic Account Context Binding:**
+   - Pass `currentUser={user}` (and associated patient data / credentials) to all views.
+   - Update `MedicinesView.jsx`, `AlertsView.jsx`, `MedicalDevicesView.jsx`, `CameraZonesView.jsx`, `Modals.jsx`, and `App.jsx`.
+   - Rebuild web bundle, verify Babel compilation, verify tests, and verify DOM hydration.
+
+
 
 
