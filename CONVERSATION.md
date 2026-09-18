@@ -2122,3 +2122,20 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
      - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
      - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+
+---
+
+## 2026-09-18 (Role Restriction: Virtual Ward strictly for Hospital / Nurse Logins)
+
+### What the user asked
+- "for the family monitor login why is there a virtual ward data it should only be for the hospital logins which has multiple patient data into it"
+
+### Analysis & Requirements
+1. **Clinical / Logical Context:**
+   - A family caregiver/monitor (`asharma@demo.in` or `rprakash@demo.in`) is tracking their single elderly relative at home. They should NEVER see a hospital "Virtual Ward" with multiple other inpatient beds (Meera Nair, Kavitha Raman, etc.). That would violate privacy (DPDP Act) and makes no clinical sense for an at-home family dashboard.
+   - The "Virtual Ward" (GB Pant Hospital Ward A Telemetry Center) is strictly for **Hospital staff / Nurse logins** (`wardnurse@demo.in` / `user?.role === "nurse"`).
+2. **Implementation Scope:**
+   - **Sidebar Navigation (`Sidebar.jsx`):** Filter out the "Virtual Ward" navigation tab if `user?.role !== "nurse"` (or pass `user` into `Sidebar.jsx` and only include `ward` when `user?.role === "nurse"`).
+   - **Routing Guard in `App.jsx`:** If a family caregiver user is currently on `activeTab === "ward"` or switches from a nurse account to a family account while on `ward`, automatically redirect `activeTab` to `"dashboard"`. Also, ensure the `activeTab === "ward"` view only renders if `user?.role === "nurse"`.
+   - **TopBar Breadcrumbs (`TopBar.jsx`):** Ensure top breadcrumb doesn't reference ward for family logins.
+   - **Android App (`app-android` & `Sync.kt` / `MainActivity.kt`):** Check if the native Android app has a Ward tab in the navigation bar and make sure it is role-restricted as well.
