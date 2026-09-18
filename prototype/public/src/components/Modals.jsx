@@ -261,11 +261,12 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData, currentUser, activeP
       },
       auditTrailConfidence: "98% (High Clinical Confidence)",
       devices:
-        patient.id === "REJ-9120"
+        patient.hardwareDevices?.map((d) => `${d.model} (${d.type})`) ||
+        (patient.id === "REJ-9120" || patient.patientId === "REJ-9120"
           ? ["FreeStyle Libre 3 CGM", "Accu-Chek Instant", "Beurer BM 57 BP", "Cellular Gateway #AP-4109"]
-          : patient.id === "WARD-STA-01"
+          : patient.id === "WARD-STA-01" || patient.patientId === "WARD-STA-01"
           ? ["GB Pant Ward Gateway #GW-8042", "Philips IntelliVue MP50", "Masimo Rad-97"]
-          : ["Omron HEM-7156T (BP Monitor)", "TempTraq Continuous (Temp Sensor)", "SanketLife 12-Lead (ECG)"],
+          : ["Omron HEM-7156T (BP Monitor)", "TempTraq Continuous (Temp Sensor)", "SanketLife 12-Lead (ECG)"]),
       compliance: "DPDP Act 2023 • Ayushman Bharat Digital Mission (ABDM) Compatible",
     };
 
