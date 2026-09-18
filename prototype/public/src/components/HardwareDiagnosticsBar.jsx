@@ -8,6 +8,13 @@ const HardwareDiagnosticsBar = ({
   activePatient,
 }) => {
   const getHardwareForUser = (user, patient) => {
+    if (patient?.hardwareDevices && patient.hardwareDevices.length > 0) {
+      return {
+        hubText: patient.hardwareSource || "Clinical Bedside Telemetry Gateway",
+        devices: patient.hardwareDevices,
+      };
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {

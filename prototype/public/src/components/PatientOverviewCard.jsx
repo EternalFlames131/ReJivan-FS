@@ -36,6 +36,11 @@ const PatientOverviewCard = ({
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 {patient.name}
               </h2>
+              {patient.bedNumber && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs">
+                  🛏️ {patient.bedNumber}
+                </span>
+              )}
               {/* Monitoring Status Badge with Live Pulse */}
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -48,13 +53,25 @@ const PatientOverviewCard = ({
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
               <span className="font-medium text-slate-700">
-                {patient.age} years | {patient.gender}
+                {patient.age} {typeof patient.age === "number" ? "years" : ""} | {patient.gender}
               </span>
               <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1 text-slate-600">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span className="truncate">{patient.location}</span>
               </div>
+              {patient.condition && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-slate-700 font-semibold truncate max-w-xs">{patient.condition}</span>
+                </>
+              )}
+              {patient.attendingDoc && (
+                <>
+                  <span className="text-slate-300 hidden sm:inline">•</span>
+                  <span className="text-indigo-700 font-medium hidden sm:inline truncate max-w-xs">{patient.attendingDoc}</span>
+                </>
+              )}
               <span className="text-slate-300 hidden md:inline">•</span>
               <span className="text-slate-400 hidden md:inline">
                 Last updated: <span className="font-mono text-slate-600">{patient.lastUpdated}</span>
