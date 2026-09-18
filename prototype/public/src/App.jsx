@@ -1,16 +1,102 @@
 // prototype/public/src/App.jsx
 // Enterprise Clinical Telemetry Dashboard (Epic / Teladoc Grade)
 
+const ACCOUNT_PROFILES = {
+  "asharma@demo.in": {
+    name: "Anita Sharma",
+    role: "caregiver",
+    email: "asharma@demo.in",
+    patientId: "REJ-8042",
+    age: 67,
+    gender: "Female",
+    location: "Home → Living Room, Junglighat, Port Blair",
+    condition: "Essential Hypertension / Post-Stroke Watch",
+    attendingDoc: "Dr. A. Sen, MD (Cardiology, GB Pant Hospital)",
+    primaryContact: "Priya Sharma (Daughter, +91 94342 81101)",
+    caregiverPhone: "+91 94342 81101",
+    backupPhone: "+91 94342 81102",
+    emergencyHub: "GB Pant Hospital Ambulance Station (108)",
+    hardwareSource: "BLE Telemetry Gateway (Tier 1 Certified)",
+    defaultVitals: {
+      hr: 85,
+      spo2: 97.7,
+      bpSys: 149,
+      bpDia: 97,
+      temp: 37.0,
+      glucose: 112,
+      sparkHr: [82, 84, 83, 85, 84, 86, 85, 84, 85],
+      sparkSpo2: [97.8, 97.6, 97.9, 97.7, 97.8, 97.6, 97.7, 97.8, 97.7],
+      sparkBp: [142, 144, 146, 145, 148, 147, 150, 148, 149],
+      sparkTemp: [36.9, 37.0, 37.1, 37.0, 36.9, 37.0, 37.0, 37.1, 37.0],
+      sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
+    },
+  },
+  "rprakash@demo.in": {
+    name: "Ram Prakash",
+    role: "caregiver",
+    email: "rprakash@demo.in",
+    patientId: "REJ-9120",
+    age: 72,
+    gender: "Male",
+    location: "Remote Cottage → Hut Bay, Little Andaman",
+    condition: "Type-2 Diabetes Mellitus / Neuropathy Watch",
+    attendingDoc: "Dr. K. Nair, MD (Endocrinology)",
+    primaryContact: "Rajesh Prakash (Son, +91 94742 19203)",
+    caregiverPhone: "+91 94742 19203",
+    backupPhone: "+91 94742 19204",
+    emergencyHub: "Little Andaman Marine Ambulance & 108 PHC Station",
+    hardwareSource: "Cellular RPM Gateway #AP-4109 (Little Andaman)",
+    defaultVitals: {
+      hr: 74,
+      spo2: 98.2,
+      bpSys: 122,
+      bpDia: 80,
+      temp: 36.8,
+      glucose: 142,
+      sparkHr: [73, 75, 74, 76, 74, 75, 74, 73, 74],
+      sparkSpo2: [98.1, 98.3, 98.2, 98.0, 98.2, 98.3, 98.2, 98.1, 98.2],
+      sparkBp: [120, 122, 124, 121, 123, 122, 125, 122, 122],
+      sparkTemp: [36.8, 36.9, 36.8, 36.7, 36.8, 36.9, 36.8, 36.8, 36.8],
+      sparkGlucose: [138, 142, 145, 140, 144, 142, 146, 142, 142],
+    },
+  },
+  "wardnurse@demo.in": {
+    name: "GB Pant Ward Nurse",
+    role: "nurse",
+    email: "wardnurse@demo.in",
+    patientId: "WARD-STA-01",
+    age: "Shift A Lead",
+    gender: "Staff",
+    location: "GB Pant Hospital, Male/Female Ward A, Port Blair",
+    condition: "Multi-Bed Inpatient Clinical Ward Watch (4 Active Beds)",
+    attendingDoc: "Dr. A. Sen, MD & Dr. V. Rao, MS",
+    primaryContact: "Ward Nurse Station (Ext. 402)",
+    caregiverPhone: "Ext. 402 (Station Desk)",
+    backupPhone: "Ext. 104 (Duty Doctor)",
+    emergencyHub: "GB Pant Hospital Crash Team & Code Blue",
+    hardwareSource: "GB Pant Hospital Central Gateway #GW-8042",
+    defaultVitals: {
+      hr: 82,
+      spo2: 98.0,
+      bpSys: 128,
+      bpDia: 84,
+      temp: 36.9,
+      glucose: 115,
+      sparkHr: [80, 82, 81, 83, 82, 84, 82, 81, 82],
+      sparkSpo2: [98.0, 98.2, 98.1, 97.9, 98.0, 98.1, 98.0, 98.2, 98.0],
+      sparkBp: [125, 128, 130, 126, 129, 127, 130, 128, 128],
+      sparkTemp: [36.9, 37.0, 36.9, 36.8, 36.9, 37.0, 36.9, 36.9, 36.9],
+      sparkGlucose: [112, 115, 118, 114, 116, 115, 117, 115, 115],
+    },
+  },
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = React.useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [curLang, setCurLang] = React.useState("en");
-  const [user, setUser] = React.useState({
-    name: "Anita Sharma",
-    role: "caregiver",
-    email: "asharma@demo.in",
-  });
+  const [user, setUser] = React.useState(ACCOUNT_PROFILES["asharma@demo.in"]);
   const [token, setToken] = React.useState(localStorage.getItem("rejivan_token") || "");
 
   // Modal States

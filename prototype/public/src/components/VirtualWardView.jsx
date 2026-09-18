@@ -605,7 +605,12 @@ const VirtualWardView = ({
                       </span>
                       {isLiveSynced && (
                         <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 font-mono">
-                          CENTRAL SYNC
+                          {currentUser?.email === "asharma@demo.in" ? "YOUR BED (ACTIVE)" : "CENTRAL SYNC"}
+                        </span>
+                      )}
+                      {bed.bed === "Bed 102" && currentUser?.email === "rprakash@demo.in" && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 font-mono">
+                          YOUR BED (ACTIVE)
                         </span>
                       )}
                     </div>
