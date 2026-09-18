@@ -1,37 +1,107 @@
 // prototype/public/src/components/RecentAlerts.jsx
-// Recent Alerts Card (Enterprise Clinical Grade)
+// Recent Alerts Card (Enterprise Clinical Grade - Account Aware)
 
-const RecentAlerts = ({ alerts = [], onAcknowledge }) => {
-  const defaultAlerts = [
-    {
-      id: "alt-1",
-      title: "Blood Pressure Elevated",
-      reading: "149/97 mmHg",
-      time: "8m ago",
-      severity: "caution",
-      message: "Systolic threshold >140 exceeded. Auto-recheck scheduled in 15m.",
-      source: "Omron HEM-7156T",
-    },
-    {
-      id: "alt-2",
-      title: "Automated Temp Telemetry",
-      reading: "37.0 °C",
-      time: "21m ago",
-      severity: "info",
-      message: "Hourly baseline verified. Normal core temperature maintained.",
-      source: "TempTraq Patch",
-    },
-    {
-      id: "alt-3",
-      title: "Fall Prevention Radar Check",
-      reading: "Room Clear",
-      time: "42m ago",
-      severity: "info",
-      message: "Living Room Zone 1: Patient safely seated in armchair.",
-      source: "Overhead Edge Camera",
-    },
-  ];
+const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
+  const getDefaultAlertsForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
 
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return [
+        {
+          id: "alt-rp-1",
+          title: "Postprandial Blood Glucose Elevation",
+          reading: "168 mg/dL",
+          time: "14m ago",
+          severity: "caution",
+          message: "FreeStyle Libre 3 CGM trend rising post-meal. Scheduled 1h trajectory review.",
+          source: "FreeStyle Libre 3 CGM",
+        },
+        {
+          id: "alt-rp-2",
+          title: "Cellular Telemetry Gateway Uplink Nominal",
+          reading: "4G LTE Active (-68 dBm)",
+          time: "38m ago",
+          severity: "info",
+          message: "Little Andaman autonomous link stable. Zero packet drop across Hut Bay.",
+          source: "Gateway #AP-4109",
+        },
+        {
+          id: "alt-rp-3",
+          title: "Nighttime Immobility Sentinel Clear",
+          reading: "Nominal Sleep Pattern",
+          time: "1h ago",
+          severity: "info",
+          message: "Bedroom Optical Sensor: Resident resting safely in bed. Zero out-of-bed falls.",
+          source: "Optical Edge Sentinel",
+        },
+      ];
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return [
+        {
+          id: "alt-wn-1",
+          title: "Bed 101 (Anita Sharma): Elevated Systolic BP",
+          reading: "154/97 mmHg",
+          time: "6m ago",
+          severity: "caution",
+          message: "Systolic threshold >140 exceeded. Automated re-check scheduled in 15m.",
+          source: "Bedside NIBP Monitor",
+        },
+        {
+          id: "alt-wn-2",
+          title: "Bed 104 (Kavitha Raman): Sinus Tachycardia",
+          reading: "94 bpm",
+          time: "19m ago",
+          severity: "caution",
+          message: "Mild pulse elevation under Holter telemetry observation. Shift B notified.",
+          source: "Holter Telemetry CW-9012",
+        },
+        {
+          id: "alt-wn-3",
+          title: "Bed 103 (Meera Nair): Post-Op Day 2 Nominal",
+          reading: "SpO2 99% • Temp 36.9°C",
+          time: "35m ago",
+          severity: "info",
+          message: "Post-cholecystectomy telemetry nominal. Surgical recovery protocol active.",
+          source: "Philips IntelliVue MP50",
+        },
+      ];
+    }
+
+    // Default: Anita Sharma
+    return [
+      {
+        id: "alt-1",
+        title: "Blood Pressure Elevated",
+        reading: "149/97 mmHg",
+        time: "8m ago",
+        severity: "caution",
+        message: "Systolic threshold >140 exceeded. Auto-recheck scheduled in 15m.",
+        source: "Omron HEM-7156T",
+      },
+      {
+        id: "alt-2",
+        title: "Automated Temp Telemetry",
+        reading: "37.0 °C",
+        time: "21m ago",
+        severity: "info",
+        message: "Hourly baseline verified. Normal core temperature maintained.",
+        source: "TempTraq Patch",
+      },
+      {
+        id: "alt-3",
+        title: "Fall Prevention Radar Check",
+        reading: "Room Clear",
+        time: "42m ago",
+        severity: "info",
+        message: "Living Room Zone 1: Patient safely seated in armchair.",
+        source: "Overhead Edge Camera",
+      },
+    ];
+  };
+
+  const defaultAlerts = React.useMemo(() => getDefaultAlertsForUser(currentUser), [currentUser?.email]);
   const displayAlerts = alerts.length > 0 ? alerts : defaultAlerts;
 
   return (

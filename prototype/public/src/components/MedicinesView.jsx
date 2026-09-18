@@ -1,57 +1,202 @@
 // prototype/public/src/components/MedicinesView.jsx
-// Medication Administration Record (Enterprise Clinical Grade)
+// Medication Administration Record (Enterprise Clinical Grade - Account Aware)
 
-const MedicinesView = ({ onOpenAddModal }) => {
-  const [meds, setMeds] = React.useState([
-    {
-      id: "med-1",
-      name: "Telmisartan",
-      dosage: "40 mg",
-      frequency: "Once daily (Morning)",
-      time: "08:00 AM",
-      prescribedFor: "Anita Sharma",
-      indication: "Essential Hypertension",
-      doctor: "Dr. A. Sen (Cardiology, GB Pant Hospital)",
-      status: "Taken",
-      adherence: "98%",
-    },
-    {
-      id: "med-2",
-      name: "Metformin Hydrochloride",
-      dosage: "500 mg",
-      frequency: "Twice daily (Post-meal)",
-      time: "08:00 AM, 08:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Type 2 Diabetes Mellitus",
-      doctor: "Dr. K. Roy (Internal Medicine)",
-      status: "Taken",
-      adherence: "95%",
-    },
-    {
-      id: "med-3",
-      name: "Calcium Carbonate + Vit D3",
-      dosage: "500 mg / 250 IU",
-      frequency: "Once daily (Afternoon)",
-      time: "01:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Osteopenia / Bone Health",
-      doctor: "Dr. A. Sen",
-      status: "Taken",
-      adherence: "100%",
-    },
-    {
-      id: "med-4",
-      name: "Atorvastatin",
-      dosage: "10 mg",
-      frequency: "Once daily (Bedtime)",
-      time: "08:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Hyperlipidemia / Stroke Prevention",
-      doctor: "Dr. A. Sen",
-      status: "Upcoming",
-      adherence: "96%",
-    },
-  ]);
+const MedicinesView = ({ onOpenAddModal, currentUser }) => {
+  const getMedicationsForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        patientName: "Ram Prakash",
+        patientTag: "Remote Island Telemetry • Hut Bay, Little Andaman",
+        weeklyAdherence: "97.8%",
+        meds: [
+          {
+            id: "med-rp-1",
+            name: "Metformin Hydrochloride",
+            dosage: "500 mg",
+            frequency: "Twice daily (Post-meal)",
+            time: "08:00 AM, 08:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Type 2 Diabetes Mellitus / Glycemic Control",
+            doctor: "Dr. K. Nair (Endocrinology)",
+            status: "Taken",
+            adherence: "99%",
+          },
+          {
+            id: "med-rp-2",
+            name: "Glimepiride",
+            dosage: "1 mg",
+            frequency: "Once daily (Morning with breakfast)",
+            time: "08:00 AM",
+            prescribedFor: "Ram Prakash",
+            indication: "Insulin Secretagogue (Second Generation Sulfonylurea)",
+            doctor: "Dr. K. Nair",
+            status: "Taken",
+            adherence: "97%",
+          },
+          {
+            id: "med-rp-3",
+            name: "Alpha Lipoic Acid",
+            dosage: "300 mg",
+            frequency: "Once daily (Afternoon)",
+            time: "01:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Diabetic Peripheral Neuropathy & Antioxidant Support",
+            doctor: "Dr. K. Nair",
+            status: "Taken",
+            adherence: "94%",
+          },
+          {
+            id: "med-rp-4",
+            name: "Atorvastatin Calcium",
+            dosage: "20 mg",
+            frequency: "Once daily (Bedtime)",
+            time: "08:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Cardiovascular Risk Reduction in Type-2 Diabetes",
+            doctor: "Dr. K. Nair",
+            status: "Upcoming",
+            adherence: "98%",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        patientName: "GB Pant Hospital Virtual Ward",
+        patientTag: "Inpatient Clinical Ward A • Multi-Bed Medication Administration (Shift A)",
+        weeklyAdherence: "98.4%",
+        meds: [
+          {
+            id: "med-wn-1",
+            name: "Telmisartan (Bed 101)",
+            dosage: "40 mg",
+            frequency: "Once daily (Morning Round)",
+            time: "08:00 AM",
+            prescribedFor: "Bed 101: Anita Sharma",
+            indication: "Essential Hypertension / Post-Stroke Watch",
+            doctor: "Dr. A. Sen (Cardiology)",
+            status: "Taken",
+            adherence: "98%",
+          },
+          {
+            id: "med-wn-2",
+            name: "Metformin + Glimepiride (Bed 102)",
+            dosage: "500 mg / 1 mg",
+            frequency: "Morning Post-Breakfast",
+            time: "08:00 AM",
+            prescribedFor: "Bed 102: Ram Prakash",
+            indication: "Type 2 Diabetes / Glycemic Target",
+            doctor: "Dr. K. Nair (Endocrinology)",
+            status: "Taken",
+            adherence: "99%",
+          },
+          {
+            id: "med-wn-3",
+            name: "Cefuroxime IV (Bed 103)",
+            dosage: "500 mg",
+            frequency: "Q8H IV Infusion",
+            time: "09:00 AM, 05:00 PM, 01:00 AM",
+            prescribedFor: "Bed 103: Meera Nair",
+            indication: "Post-Operative Laparoscopic Cholecystectomy Prophylaxis",
+            doctor: "Dr. V. Rao (General Surgery)",
+            status: "Taken",
+            adherence: "100%",
+          },
+          {
+            id: "med-wn-4",
+            name: "Metoprolol Succinate (Bed 104)",
+            dosage: "25 mg",
+            frequency: "Once daily (Morning)",
+            time: "08:00 AM",
+            prescribedFor: "Bed 104: Kavitha Raman",
+            indication: "Paroxysmal Atrial Fibrillation Rate Control",
+            doctor: "Dr. A. Sen (Cardiology)",
+            status: "Taken",
+            adherence: "96%",
+          },
+          {
+            id: "med-wn-5",
+            name: "Atorvastatin (Bed 101)",
+            dosage: "10 mg",
+            frequency: "Once daily (Night Round)",
+            time: "08:00 PM",
+            prescribedFor: "Bed 101: Anita Sharma",
+            indication: "Hyperlipidemia & Secondary Stroke Prevention",
+            doctor: "Dr. A. Sen",
+            status: "Upcoming",
+            adherence: "97%",
+          },
+        ],
+      };
+    }
+
+    // Default: Anita Sharma
+    return {
+      patientName: "Anita Sharma",
+      patientTag: "Living Room, Junglighat, Port Blair • Telemetry Linked",
+      weeklyAdherence: "97.2%",
+      meds: [
+        {
+          id: "med-1",
+          name: "Telmisartan",
+          dosage: "40 mg",
+          frequency: "Once daily (Morning)",
+          time: "08:00 AM",
+          prescribedFor: "Anita Sharma",
+          indication: "Essential Hypertension",
+          doctor: "Dr. A. Sen (Cardiology, GB Pant Hospital)",
+          status: "Taken",
+          adherence: "98%",
+        },
+        {
+          id: "med-2",
+          name: "Metformin Hydrochloride",
+          dosage: "500 mg",
+          frequency: "Twice daily (Post-meal)",
+          time: "08:00 AM, 08:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Type 2 Diabetes Mellitus",
+          doctor: "Dr. K. Roy (Internal Medicine)",
+          status: "Taken",
+          adherence: "95%",
+        },
+        {
+          id: "med-3",
+          name: "Calcium Carbonate + Vit D3",
+          dosage: "500 mg / 250 IU",
+          frequency: "Once daily (Afternoon)",
+          time: "01:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Osteopenia / Bone Health",
+          doctor: "Dr. A. Sen",
+          status: "Taken",
+          adherence: "100%",
+        },
+        {
+          id: "med-4",
+          name: "Atorvastatin",
+          dosage: "10 mg",
+          frequency: "Once daily (Bedtime)",
+          time: "08:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Hyperlipidemia / Stroke Prevention",
+          doctor: "Dr. A. Sen",
+          status: "Upcoming",
+          adherence: "96%",
+        },
+      ],
+    };
+  };
+
+  const accountData = React.useMemo(() => getMedicationsForUser(currentUser), [currentUser?.email]);
+  const [meds, setMeds] = React.useState(accountData.meds);
+
+  React.useEffect(() => {
+    setMeds(accountData.meds);
+  }, [accountData]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -62,11 +207,16 @@ const MedicinesView = ({ onOpenAddModal }) => {
             <Pill className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Medication Administration Record (MAR)
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Medication Administration Record (MAR)
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 font-mono">
+                {accountData.patientName}
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Automated Schedule &amp; Caregiver Adherence Verification
+              {accountData.patientTag}
             </p>
           </div>
         </div>
@@ -74,7 +224,7 @@ const MedicinesView = ({ onOpenAddModal }) => {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <div className="text-xs text-slate-500">Weekly Adherence</div>
-            <div className="text-base font-bold font-mono text-emerald-700">97.2%</div>
+            <div className="text-base font-bold font-mono text-emerald-700">{accountData.weeklyAdherence}</div>
           </div>
           <button
             onClick={onOpenAddModal}
@@ -108,6 +258,7 @@ const MedicinesView = ({ onOpenAddModal }) => {
                     <td className="py-3.5 px-5">
                       <div className="font-bold text-slate-900 text-sm">{m.name}</div>
                       <div className="text-xs font-mono font-medium text-blue-600">{m.dosage}</div>
+                      <div className="text-[11px] text-slate-400 font-mono mt-0.5">For: {m.prescribedFor}</div>
                     </td>
                     <td className="py-3.5 px-5">
                       <div className="text-xs font-medium text-slate-700">{m.frequency}</div>

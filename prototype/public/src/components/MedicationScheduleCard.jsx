@@ -1,59 +1,189 @@
 // prototype/public/src/components/MedicationScheduleCard.jsx
-// Medication Schedule Card (Enterprise Clinical Grade)
+// Medication Schedule Card (Enterprise Clinical Grade - Account Aware)
 
-const MedicationScheduleCard = ({ onOpenAddModal }) => {
-  const [schedule, setSchedule] = React.useState([
-    {
-      slot: "Morning (08:00 AM)",
-      timeCode: "08:00",
-      drugs: [
+const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
+  const getSchedulesForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return [
         {
-          id: "med-1",
-          name: "Telmisartan",
-          dose: "40 mg",
-          purpose: "Hypertension",
-          status: "Taken",
-          takenAt: "08:05 AM",
+          slot: "Morning (08:00 AM)",
+          timeCode: "08:00",
+          drugs: [
+            {
+              id: "med-rp-1",
+              name: "Metformin HCl",
+              dose: "500 mg",
+              purpose: "Type-2 Diabetes / Glycemic Control",
+              status: "Taken",
+              takenAt: "08:10 AM",
+            },
+            {
+              id: "med-rp-2",
+              name: "Glimepiride",
+              dose: "1 mg",
+              purpose: "Insulin Secretagogue (Pancreatic Beta Cells)",
+              status: "Taken",
+              takenAt: "08:10 AM",
+            },
+          ],
         },
         {
-          id: "med-2",
-          name: "Metformin",
-          dose: "500 mg",
-          purpose: "Glycemic Control",
-          status: "Taken",
-          takenAt: "08:12 AM",
+          slot: "Afternoon (01:00 PM)",
+          timeCode: "13:00",
+          drugs: [
+            {
+              id: "med-rp-3",
+              name: "Alpha Lipoic Acid",
+              dose: "300 mg",
+              purpose: "Diabetic Peripheral Neuropathy Support",
+              status: "Taken",
+              takenAt: "01:20 PM",
+            },
+          ],
         },
-      ],
-    },
-    {
-      slot: "Afternoon (01:00 PM)",
-      timeCode: "13:00",
-      drugs: [
         {
-          id: "med-3",
-          name: "Calcium + Vit D3",
-          dose: "500mg / 250IU",
-          purpose: "Bone Density",
-          status: "Taken",
-          takenAt: "01:15 PM",
+          slot: "Evening (08:00 PM)",
+          timeCode: "20:00",
+          drugs: [
+            {
+              id: "med-rp-4",
+              name: "Atorvastatin",
+              dose: "20 mg",
+              purpose: "Cardiovascular Risk Reduction",
+              status: "Upcoming",
+              takenAt: null,
+            },
+          ],
         },
-      ],
-    },
-    {
-      slot: "Evening (08:00 PM)",
-      timeCode: "20:00",
-      drugs: [
+      ];
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return [
         {
-          id: "med-4",
-          name: "Atorvastatin",
-          dose: "10 mg",
-          purpose: "Lipid Management",
-          status: "Upcoming",
-          takenAt: null,
+          slot: "Morning Inpatient Round (08:00 AM)",
+          timeCode: "08:00",
+          drugs: [
+            {
+              id: "med-wn-1",
+              name: "Bed 101: Telmisartan",
+              dose: "40 mg",
+              purpose: "Anita Sharma • Essential Hypertension",
+              status: "Taken",
+              takenAt: "08:05 AM",
+            },
+            {
+              id: "med-wn-2",
+              name: "Bed 102: Metformin",
+              dose: "500 mg",
+              purpose: "Ram Prakash • Type-2 Diabetes",
+              status: "Taken",
+              takenAt: "08:12 AM",
+            },
+          ],
         },
-      ],
-    },
-  ]);
+        {
+          slot: "Mid-Morning Inpatient Round (09:00 AM)",
+          timeCode: "09:00",
+          drugs: [
+            {
+              id: "med-wn-3",
+              name: "Bed 103: Cefuroxime (IV)",
+              dose: "500 mg",
+              purpose: "Meera Nair • Post-Op Surgical Prophylaxis",
+              status: "Taken",
+              takenAt: "09:05 AM",
+            },
+            {
+              id: "med-wn-4",
+              name: "Bed 104: Metoprolol",
+              dose: "25 mg",
+              purpose: "Kavitha Raman • Sinus Tachycardia / AFib",
+              status: "Taken",
+              takenAt: "09:15 AM",
+            },
+          ],
+        },
+        {
+          slot: "Evening Inpatient Round (08:00 PM)",
+          timeCode: "20:00",
+          drugs: [
+            {
+              id: "med-wn-5",
+              name: "Bed 101: Atorvastatin",
+              dose: "10 mg",
+              purpose: "Anita Sharma • Hyperlipidemia Watch",
+              status: "Upcoming",
+              takenAt: null,
+            },
+          ],
+        },
+      ];
+    }
+
+    // Default: Anita Sharma
+    return [
+      {
+        slot: "Morning (08:00 AM)",
+        timeCode: "08:00",
+        drugs: [
+          {
+            id: "med-1",
+            name: "Telmisartan",
+            dose: "40 mg",
+            purpose: "Essential Hypertension",
+            status: "Taken",
+            takenAt: "08:05 AM",
+          },
+          {
+            id: "med-2",
+            name: "Metformin HCl",
+            dose: "500 mg",
+            purpose: "Glycemic Management",
+            status: "Taken",
+            takenAt: "08:12 AM",
+          },
+        ],
+      },
+      {
+        slot: "Afternoon (01:00 PM)",
+        timeCode: "13:00",
+        drugs: [
+          {
+            id: "med-3",
+            name: "Calcium + Vit D3",
+            dose: "500mg / 250IU",
+            purpose: "Osteopenia / Bone Density",
+            status: "Taken",
+            takenAt: "01:15 PM",
+          },
+        ],
+      },
+      {
+        slot: "Evening (08:00 PM)",
+        timeCode: "20:00",
+        drugs: [
+          {
+            id: "med-4",
+            name: "Atorvastatin",
+            dose: "10 mg",
+            purpose: "Lipid Management / Stroke Watch",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ];
+  };
+
+  const [schedule, setSchedule] = React.useState(() => getSchedulesForUser(currentUser));
+
+  // Sync schedule whenever user changes
+  React.useEffect(() => {
+    setSchedule(getSchedulesForUser(currentUser));
+  }, [currentUser?.email]);
 
   const toggleDrugTaken = (drugId) => {
     setSchedule((prev) =>
