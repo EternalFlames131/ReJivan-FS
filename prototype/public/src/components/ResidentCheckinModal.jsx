@@ -1,7 +1,7 @@
 // prototype/public/src/components/ResidentCheckinModal.jsx
 // Multimodal Resident Verification Dialog with 30-Second Countdown, 4 Proportional Responses & Postural Auto-Cancellation
 
-const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse }) => {
+const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse, activePatient }) => {
   const [timeLeft, setTimeLeft] = React.useState(30);
   const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'minor_fall' | 'emergency' | 'device_drop' | 'picked_up' | 'timeout_emergency'
 
@@ -260,9 +260,9 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed,
                 Automatic Emergency Protocol Activated: Calling Family &rarr; Backup &rarr; 108 Ambulance with live GPS & vital telemetry.
               </p>
               <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 text-left">
-                <div>&bull; Calling: Rajesh Sharma (Son) · +91 94342 88100... [DIALING]</div>
-                <div>&bull; Dispatched: GB Pant Hospital Ambulance Station (108)</div>
-                <div>&bull; Location: Junglighat, Port Blair (11.6643° N, 92.7303° E)</div>
+                <div>&bull; Calling: {activePatient?.primaryContact || "Rajesh Sharma (Son) · +91 94342 88100"}... [DIALING]</div>
+                <div>&bull; Dispatched: {activePatient?.id === "REJ-9120" ? "Little Andaman Marine Ambulance & 108 PHC Station" : activePatient?.id === "WARD-STA-01" ? "GB Pant Hospital Crash Team & Code Blue" : "GB Pant Hospital Ambulance Station (108)"}</div>
+                <div>&bull; Location: {activePatient?.location || "Junglighat, Port Blair (11.6643° N, 92.7303° E)"}</div>
               </div>
               <button
                 onClick={onClose}

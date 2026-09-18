@@ -21,6 +21,7 @@ const VirtualWardView = ({
   secondsAgo = 0,
   onPageDoctor,
   onExportTelemetry,
+  currentUser,
 }) => {
   const [filter, setFilter] = React.useState("all");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -533,11 +534,23 @@ const VirtualWardView = ({
         <div className="flex items-center gap-2 text-slate-700">
           <Activity className="w-4 h-4 text-blue-600 shrink-0" />
           <span>
-            <strong>Central Telemetry Feed Active:</strong> Bed 101 (Anita Sharma) is synchronized in real time with central dashboard telemetry (
-            <span className="font-semibold text-blue-700 font-mono">
-              {simMode === "baseline" ? "Baseline" : simMode === "bp_crisis" ? "BP Crisis Mode" : simMode === "hypoxemia" ? "Hypoxemia Mode" : "Bradycardia Mode"}
-            </span>
-            ). Secondary island beds experience natural physiological drift.
+            {currentUser?.role === "nurse" ? (
+              <>
+                <strong>Staff Nurse Command Active:</strong> GB Pant Ward A station console. All 4 inpatient beds streaming continuously with autonomous early-warning triage (NEWS2).
+              </>
+            ) : currentUser?.email === "rprakash@demo.in" ? (
+              <>
+                <strong>Patient Telemetry Active:</strong> Bed 102 (Ram Prakash) streaming via Hut Bay Satellite/Cellular Gateway. Integrated with GB Pant Hospital Virtual Ward.
+              </>
+            ) : (
+              <>
+                <strong>Central Telemetry Feed Active:</strong> Bed 101 (Anita Sharma) is synchronized in real time with central dashboard telemetry (
+                <span className="font-semibold text-blue-700 font-mono">
+                  {simMode === "baseline" ? "Baseline" : simMode === "bp_crisis" ? "BP Crisis Mode" : simMode === "hypoxemia" ? "Hypoxemia Mode" : "Bradycardia Mode"}
+                </span>
+                ). Secondary island beds experience natural physiological drift.
+              </>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] text-slate-500">

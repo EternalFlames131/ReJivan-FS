@@ -3,7 +3,7 @@
 // Treats prerecorded hospital video as an authentic virtual camera source alongside Live Webcam and RTSP CCTV.
 // Real-Time YOLO11-Pose 17-Keypoint Inference & Client Optical Consensus with Zero Hardcoded Time Gates.
 
-const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
+const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, activePatient }) => {
   // 1. Unified Camera Source Abstraction ('LIVE_WEBCAM' | 'PRERECORDED_VIDEO' | 'RTSP_CAMERA')
   // Default to LIVE_WEBCAM so user can immediately verify YOLO and motion monitoring
   const [cameraSource, setCameraSource] = React.useState("LIVE_WEBCAM");
@@ -1491,7 +1491,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02) · Kinematic Tripwire Active
+                {activePatient
+                  ? `${activePatient.location.split("→")[1]?.trim() || activePatient.location} · Patient: ${activePatient.name} · Kinematic Sentinel Active`
+                  : "GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02) · Kinematic Tripwire Active"}
               </p>
             </div>
           </div>
