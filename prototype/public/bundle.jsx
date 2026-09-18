@@ -4704,271 +4704,266 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
       )}
 
-      {/* Top Banner: Unified Camera Source Abstraction & Transparency Indicator */}
-      <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0 border border-indigo-200/80">
-            <ShieldCheck className="w-5 h-5" />
+      {/* Top Command Banner: Clinical Sentinel & Source Ingestion */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        {/* Left Brand & Mission Cluster */}
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-sm shadow-indigo-200">
+            <ShieldCheck className="w-6 h-6" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-900 truncate">
-                Clinical Sentinel: Unified Camera Pipeline
+              <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                Clinical Sentinel
               </h3>
-              <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
-                {cameraSource === "LIVE_WEBCAM"
-                  ? "CAMERA SOURCE: LIVE CAMERA FEED (VERIFICATION)"
-                  : cameraSource === "PRERECORDED_VIDEO"
-                  ? "CAMERA SOURCE: DEMO VIDEO (CUSTOM VIDEO SLOT)"
-                  : "CAMERA SOURCE: RTSP WARD CAMERA"}
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80 font-mono">
+                Prajñā Vision™ 17-Keypoint
               </span>
-              <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 DPDP Act 2023 Compliant
               </span>
               {localYoloActive ? (
-                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 animate-pulse">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 flex items-center gap-1 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                   GTX 1650 CUDA Connected
                 </span>
               ) : (
-                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                  Client-Side Prajñā Fallback
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  Client-Side Optical Fallback
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Live camera feed for real-time YOLO-Pose and motion verification. Demo video slot ready for official video (to be provided by user).
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Continuous on-device biomechanical kinematics, fall classification &amp; emergency check-in verification. Zero cloud video storage.
             </p>
           </div>
         </div>
 
-        {/* Source Selector Buttons */}
-        <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg text-xs font-medium text-slate-700">
+        {/* Right Source Command Cluster */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Segmented Source Selector */}
+          <div className="inline-flex p-1 bg-slate-100/90 rounded-xl border border-slate-200/70 text-xs font-semibold">
             <button
               onClick={() => handleSelectSource("LIVE_WEBCAM")}
-              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                 cameraSource === "LIVE_WEBCAM"
-                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200"
+                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200/90"
                   : "text-slate-600 hover:text-slate-900"
               }`}
+              title="Live video verification feed via laptop webcam or connected mobile camera"
             >
-              <span>📹 Live Camera Feed (YOLO / Motion Verification)</span>
+              <Camera className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Live Camera</span>
             </button>
             <button
               onClick={() => handleSelectSource("PRERECORDED_VIDEO")}
-              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                 cameraSource === "PRERECORDED_VIDEO"
-                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200"
+                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200/90"
                   : "text-slate-600 hover:text-slate-900"
               }`}
+              title="Sequential clinical demonstration video slot with 7-stage evaluation"
             >
-              <span>🎥 Demo Video (Custom Slot · Provide Later)</span>
+              <Play className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Demo Video</span>
             </button>
             <button
               onClick={() => handleSelectSource("RTSP_CAMERA")}
-              className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                 cameraSource === "RTSP_CAMERA"
-                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200"
+                  ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200/90"
                   : "text-slate-600 hover:text-slate-900"
               }`}
+              title="Hospital IP CCTV RTSP streaming source"
             >
-              <span>🏥 Ward RTSP CCTV</span>
+              <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Ward CCTV</span>
             </button>
           </div>
 
+          {/* Quick Actions */}
           <button
             onClick={() => setIsCameraManagerOpen(true)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shadow-2xs"
-            title="Manage connected camera sources, add RTSP streams, and test connection"
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all flex items-center gap-1.5 shadow-2xs"
+            title="Manage connected camera sources and fleet topology"
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span>Manage Cameras ({camerasList.length || 3})</span>
+            <Settings className="w-3.5 h-3.5 text-slate-500" />
+            <span>Fleet ({camerasList.length || 3})</span>
           </button>
 
           <button
             onClick={() => setPrivacyRadarOnly(!privacyRadarOnly)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 shadow-2xs ${
               privacyRadarOnly
-                ? "bg-emerald-600 text-white border-emerald-500"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-200"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
             }`}
-            title="Toggle DPDP Privacy Mode (Raw video blanked out, showing pose radar only)"
+            title="Toggle DPDP Privacy Mode: Blanks raw camera pixels, rendering skeletal wireframe radar only"
           >
-            {privacyRadarOnly ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {privacyRadarOnly ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5 text-emerald-600" />}
             <span>{privacyRadarOnly ? "Radar Active" : "Privacy Radar"}</span>
           </button>
         </div>
       </div>
 
-      {/* Monitoring Status Banner (Hierarchical Infrastructure Health) */}
-      <div
-        className={`p-2.5 px-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs transition-all ${
-          systemHealth.bannerSeverity === "danger"
-            ? "bg-rose-50 border-rose-200 text-rose-900"
-            : systemHealth.bannerSeverity === "warning"
-            ? "bg-amber-50 border-amber-200 text-amber-900"
-            : systemHealth.bannerSeverity === "info"
-            ? "bg-sky-50 border-sky-200 text-sky-900"
-            : "bg-emerald-50 border-emerald-200 text-emerald-900"
-        }`}
-      >
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${
-              systemHealth.bannerSeverity === "danger"
-                ? "bg-rose-500"
-                : systemHealth.bannerSeverity === "warning"
-                ? "bg-amber-500 animate-pulse"
-                : systemHealth.bannerSeverity === "info"
-                ? "bg-sky-500 animate-pulse"
-                : "bg-emerald-500"
-            }`}
-          />
-          <span className="font-bold">{systemHealth.bannerText || "Vision Monitoring: ONLINE"}</span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px] font-normal text-slate-500">
-          <span>Active Edge: {localYoloActive ? "NVIDIA GTX 1650 (Port 5050)" : "CPU Edge Sentinel"}</span>
-          <span>•</span>
-          <span>DPDP Act 2023 Compliant · Zero Stored Video</span>
-        </div>
-      </div>
-
-      {/* Three-Pillar Telemetry Grid: Decouple Edge Status, Camera Status, and Patient Clinical Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Pillar 1: EDGE STATUS */}
-        <div
-          className={`p-3.5 rounded-xl border transition-all ${
-            systemHealth.edgeStatus === "EDGE_ONLINE"
-              ? "bg-slate-900 text-white border-slate-800 shadow-2xs"
-              : "bg-slate-100 text-slate-800 border-slate-300 shadow-2xs"
-          }`}
-        >
+      {/* Three-Pillar Clinical Telemetry: Edge Intelligence, Camera Stream Ingestion & Patient Biomechanical Status */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Pillar 1: EDGE COMPUTING NODE */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs relative overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 to-blue-500" />
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Server
-                className={`w-4 h-4 shrink-0 ${
-                  systemHealth.edgeStatus === "EDGE_ONLINE" ? "text-emerald-400" : "text-amber-500"
-                }`}
-              />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-100">
+                <Server className="w-4 h-4" />
+              </div>
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-                  Edge Node Status
+                  Edge Intelligence Node
                 </span>
-                <span className="text-xs font-bold truncate block max-w-[140px]">
-                  {systemHealth.edgeStatus === "EDGE_ONLINE"
-                    ? "Edge Node Online"
-                    : "Edge Offline / Unreachable"}
-                </span>
+                <h4 className="text-xs font-bold text-slate-900">
+                  {systemHealth.edgeStatus === "EDGE_ONLINE" ? "Edge Node Active" : "Edge Offline / Fallback"}
+                </h4>
               </div>
             </div>
             <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
                 systemHealth.edgeStatus === "EDGE_ONLINE"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-amber-500/20 text-amber-700 border border-amber-500/30"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border border-amber-200"
               }`}
             >
-              {systemHealth.edgeStatus}
+              {systemHealth.edgeStatus === "EDGE_ONLINE" ? `ONLINE · ${systemHealth.latencyMs}ms` : "STANDBY"}
             </span>
           </div>
-          <div className="mt-2.5 text-[11px] space-y-1 font-mono opacity-85">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Node ID:</span>
-              <span className="truncate max-w-[130px]">{systemHealth.edgeDetails?.id || "edge-node-an-01"}</span>
+
+          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Node ID</span>
+              <span className="text-[11px] font-mono font-bold text-slate-800 truncate block mt-0.5">
+                {systemHealth.edgeDetails?.id || "edge-node-an-01"}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Inference:</span>
-              <span>{localYoloActive ? "NVIDIA GTX 1650 CUDA" : "DirectShow / CPU"}</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Hardware</span>
+              <span className="text-[11px] font-bold text-slate-800 truncate block mt-0.5" title={localYoloActive ? "NVIDIA GeForce GTX 1650 CUDA" : "DirectShow / CPU"}>
+                {localYoloActive ? "GTX 1650" : "CPU Engine"}
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Heartbeat:</span>
-              <span>{systemHealth.latencyMs}ms Latency</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Latency</span>
+              <span className="text-[11px] font-mono font-bold text-emerald-700 block mt-0.5">
+                {systemHealth.latencyMs}ms
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Pillar 2: CAMERA STATUS */}
-        <div className="p-3.5 rounded-xl border bg-white border-slate-200 text-slate-800 shadow-2xs">
+        {/* Pillar 2: OPTICAL STREAM INGESTION */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs relative overflow-hidden transition-all hover:shadow-sm">
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-sky-500 to-cyan-500" />
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-indigo-600 shrink-0" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-100">
+                <Video className="w-4 h-4" />
+              </div>
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                  Camera Stream Status
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                  Optical Stream Ingestion
                 </span>
-                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
+                <h4 className="text-xs font-bold text-slate-900 truncate max-w-[150px]">
                   {cameraSource === "PRERECORDED_VIDEO"
-                    ? "Clinical Bed-Fall Demo"
+                    ? "Clinical Demo Video"
                     : cameraSource === "LIVE_WEBCAM"
-                    ? "Device Caregiver Webcam"
-                    : "Ward Bed 1 RTSP CCTV"}
-                </span>
+                    ? "Caregiver Device Cam"
+                    : "Ward 1 RTSP CCTV"}
+                </h4>
               </div>
             </div>
             <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
                 systemHealth.cameraLifecycle === "ONLINE" || systemHealth.cameraLifecycle === "MONITORING"
-                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                   : systemHealth.cameraLifecycle === "CALIBRATING"
-                  ? "bg-sky-100 text-sky-800 border border-sky-200"
-                  : systemHealth.cameraLifecycle === "RECONNECTING"
-                  ? "bg-amber-100 text-amber-800 border border-amber-200"
+                  ? "bg-sky-50 text-sky-700 border border-sky-200"
                   : "bg-slate-100 text-slate-700 border border-slate-200"
               }`}
             >
-              {systemHealth.cameraLifecycle}
+              {systemHealth.cameraLifecycle || "ONLINE"}
             </span>
           </div>
-          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
-            <div className="flex justify-between">
-              <span>Delivery Rate:</span>
-              <span className="font-bold text-slate-900">{telemetry.fps} FPS</span>
+
+          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Delivery</span>
+              <span className="text-[11px] font-mono font-bold text-slate-900 block mt-0.5">
+                {telemetry.fps} FPS
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span>Timestamp Gaps:</span>
-              <span className="text-emerald-700 font-semibold">0 (Guarded &gt;350ms)</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Jitter Guard</span>
+              <span className="text-[11px] font-bold text-emerald-700 block mt-0.5">
+                &lt;350ms Safe
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span>Duplicates:</span>
-              <span>Suppressed (Static Safe)</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Retention</span>
+              <span className="text-[11px] font-bold text-slate-800 block mt-0.5">
+                0s (DPDP)
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Pillar 3: PATIENT STATUS */}
+        {/* Pillar 3: PATIENT BIOMECHANICAL STATUS */}
         <div
-          className={`p-3.5 rounded-xl border transition-all ${
+          className={`border rounded-2xl p-4 shadow-xs relative overflow-hidden transition-all ${
             telemetry.riskLevel === "HIGH_RISK"
-              ? "bg-rose-50 border-rose-300 text-rose-950 shadow-xs"
+              ? "bg-rose-50/80 border-rose-300 ring-1 ring-rose-200"
               : telemetry.riskLevel === "CAUTION"
-              ? "bg-amber-50 border-amber-300 text-amber-950 shadow-xs"
-              : "bg-emerald-50/50 border-emerald-200/80 text-emerald-950 shadow-2xs"
+              ? "bg-amber-50/80 border-amber-300 ring-1 ring-amber-200"
+              : "bg-white border-slate-200/90"
           }`}
         >
+          <div
+            className={`absolute top-0 inset-x-0 h-1 ${
+              telemetry.riskLevel === "HIGH_RISK"
+                ? "bg-rose-500"
+                : telemetry.riskLevel === "CAUTION"
+                ? "bg-amber-500"
+                : "bg-emerald-500"
+            }`}
+          />
           <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {telemetry.riskLevel === "HIGH_RISK" ? (
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 animate-bounce" />
-              ) : telemetry.riskLevel === "CAUTION" ? (
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              )}
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                  Patient Clinical Status
-                </span>
-                <span className="text-xs font-bold text-slate-900 truncate block max-w-[140px]">
-                  {telemetry.riskLevel === "HIGH_RISK"
-                    ? "Acute Fall Check Active"
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                  telemetry.riskLevel === "HIGH_RISK"
+                    ? "bg-rose-100 text-rose-700 border-rose-200 animate-bounce"
                     : telemetry.riskLevel === "CAUTION"
-                    ? "Descent Monitoring"
-                    : "Patient Normal / Stable"}
+                    ? "bg-amber-100 text-amber-700 border-amber-200"
+                    : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                }`}
+              >
+                {telemetry.riskLevel === "HIGH_RISK" ? (
+                  <AlertTriangle className="w-4 h-4" />
+                ) : telemetry.riskLevel === "CAUTION" ? (
+                  <AlertTriangle className="w-4 h-4" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+                  Patient Kinematic Status
                 </span>
+                <h4 className="text-xs font-bold text-slate-900 truncate max-w-[150px]">
+                  {telemetry.posture}
+                </h4>
               </div>
             </div>
             <span
-              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
                 telemetry.riskLevel === "HIGH_RISK"
                   ? "bg-rose-600 text-white"
                   : telemetry.riskLevel === "CAUTION"
@@ -4976,126 +4971,123 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                   : "bg-emerald-600 text-white"
               }`}
             >
-              {telemetry.riskLevel}
+              {telemetry.riskLevel === "HIGH_RISK" ? "CRITICAL FALL" : telemetry.riskLevel}
             </span>
           </div>
-          <div className="mt-2.5 text-[11px] space-y-1 font-mono text-slate-600">
-            <div className="flex justify-between">
-              <span>Kinematic Posture:</span>
-              <span className="font-bold text-slate-900 truncate max-w-[120px]">{telemetry.posture}</span>
+
+          <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Spine Angle</span>
+              <span className="text-[11px] font-mono font-bold text-slate-900 block mt-0.5">
+                {telemetry.torsoAngle}°
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span>Hypothesis:</span>
-              <span className="font-bold text-slate-900">{telemetry.probableMechanism}</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Velocity</span>
+              <span
+                className={`text-[11px] font-mono font-bold block mt-0.5 ${
+                  telemetry.downwardVelocity > 0.8 || telemetry.downwardVelocity < -1.2
+                    ? "text-rose-600"
+                    : "text-slate-900"
+                }`}
+              >
+                {telemetry.downwardVelocity} m/s
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span>Biomechanics:</span>
-              <span>{telemetry.torsoAngle}° spine · {telemetry.downwardVelocity}m/s</span>
+            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Confidence</span>
+              <span className="text-[11px] font-mono font-bold text-indigo-700 block mt-0.5">
+                {telemetry.confidence}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Monitoring Viewport with Unified Player Controls */}
-      <div className="bg-white border border-slate-200/80 rounded-xl overflow-hidden shadow-xs">
-        {/* Viewport Header */}
-        <div className="p-3.5 px-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
-          <div className="flex items-center gap-2.5 min-w-0">
+      {/* Main Monitoring Viewport: Cinema-grade Clinical AI Stage */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-xs">
+        {/* Viewport Header with Integrated Mode Controls */}
+        <div className="p-3.5 px-4 sm:px-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/70">
+          {/* Left: Stream Metadata */}
+          <div className="flex items-center gap-3 min-w-0">
             <span
               className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                playbackState === "PLAYING" ? "bg-emerald-500 animate-ping" : "bg-slate-400"
+                playbackState === "PLAYING" || (cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused)
+                  ? "bg-emerald-500 animate-ping"
+                  : "bg-slate-400"
               }`}
             />
             <div className="min-w-0">
-              <h4 className="text-xs font-bold text-slate-900 truncate">
-                {cameraSource === "LIVE_WEBCAM"
-                  ? (localYoloActive ? "Hardware YOLO-Pose Camera Sentinel (NVIDIA GTX 1650 CUDA)" : "Live Device Webcam Sentinel (Real-Time Motion)")
-                  : cameraSource === "PRERECORDED_VIDEO"
-                  ? `Demonstration Video Sentinel · ${customVideoFileName || "Pre-Recorded Bed-Fall Footage (Custom Video Slot)"}`
-                  : "RTSP Hospital Ward CCTV (Simulated Stream)"}
-              </h4>
-              <p className="text-[11px] text-slate-400 truncate">
-                {cameraSource === "LIVE_WEBCAM"
-                  ? "Live Camera Feed · Real-Time Posture & Motion Verification · Zero Recorded/Stored Video"
-                  : "GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02)"}
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-slate-900 truncate">
+                  {cameraSource === "LIVE_WEBCAM"
+                    ? (localYoloActive ? "Hardware YOLO-Pose Sentinel (NVIDIA GTX 1650 CUDA)" : "Live Device Webcam Sentinel (Real-Time Optical Flow)")
+                    : cameraSource === "PRERECORDED_VIDEO"
+                    ? (customVideoFileName ? `Demonstration Video Sentinel · ${customVideoFileName}` : "Clinical Demonstration Sentinel · Pre-Recorded Bed-Fall Footage")
+                    : "RTSP Hospital Ward CCTV · Bed 01"}
+                </h4>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 uppercase">
+                  {cameraSource === "LIVE_WEBCAM" ? "Live Feed" : cameraSource === "PRERECORDED_VIDEO" ? "Demonstration" : "CCTV"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02) · Kinematic Tripwire Active
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {cameraSource === "PRERECORDED_VIDEO" && (
-              <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-200/70 rounded">
-                {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
-              </span>
-            )}
-            <span className="text-[10px] font-mono text-slate-500 px-2 py-0.5 bg-slate-200/70 rounded">
-              {telemetry.fps} FPS
-            </span>
-            <button
-              onClick={handleTakeSnapshot}
-              className="p-1 text-slate-500 hover:text-slate-800 transition-colors"
-              title="Capture Telemetry Snapshot"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+          {/* Right: Controls, Device Selector & Quick Actions */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0 self-start md:self-center">
+            {cameraSource === "LIVE_WEBCAM" && (
+              <div className="flex items-center gap-2">
+                {/* Engine Toggle: Browser vs Hardware YOLO */}
+                <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLiveCameraMode("BROWSER_WEBCAM");
+                      if (playbackState !== "PLAYING" || !webcamStreamRef.current) {
+                        setPlaybackState("STOPPED");
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1 ${
+                      liveCameraMode === "BROWSER_WEBCAM"
+                        ? "bg-indigo-600 text-white shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Camera className="w-3 h-3" />
+                    <span>🌐 In-Browser</span>
+                  </button>
 
-        {/* Live Camera Source Mode Switcher Bar */}
-        {cameraSource === "LIVE_WEBCAM" && (
-          <div className="px-4 py-2 bg-slate-100/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setLiveCameraMode("BROWSER_WEBCAM");
-                  if (playbackState === "PLAYING" && webcamStreamRef.current) {
-                    // stream ongoing
-                  } else {
-                    setPlaybackState("STOPPED");
-                  }
-                }}
-                className={`px-2.5 py-1 rounded-md font-medium text-[11px] transition-all flex items-center gap-1.5 ${
-                  liveCameraMode === "BROWSER_WEBCAM"
-                    ? "bg-indigo-600 text-white shadow-2xs font-semibold"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>🌐 In-Browser Camera</span>
-              </button>
+                  {localYoloActive && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLiveCameraMode("HARDWARE_YOLO");
+                        if (webcamStreamRef.current) {
+                          webcamStreamRef.current.getTracks().forEach((t) => t.stop());
+                          webcamStreamRef.current = null;
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1 ${
+                        liveCameraMode === "HARDWARE_YOLO"
+                          ? "bg-indigo-600 text-white shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      <Activity className="w-3 h-3" />
+                      <span>⚡ YOLO CUDA</span>
+                    </button>
+                  )}
+                </div>
 
-              {localYoloActive && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLiveCameraMode("HARDWARE_YOLO");
-                    if (webcamStreamRef.current) {
-                      webcamStreamRef.current.getTracks().forEach((t) => t.stop());
-                      webcamStreamRef.current = null;
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-md font-medium text-[11px] transition-all flex items-center gap-1.5 ${
-                    liveCameraMode === "HARDWARE_YOLO"
-                      ? "bg-indigo-600 text-white shadow-2xs font-semibold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>⚡ Hardware YOLO Sentinel</span>
-                </button>
-              )}
-            </div>
-
-            {/* Device Specific Selector */}
-            <div className="flex items-center gap-2">
-              {liveCameraMode === "BROWSER_WEBCAM" ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500 text-[11px] font-medium">Device:</span>
+                {/* Device Selector */}
+                {liveCameraMode === "BROWSER_WEBCAM" ? (
                   <select
                     value={selectedCameraDeviceId}
                     onChange={(e) => handleSelectBrowserCamera(e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-medium rounded-md px-2 py-1 outline-hidden focus:border-indigo-500"
+                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-medium rounded-lg px-2.5 py-1 outline-hidden focus:border-indigo-500 shadow-2xs"
                   >
                     {availableWebcams.length > 0 ? (
                       availableWebcams.map((dev, idx) => (
@@ -5104,40 +5096,57 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         </option>
                       ))
                     ) : (
-                      <option value="">Default Camera / Laptop Webcam</option>
+                      <option value="">Default Webcam</option>
                     )}
                   </select>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-slate-500 text-[11px] font-medium mr-1">Hardware Sensor:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchHardwareDevice(0)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
-                      hardwareCameraIndex === 0
-                        ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    📱 Phone (Cam 0)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchHardwareDevice(1)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-medium border ${
-                      hardwareCameraIndex === 1
-                        ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    💻 Laptop (Cam 1)
-                  </button>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchHardwareDevice(0)}
+                      className={`px-2 py-0.5 rounded font-medium ${
+                        hardwareCameraIndex === 0
+                          ? "bg-indigo-50 text-indigo-700 font-bold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      📱 Phone (0)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchHardwareDevice(1)}
+                      className={`px-2 py-0.5 rounded font-medium ${
+                        hardwareCameraIndex === 1
+                          ? "bg-indigo-50 text-indigo-700 font-bold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      💻 Laptop (1)
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {cameraSource === "PRERECORDED_VIDEO" && (
+              <span className="text-[11px] font-mono font-bold text-slate-600 px-2.5 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs">
+                {formatVideoTime(videoCurrentTime)} / {formatVideoTime(videoDuration)}
+              </span>
+            )}
+
+            <span className="text-[11px] font-mono font-bold text-indigo-700 px-2.5 py-1 bg-indigo-50/80 border border-indigo-100 rounded-lg shadow-2xs">
+              {telemetry.fps} FPS
+            </span>
+
+            <button
+              onClick={handleTakeSnapshot}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-slate-200"
+              title="Capture Clinical Telemetry Snapshot"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Video & Canvas Stage */}
         <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden select-none">
@@ -5171,18 +5180,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
               {playbackState !== "PLAYING" && (
                 <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg">
-                    <Camera className="w-7 h-7" />
+                  <div className="w-16 h-16 rounded-3xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-xl ring-8 ring-indigo-500/10">
+                    <Camera className="w-8 h-8" />
                   </div>
-                  <h4 className="text-sm font-bold text-white mb-1">
+                  <h4 className="text-base font-bold text-white mb-1">
                     Live Camera Feed Ready for Verification
                   </h4>
-                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-4">
-                    Click <strong>Start Live Camera</strong> to open your webcam for real-time motion detection and pose tracking verification.
+                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-5">
+                    Click <strong>Start Live Camera</strong> to open your webcam for real-time 17-keypoint skeleton pose tracking and motion verification.
                   </p>
                   <button
                     onClick={handleStartMonitoring}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
                   >
                     <Play className="w-4 h-4" />
                     <span>Start Live Camera Feed</span>
@@ -5207,18 +5216,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
               {playbackState === "STOPPED" && (
                 <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center z-10">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-lg">
-                    <Play className="w-7 h-7 ml-1" />
+                  <div className="w-16 h-16 rounded-3xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mb-3 shadow-xl ring-8 ring-indigo-500/10">
+                    <Play className="w-8 h-8 ml-1" />
                   </div>
-                  <h4 className="text-sm font-bold text-white mb-1">
-                    Clinical Demonstration Video Slot
+                  <h4 className="text-base font-bold text-white mb-1">
+                    Clinical Fall Demonstration Video
                   </h4>
-                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-4">
+                  <p className="text-xs text-slate-300 max-w-md leading-relaxed mb-5">
                     Click <strong>Start Monitoring</strong> to initiate real sequential frame ingestion. You can also load your own recorded hospital fall video below anytime.
                   </p>
                   <button
                     onClick={handleStartMonitoring}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-lg flex items-center gap-2 hover:scale-[1.02]"
                   >
                     <Play className="w-4 h-4" />
                     <span>Start Monitoring Video</span>
@@ -5229,63 +5238,91 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           )}
 
           {/* Live CCTV HUD (Top Left) */}
-          <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-white text-[11px] font-mono shadow-md z-20">
-            <span className={`w-2 h-2 rounded-full ${cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused ? "bg-emerald-500 animate-ping" : (playbackState === "PLAYING" ? "bg-emerald-500 animate-ping" : "bg-slate-400")}`} />
+          <div className="absolute top-3 left-3 flex items-center gap-2 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-white text-[11px] font-mono shadow-lg z-20">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                cameraSource === "LIVE_WEBCAM" && localYoloActive && !hardwareStreamPaused
+                  ? "bg-emerald-500 animate-ping"
+                  : playbackState === "PLAYING"
+                  ? "bg-emerald-500 animate-ping"
+                  : "bg-slate-400"
+              }`}
+            />
             <span className="font-bold text-emerald-400">
               {cameraSource === "LIVE_WEBCAM"
                 ? (localYoloActive ? "HARDWARE YOLO-POSE" : (playbackState === "PLAYING" ? "LIVE WEBCAM ACTIVE" : "WEBCAM STANDBY"))
-                : (playbackState === "PLAYING" ? "DEMO PLAYING" : playbackState)}
+                : (playbackState === "PLAYING" ? "DEMO ACTIVE" : playbackState)}
             </span>
-            <span className="text-slate-500">|</span>
-            <span>{currentTime}</span>
+            <span className="text-slate-600">|</span>
+            <span className="text-slate-300">{currentTime}</span>
           </div>
 
           {/* Live Kinematics Strip (Top Right) */}
-          <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-800 text-slate-300 text-[10px] font-mono flex items-center gap-2 shadow-md z-20">
+          <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-slate-300 text-[10px] font-mono flex items-center gap-2.5 shadow-lg z-20">
             <span className="text-emerald-400 font-bold">{telemetry.fps} FPS</span>
-            <span className="text-slate-500">•</span>
-            <span>Torso: {telemetry.torsoAngle}°</span>
-            <span className="text-slate-500">•</span>
+            <span className="text-slate-600">•</span>
+            <span>Spine: {telemetry.torsoAngle}°</span>
+            <span className="text-slate-600">•</span>
             <span className={telemetry.downwardVelocity > 0.8 || telemetry.downwardVelocity < -1.2 ? "text-rose-400 font-bold" : "text-slate-300"}>
               Velocity: {telemetry.downwardVelocity} m/s
             </span>
           </div>
 
-          {/* Target Detection Box Overlay (Bottom) */}
+          {/* Floating Telemetry HUD (Bottom) */}
           <div
-            className={`absolute bottom-14 left-4 right-4 border rounded-lg p-2.5 text-center shadow-2xl backdrop-blur-md transition-all z-20 ${
+            className={`absolute bottom-3 left-3 right-3 rounded-xl p-3 px-4 shadow-2xl backdrop-blur-md transition-all z-20 flex flex-col md:flex-row md:items-center justify-between gap-2.5 ${
               telemetry.riskLevel === "HIGH_RISK"
-                ? "border-rose-400/90 bg-rose-950/85 text-rose-100 animate-pulse"
+                ? "border border-rose-500/90 bg-rose-950/90 text-rose-100 shadow-rose-950/50 animate-pulse"
                 : telemetry.riskLevel === "CAUTION"
-                ? "border-amber-400/90 bg-amber-950/85 text-amber-100"
-                : "border-slate-700/80 bg-slate-950/80 text-slate-100"
+                ? "border border-amber-500/80 bg-amber-950/85 text-amber-100"
+                : "border border-white/10 bg-slate-950/85 text-slate-100"
             }`}
           >
-            <div className="flex items-center justify-between text-[10px] font-mono uppercase font-bold tracking-wider mb-1">
-              <span className={telemetry.riskLevel === "HIGH_RISK" ? "text-rose-400 font-bold" : "text-emerald-400"}>
-                [ {telemetry.riskLevel === "HIGH_RISK" ? "⚠️ CRITICAL FALL DETECTED · RESIDENT CHECK-IN" : "Prajñā Biomechanics Sentinel: Active"} ]
-              </span>
-              <span className="text-indigo-300 font-normal">
-                {telemetry.stageLabel}
-              </span>
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  telemetry.riskLevel === "HIGH_RISK"
+                    ? "bg-rose-500 animate-ping"
+                    : telemetry.riskLevel === "CAUTION"
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+                }`}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${telemetry.riskLevel === "HIGH_RISK" ? "text-rose-300" : "text-emerald-400"}`}>
+                    {telemetry.riskLevel === "HIGH_RISK" ? "CRITICAL FALL CHECK" : "Prajñā Kinematics Sentinel"}
+                  </span>
+                  <span className="text-slate-600 text-xs">•</span>
+                  <span className="text-indigo-300 text-xs font-semibold truncate">
+                    {telemetry.stageLabel}
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-white truncate mt-0.5">
+                  {telemetry.posture} · <span className="font-mono text-[11px] font-normal text-slate-300">{telemetry.probableMechanism.replace(/_/g, " ")}</span>
+                </div>
+              </div>
             </div>
-            <div className="text-xs font-semibold">
-              {telemetry.posture}
-            </div>
-            <div className="text-[10px] font-mono text-slate-300 mt-0.5 flex flex-wrap items-center justify-center gap-3">
-              <span>Confidence: {telemetry.confidence}</span>
-              <span>•</span>
-              <span>Velocity: {telemetry.downwardVelocity} m/s</span>
-              <span>•</span>
-              <span>Torso Angle: {telemetry.torsoAngle}°</span>
-              <span>•</span>
-              <span>Privacy: {privacyRadarOnly ? "Radar Mode Active" : "Clean Feed"}</span>
+
+            <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-300 shrink-0 self-start md:self-center">
+              <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10">
+                Confidence: <strong className="text-white">{telemetry.confidence}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10">
+                Velocity: <strong className={telemetry.downwardVelocity > 0.8 || telemetry.downwardVelocity < -1.2 ? "text-rose-400" : "text-white"}>{telemetry.downwardVelocity} m/s</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10">
+                Spine: <strong className="text-white">{telemetry.torsoAngle}°</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-white/10 border border-white/10">
+                Privacy: <strong className={privacyRadarOnly ? "text-emerald-400" : "text-slate-300"}>{privacyRadarOnly ? "Radar Active" : "Clean Feed"}</strong>
+              </span>
             </div>
           </div>
         </div>
 
         {/* Unified Playback & Demonstration Control Bar */}
-        <div className="p-3 px-4 bg-slate-50 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+        <div className="p-3 px-4 sm:px-5 bg-slate-50/90 border-t border-slate-200/90 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {cameraSource === "LIVE_WEBCAM" ? (
               <>
@@ -5301,21 +5338,21 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                         fetch(`${YOLO_API_BASE}/api/yolo/stop`, { method: "POST" }).catch(() => {});
                       }
                     }}
-                    className={`px-3.5 py-1.5 rounded-lg text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5 ${
+                    className={`px-4 py-2 rounded-xl text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5 ${
                       hardwareStreamPaused
-                        ? "bg-emerald-600 hover:bg-emerald-500"
+                        ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200"
                         : "bg-slate-700 hover:bg-slate-600"
                     }`}
                   >
                     {hardwareStreamPaused ? <Play className="w-3.5 h-3.5" /> : <CameraOff className="w-3.5 h-3.5" />}
-                    <span>{hardwareStreamPaused ? "Start Camera Sentinel" : "Pause Camera Sentinel"}</span>
+                    <span>{hardwareStreamPaused ? "Start Camera Sentinel" : "Pause Sentinel"}</span>
                   </button>
                 ) : (
                   <>
                     {playbackState === "PLAYING" ? (
                       <button
                         onClick={handleStopMonitoring}
-                        className="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                        className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                       >
                         <Square className="w-3.5 h-3.5" />
                         <span>Stop Webcam</span>
@@ -5323,7 +5360,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                     ) : (
                       <button
                         onClick={handleStartMonitoring}
-                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                       >
                         <Play className="w-3.5 h-3.5" />
                         <span>Start Live Camera</span>
@@ -5335,7 +5372,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 {/* Instant Fall Test Button */}
                 <button
                   onClick={handleTestFall}
-                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5 hover:shadow-rose-200"
                   title="Simulate sudden fall event to test resident check-in dialog & escalation ladder"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
@@ -5348,7 +5385,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 {playbackState === "PLAYING" ? (
                   <button
                     onClick={handlePauseMonitoring}
-                    className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                   >
                     <Pause className="w-3.5 h-3.5" />
                     <span>Pause</span>
@@ -5356,7 +5393,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 ) : (
                   <button
                     onClick={handleStartMonitoring}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                   >
                     <Play className="w-3.5 h-3.5" />
                     <span>Start Monitoring</span>
@@ -5365,7 +5402,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
                 <button
                   onClick={handleStopMonitoring}
-                  className="px-3.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                 >
                   <Square className="w-3.5 h-3.5" />
                   <span>Stop</span>
@@ -5373,7 +5410,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
 
                 <button
                   onClick={handleRestartMonitoring}
-                  className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Restart</span>
@@ -5382,7 +5419,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 {/* Instant Fall Test Button */}
                 <button
                   onClick={handleTestFall}
-                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5"
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
                   <span>Test Fall</span>
@@ -5391,90 +5428,99 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             )}
           </div>
 
-          {/* Speed Toggle Controls (Prerecorded video only) */}
-          {cameraSource === "PRERECORDED_VIDEO" && (
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              <span className="text-slate-400 font-normal">Playback Speed:</span>
-              <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg">
-                {[0.5, 1.0, 2.0].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleChangeSpeed(s)}
-                    className={`px-2.5 py-1 rounded-md text-xs transition-all ${
-                      playbackSpeed === s
-                        ? "bg-white text-indigo-900 font-bold shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {s}x
-                  </button>
-                ))}
+          {/* Right Action Tools */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Speed Toggle Controls (Prerecorded video only) */}
+            {cameraSource === "PRERECORDED_VIDEO" && (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <span className="text-slate-400 font-normal text-[11px]">Speed:</span>
+                <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg">
+                  {[0.5, 1.0, 2.0].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => handleChangeSpeed(s)}
+                      className={`px-2 py-0.5 rounded-md text-xs font-mono transition-all ${
+                        playbackSpeed === s
+                          ? "bg-white text-indigo-900 font-bold shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Custom Video File Upload Slot (When on PRERECORDED_VIDEO) */}
-          {cameraSource === "PRERECORDED_VIDEO" && (
-            <label className="cursor-pointer px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-all border border-amber-300 flex items-center gap-1.5 shadow-2xs">
-              <span>📁 {customVideoFileName ? `Loaded: ${customVideoFileName}` : "Provide Your Demo Video"}</span>
-              <input
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files && e.target.files[0];
-                  if (f) {
-                    const u = URL.createObjectURL(f);
-                    setCustomDemoVideoUrl(u);
-                    setCustomVideoFileName(f.name);
-                    if (videoElementRef.current) {
-                      videoElementRef.current.src = u;
-                      videoElementRef.current.currentTime = 0;
+            {/* Custom Video File Upload Slot (When on PRERECORDED_VIDEO) */}
+            {cameraSource === "PRERECORDED_VIDEO" && (
+              <label className="cursor-pointer px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-semibold text-xs transition-all border border-indigo-200 flex items-center gap-1.5 shadow-2xs">
+                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <span>{customVideoFileName ? `Loaded: ${customVideoFileName}` : "Upload Fall Demo (.mp4)"}</span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) {
+                      const u = URL.createObjectURL(f);
+                      setCustomDemoVideoUrl(u);
+                      setCustomVideoFileName(f.name);
+                      if (videoElementRef.current) {
+                        videoElementRef.current.src = u;
+                        videoElementRef.current.currentTime = 0;
+                      }
+                      handleStopMonitoring();
+                      setSnapshotToast(`Custom video "${f.name}" loaded successfully!`);
+                      setTimeout(() => setSnapshotToast(null), 4000);
                     }
-                    handleStopMonitoring();
-                    setSnapshotToast(`Custom video "${f.name}" loaded successfully!`);
-                    setTimeout(() => setSnapshotToast(null), 4000);
-                  }
-                }}
-              />
-            </label>
-          )}
+                  }}
+                />
+              </label>
+            )}
 
-          {/* Quick Jump to Reconstruction */}
-          <a
-            href="#incident-reconstruction-section"
-            onClick={(e) => {
-              const el = document.getElementById("incident-reconstruction-section");
-              if (el) {
-                e.preventDefault();
-                el.scrollIntoView({ behavior: "smooth" });
-              }
-            }}
-            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-all border border-slate-200 flex items-center gap-1.5"
-          >
-            <span>Reconstruct Incident ↓</span>
-          </a>
+            {/* Quick Jump to Reconstruction */}
+            <a
+              href="#incident-reconstruction-section"
+              onClick={(e) => {
+                const el = document.getElementById("incident-reconstruction-section");
+                if (el) {
+                  e.preventDefault();
+                  el.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs transition-all border border-slate-200 flex items-center gap-1.5 shadow-2xs"
+            >
+              <span>Incident Timeline ↓</span>
+            </a>
+          </div>
         </div>
       </div>
 
       {/* Demonstration Event Timeline & 3-Confidence Gauges */}
-      <div className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+      <div id="incident-reconstruction-section" className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
           <div>
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Demonstration Event Timeline (7 Progressive Stages)
-            </h4>
-            <p className="text-[11px] text-slate-500">
-              Evaluated sequentially from physical keypoint kinematics · Zero hardcoded timestamp gates
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Demonstration Event Timeline
+              </h4>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+                7 Progressive Stages
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Evaluated sequentially from physical 17-keypoint kinematics · Zero hardcoded timestamp gates
             </p>
           </div>
-          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-            Current: {telemetry.stageLabel}
+          <span className="text-xs font-mono font-bold px-3 py-1 rounded-lg bg-indigo-600 text-white shadow-xs">
+            Current Stage: {telemetry.stageLabel}
           </span>
         </div>
 
-        {/* 7 Horizontal Timeline Steps */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {/* 7 Horizontal Connected Timeline Steps */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
           {TIMELINE_STAGES.map((stg) => {
             const isCurrent = telemetry.timelineStage === stg.id;
             const currentStepNum = TIMELINE_STAGES.find((s) => s.id === telemetry.timelineStage)?.step || 1;
@@ -5483,21 +5529,43 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
             return (
               <div
                 key={stg.id}
-                className={`p-2.5 rounded-lg border text-center transition-all ${
+                className={`p-3 rounded-xl border text-center transition-all flex flex-col justify-between ${
                   isCurrent
-                    ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-400/40"
+                    ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-400/40 transform scale-[1.02]"
                     : isPassed
-                    ? "bg-emerald-50 text-emerald-900 border-emerald-200"
+                    ? "bg-emerald-50/70 text-emerald-950 border-emerald-200/80"
                     : "bg-slate-50 text-slate-400 border-slate-200/60"
                 }`}
               >
-                <div className="text-[10px] font-mono font-bold uppercase tracking-wider mb-0.5">
-                  Step {stg.step}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span
+                      className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                        isCurrent
+                          ? "bg-white/20 text-white"
+                          : isPassed
+                          ? "bg-emerald-200 text-emerald-900"
+                          : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      Step {stg.step}
+                    </span>
+                    {isPassed && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    )}
+                    {isCurrent && (
+                      <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                    )}
+                  </div>
+                  <div className="text-xs font-bold leading-snug">
+                    {stg.label}
+                  </div>
                 </div>
-                <div className="text-xs font-bold truncate">
-                  {stg.label}
-                </div>
-                <div className={`text-[10px] truncate mt-0.5 ${isCurrent ? "text-indigo-100" : isPassed ? "text-emerald-700" : "text-slate-400"}`}>
+                <div
+                  className={`text-[10px] mt-1.5 truncate ${
+                    isCurrent ? "text-indigo-100" : isPassed ? "text-emerald-700 font-medium" : "text-slate-400"
+                  }`}
+                >
                   {stg.sub}
                 </div>
               </div>
@@ -5506,12 +5574,14 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
         </div>
 
         {/* 3 Distinct Confidence Gauges & Evidence Chains */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
           {/* Confidence 1: Detection Confidence */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-700">Detection Confidence</span>
-              <span className="font-mono font-bold text-slate-900">{telemetry.detectionConfidence}%</span>
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="font-bold text-slate-800">Detection Confidence</span>
+              <span className="font-mono font-bold text-blue-700 px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
+                {telemetry.detectionConfidence}%
+              </span>
             </div>
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
               <div
@@ -5519,16 +5589,18 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 style={{ width: `${telemetry.detectionConfidence}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
+            <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
               Human anatomical keypoint visibility &amp; COCO landmark stability.
             </p>
           </div>
 
           {/* Confidence 2: Mechanism Confidence */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-700">Mechanism Confidence</span>
-              <span className="font-mono font-bold text-slate-900">{telemetry.mechanismConfidence}%</span>
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="font-bold text-slate-800">Mechanism Confidence</span>
+              <span className="font-mono font-bold text-indigo-700 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200">
+                {telemetry.mechanismConfidence}%
+              </span>
             </div>
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
               <div
@@ -5536,16 +5608,24 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 style={{ width: `${telemetry.mechanismConfidence}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
+            <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
               Kinematic trajectory consistency vs intentional lying/sitting.
             </p>
           </div>
 
           {/* Confidence 3: Severity Confidence */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-700">Severity Confidence</span>
-              <span className="font-mono font-bold text-slate-900">{telemetry.severityConfidence}%</span>
+          <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="font-bold text-slate-800">Severity Confidence</span>
+              <span
+                className={`font-mono font-bold px-2 py-0.5 rounded border ${
+                  telemetry.severityConfidence > 60
+                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    : "bg-slate-100 text-slate-700 border-slate-200"
+                }`}
+              >
+                {telemetry.severityConfidence}%
+              </span>
             </div>
             <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
               <div
@@ -5555,34 +5635,36 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 style={{ width: `${telemetry.severityConfidence}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
+            <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
               Impact kinetic magnitude + prolonged unrecovered floor stillness.
             </p>
           </div>
         </div>
 
         {/* Supporting & Counter-Evidence Pills */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-          <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-200/70">
-            <span className="text-[11px] font-bold text-emerald-900 block mb-1.5">
-              Corroborating Physical Evidence:
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-200/80">
+            <span className="text-xs font-bold text-emerald-950 block mb-2 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Corroborating Physical Evidence</span>
             </span>
             <div className="flex flex-wrap gap-1.5">
               {telemetry.evidence && telemetry.evidence.map((ev, idx) => (
-                <span key={idx} className="text-[10px] bg-white border border-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md">
+                <span key={idx} className="text-[11px] bg-white border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg font-medium shadow-2xs">
                   ✓ {ev}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/70">
-            <span className="text-[11px] font-bold text-slate-800 block mb-1.5">
-              Counter-Evidence / Fall Mitigation:
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/80">
+            <span className="text-xs font-bold text-slate-900 block mb-2 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
+              <span>Counter-Evidence &amp; Fall Mitigation</span>
             </span>
             <div className="flex flex-wrap gap-1.5">
               {telemetry.counterEvidence && telemetry.counterEvidence.map((cev, idx) => (
-                <span key={idx} className="text-[10px] bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-md">
+                <span key={idx} className="text-[11px] bg-white border border-slate-200 text-slate-700 px-2.5 py-1 rounded-lg font-medium shadow-2xs">
                   • {cev}
                 </span>
               ))}
@@ -5592,53 +5674,58 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
       </div>
 
       {/* Source Status Panel (7 Items) */}
-      <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs">
-        <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-          Virtual Camera Source Status &amp; Telemetry Digest
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Source</span>
-            <span className="font-semibold text-slate-800 truncate block">
-              {cameraSource === "PRERECORDED_VIDEO" ? "patient_bed_fall_demo.mp4" : cameraSource}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+            Active Camera Telemetry Digest
+          </h4>
+          <span className="text-[11px] text-slate-400 font-mono">
+            Edge Ingestion Pipeline: Healthy
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Source</span>
+            <span className="font-semibold text-slate-800 truncate block mt-0.5" title={cameraSource === "PRERECORDED_VIDEO" ? "patient_bed_fall_demo.mp4" : cameraSource}>
+              {cameraSource === "PRERECORDED_VIDEO" ? (customVideoFileName || "patient_bed_fall_demo.mp4") : cameraSource}
             </span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Video Time</span>
-            <span className="font-mono font-bold text-slate-800">
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Video Time</span>
+            <span className="font-mono font-bold text-slate-800 block mt-0.5">
               {formatVideoTime(videoCurrentTime)}
             </span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Frame Rate</span>
-            <span className="font-mono font-bold text-slate-800">{telemetry.fps} FPS</span>
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Frame Rate</span>
+            <span className="font-mono font-bold text-indigo-700 block mt-0.5">{telemetry.fps} FPS</span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">YOLO Status</span>
-            <span className="font-semibold text-slate-800 truncate block">
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">YOLO Status</span>
+            <span className="font-semibold text-slate-800 truncate block mt-0.5">
               {localYoloActive ? "YOLO11 (CUDA)" : "In-Browser AI"}
             </span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Tracking</span>
-            <span className="font-semibold text-slate-800 truncate block">
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Tracking</span>
+            <span className="font-semibold text-slate-800 truncate block mt-0.5">
               17-Keypoint COCO
             </span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Event State</span>
-            <span className="font-mono font-bold text-slate-800">{telemetry.eventState}</span>
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Event State</span>
+            <span className="font-mono font-bold text-slate-800 block mt-0.5">{telemetry.eventState}</span>
           </div>
 
-          <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Alert State</span>
+          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+            <span className="text-[9px] text-slate-400 uppercase font-bold block">Alert Level</span>
             <span
-              className={`font-mono font-bold ${
+              className={`font-mono font-bold block mt-0.5 ${
                 telemetry.riskLevel === "HIGH_RISK"
                   ? "text-rose-600"
                   : telemetry.riskLevel === "CAUTION"
@@ -5651,6 +5738,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
           </div>
         </div>
       </div>
+
 
       {/* ========================================================================= */}
       {/* CAMERA FLEET & SOURCE INGESTION MANAGER MODAL                             */}
