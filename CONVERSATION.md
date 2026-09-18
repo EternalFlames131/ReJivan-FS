@@ -2067,10 +2067,58 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - `CameraZonesView.jsx`: camera feeds and resident check-ins should isolate to the logged-in user (Anita Sharma living room vs Ram Prakash Hut Bay bedroom vs Ward Nurse hospital CCTV feeds).
    - Global modals (`CallCaregiverModal`, `ClinicalExportModal`, `AddMedicationModal`, `ResidentCheckinModal`): dynamically reflect the active user.
 3. **Execute End-to-End Dynamic Account Context Binding:**
-   - Pass `currentUser={user}` (and associated patient data / credentials) to all views.
-   - Update `MedicinesView.jsx`, `AlertsView.jsx`, `MedicalDevicesView.jsx`, `CameraZonesView.jsx`, `Modals.jsx`, and `App.jsx`.
+   - Pass `currentUser={user}` and `activePatient={activePatient}` to all views, panels, and modals.
+   - Update `MedicinesView.jsx`, `AlertsView.jsx`, `MedicalDevicesView.jsx`, `CameraZonesView.jsx`, `HardwareDiagnosticsBar.jsx`, `Modals.jsx`, and `App.jsx`.
    - Rebuild web bundle, verify Babel compilation, verify tests, and verify DOM hydration.
 
+### What was done & verified
+1. **Central Clinical Account Registry (`ACCOUNT_PROFILES` in `App.jsx`):**
+   - Configured full profile models across the 3 demo identities:
+     - `asharma@demo.in`: Anita Sharma (67F, ID `REJ-8042`), Essential Hypertension / Post-Stroke Watch, Living Room, Junglighat, Port Blair, Dr. A. Sen, MD (GB Pant), Priya Sharma (+91 94342 81101), 108 Port Blair Hub, BLE Mesh Hub, baseline vitals (HR 85, SpO2 97.7, BP 149/97, Glucose 112).
+     - `rprakash@demo.in`: Ram Prakash (72M, ID `REJ-9120`), Type-2 Diabetes Mellitus / Neuropathy Watch, Remote Cottage, Hut Bay, Little Andaman, Dr. K. Nair, MD (Endocrinology), Rajesh Prakash (+91 94742 19203), Little Andaman Marine Ambulance 108 Hub, Cellular Gateway #AP-4109, baseline vitals (HR 74, SpO2 98.2, BP 122/80, Glucose 142).
+     - `wardnurse@demo.in`: GB Pant Ward Nurse (Shift A Lead, ID `WARD-STA-01`), 4-Bed Inpatient Clinical Ward Watch, GB Pant Hospital Male/Female Ward A, Port Blair, Dr. A. Sen & Dr. V. Rao, Station Desk Ext. 402, Code Blue / Crash Team, Central Gateway #GW-8042.
 
+2. **Synchronized Authentication & Dynamic Telemetry Drift:**
+   - Updated `handleLogin` to synchronize token, user profile, baseline vitals, and role routing (`ward` for nurse, `dashboard` for caregiver).
+   - Dynamically bound the 1.5s live streaming drift engine in `App.jsx` to `activePatient.defaultVitals`, preventing vitals from reverting to hardcoded Anita baselines when Ram Prakash or Ward Nurse is active.
+   - Updated `getTriageMetrics()` to return ward statistics (4 beds, 2 normal, 1 caution, 1 danger) when Ward Nurse is logged in, and individual patient triage when caregivers are logged in.
 
+3. **Dynamic Child View Isolation Across All Tabs:**
+   - **Dashboard:**
+     - `PatientOverviewCard`: dynamically displays patient name, age, gender, location, and ID (`REJ-8042` vs `REJ-9120` vs `WARD-STA-01`).
+     - `HardwareDiagnosticsBar.jsx`: dynamically displays FreeStyle Libre 3 CGM + Accu-Chek Instant + Beurer BM 57 + Cellular Hub for Ram; Omron BP + TempTraq + SanketLife ECG + BLE Mesh Hub for Anita; Multi-Bed Hub + Philips IntelliVue + Masimo Rad-97 for Ward Nurse.
+     - `RecentAlerts.jsx`: dynamically displays postprandial glucose spike for Ram, elevated BP for Anita, and multi-bed triage alerts for Ward Nurse.
+     - `MedicationScheduleCard.jsx`: dynamically displays diabetic regimen (Metformin, Glimepiride, Alpha Lipoic Acid) for Ram vs hypertension regimen for Anita vs ward rounds for Ward Nurse.
+     - `PatientTimeline.jsx`: dynamically displays CGM telemetry sync & Little Andaman gait for Ram vs BLE sync for Anita vs ward rounds for Ward Nurse.
+   - **Medicines MAR Tab (`MedicinesView.jsx`):**
+     - Ram Prakash: Metformin 500mg (bid), Glimepiride 1mg (morning), Alpha Lipoic Acid 300mg (noon), Atorvastatin 20mg (night) by Dr. K. Nair.
+     - Anita Sharma: Amlodipine 5mg, Aspirin 75mg, Atorvastatin 20mg by Dr. A. Sen.
+     - Ward Nurse: Inpatient Medication Administration Record covering all active ward beds.
+   - **Alerts & Call Chain Tab (`AlertsView.jsx`):**
+     - Ram Prakash: Tier 1 Rajesh Prakash (+91 94742 19203), Tier 2 Sunita Prakash, Tier 3 Little Andaman Marine Ambulance & 108 PHC Station.
+     - Anita Sharma: Tier 1 Priya Sharma (+91 94342 81101), Tier 2 Rahul Sharma, Tier 3 GB Pant Hospital 108.
+     - Ward Nurse: Tier 1 Ward Nurse Station, Tier 2 Rapid Response MET, Tier 3 Hospital Code Blue Crash Team.
+   - **Medical Devices Fleet Tab (`MedicalDevicesView.jsx`):**
+     - Ram Prakash: FreeStyle Libre 3 CGM, Accu-Chek Instant, Beurer BM 57 BP, Cellular RPM Gateway #AP-4109.
+     - Anita Sharma: Omron HEM-7156T BP, TempTraq Continuous Temp, SanketLife 12-Lead ECG.
+     - Ward Nurse: Hospital Telemetry Fleet (#GW-8042, Philips IntelliVue MP50, Masimo Rad-97, Mindray BeneView).
+   - **Camera Zones Tab (`CameraZonesView.jsx`):**
+     - Viewport header deck displays `activePatient.location` and patient name (Hut Bay, Little Andaman for Ram vs Junglighat, Port Blair for Anita vs GB Pant Hospital for Ward Nurse).
+   - **Virtual Ward Tab (`VirtualWardView.jsx`):**
+     - Bed 101 labeled `YOUR BED (ACTIVE)` when Anita is logged in; Bed 102 labeled `YOUR BED (ACTIVE)` when Ram is logged in; full Staff Nurse Command console when Ward Nurse is logged in.
+   - **Global Modals (`Modals.jsx` & `ResidentCheckinModal.jsx`):**
+     - `CallCaregiverModal`: dials patient-specific family and doctors.
+     - `ClinicalExportModal`: generates and downloads patient-specific JSON clinical summaries with accurate patient ID, condition, devices, and vitals.
+     - `AddMedicationModal`: binds prescriptions to the active patient.
+     - `ResidentCheckinModal`: presents patient-specific contact and escalation details.
 
+4. **Automated Verification & Validation:**
+   - Recompiled React bundle via `node tools/build_web.js` (`bundle.jsx` 419,112 bytes).
+   - Verified clean Babel transform in Node VM using `prototype/public/vendor/babel.min.js` (454,829 bytes output, 0 syntax errors).
+   - Verified local prototype server operational on `http://localhost:8080` (`/api/health` 200 OK).
+   - Verified DOM rendering via Edge headless (`msedge --headless --dump-dom`).
+   - Verified 100% pass rate across all 4 automated test suites:
+     - `tools/test_camera_architecture.py`: 12/12 passed (100% in 0.610s).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
