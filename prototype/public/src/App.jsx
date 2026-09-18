@@ -323,6 +323,7 @@ const App = () => {
 
   // Auth Handlers
   const handleLogin = async (email, password) => {
+    const profile = ACCOUNT_PROFILES[email] || ACCOUNT_PROFILES["asharma@demo.in"];
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -332,8 +333,19 @@ const App = () => {
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
-        setUser(data.user);
+        setUser({ ...profile, ...(data.user || {}) });
         localStorage.setItem("rejivan_token", data.token);
+        setVitals({
+          ...profile.defaultVitals,
+          lastSync: "Just now",
+          hardwareSource: profile.hardwareSource,
+        });
+        setSimMode("baseline");
+        if (profile.role === "nurse") {
+          setActiveTab("ward");
+        } else {
+          setActiveTab("dashboard");
+        }
         return;
       }
     } catch (e) {
@@ -341,13 +353,18 @@ const App = () => {
     }
 
     // Client-side fallback
-    const role = email.includes("nurse") ? "nurse" : "caregiver";
-    const name = email.includes("nurse")
-      ? "GB Pant Ward Nurse"
-      : email.includes("prakash")
-      ? "Ram Prakash"
-      : "Anita Sharma";
-    setUser({ name, role, email });
+    setUser(profile);
+    setVitals({
+      ...profile.defaultVitals,
+      lastSync: "Just now",
+      hardwareSource: profile.hardwareSource,
+    });
+    setSimMode("baseline");
+    if (profile.role === "nurse") {
+      setActiveTab("ward");
+    } else {
+      setActiveTab("dashboard");
+    }
   };
 
   const handleLogout = () => {
@@ -484,10 +501,11 @@ const App = () => {
                   {/* Patient Overview Card */}
                   <PatientOverviewCard
                     patient={{
-                      name: "Anita Sharma",
-                      age: 67,
-                      gender: "Female",
-                      location: "Home → Living Room, Junglighat, Port Blair",
+                      name: activePatient.name,
+                      age: activePatient.age,
+                      gender: activePatient.gender,
+                      location: activePatient.location,
+                      patientId: activePatient.patientId,
                       status: triage.dangerCount > 0 ? "Critical Alert" : triage.cautionCount > 0 ? "Caution / Review" : "Monitoring Nominal",
                       lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
                     }}
@@ -499,21 +517,26 @@ const App = () => {
                   <VitalSignsTable vitalsData={vitals} />
 
                   {/* Hardware Diagnostics & Sensor Telemetry Bar (Pinned at bottom of left area) */}
-                  <HardwareDiagnosticsBar reliabilityScore={98} />
+                  <HardwareDiagnosticsBar
+                    reliabilityScore={98}
+                    currentUser={user}
+                    activePatient={activePatient}
+                  />
                 </div>
 
                 {/* Right Column (Alerts & Care Coordination Panel - 30%) */}
                 <div className="xl:col-span-4 space-y-6">
                   {/* Recent Alerts Card */}
-                  <RecentAlerts />
+                  <RecentAlerts currentUser={user} />
 
                   {/* Medication Schedule Card */}
                   <MedicationScheduleCard
                     onOpenAddModal={() => setAddMedModalOpen(true)}
+                    currentUser={user}
                   />
 
                   {/* Patient Timeline Feed */}
-                  <PatientTimeline />
+                  <PatientTimeline currentUser={user} />
                 </div>
               </div>
 
@@ -538,6 +561,8 @@ const App = () => {
                 }
               }}
               onTriggerVerification={handleOpenCheckin}
+              currentUser={user}
+              activePatient={activePatient}
             />
           )}
 
@@ -550,34 +575,49 @@ const App = () => {
               secondsAgo={secondsAgo}
               onPageDoctor={() => setCallModalOpen(true)}
               onExportTelemetry={() => setExportModalOpen(true)}
+              currentUser={user}
+              activePatient={activePatient}
             />
           )}
 
           {/* Medicines MAR Route */}
           {activeTab === "medicines" && (
-            <MedicinesView onOpenAddModal={() => setAddMedModalOpen(true)} />
+            <MedicinesView
+              onOpenAddModal={() => setAddMedModalOpen(true)}
+              currentUser={user}
+            />
           )}
 
           {/* Alerts Escalation Route */}
-          {activeTab === "alerts" && <AlertsView />}
+          {activeTab === "alerts" && (
+            <AlertsView currentUser={user} activePatient={activePatient} />
+          )}
 
           {/* Medical Devices Fleet Route */}
-          {activeTab === "devices" && <MedicalDevicesView />}
+          {activeTab === "devices" && (
+            <MedicalDevicesView currentUser={user} activePatient={activePatient} />
+          )}
         </main>
 
         {/* Global Clinical Modals */}
         <CallCaregiverModal
           isOpen={callModalOpen}
           onClose={() => setCallModalOpen(false)}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <ClinicalExportModal
           isOpen={exportModalOpen}
           onClose={() => setExportModalOpen(false)}
           vitalsData={vitals}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <AddMedicationModal
           isOpen={addMedModalOpen}
           onClose={() => setAddMedModalOpen(false)}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <LoginModal
           isOpen={loginModalOpen}
@@ -588,6 +628,7 @@ const App = () => {
           isOpen={checkinModalOpen}
           onClose={() => setCheckinModalOpen(false)}
           scenario={checkinScenario}
+          activePatient={activePatient}
           onEmergencyConfirmed={() => {
             setVitals((prev) => ({ ...prev, bpSys: 178, hr: 124 }));
           }}

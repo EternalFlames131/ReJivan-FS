@@ -1881,7 +1881,7 @@ const PatientOverviewCard = ({
                 <span>{patient.status || "Monitoring"}</span>
               </span>
               <span className="text-xs text-slate-400 font-mono">
-                ID: REJ-8042
+                ID: {patient.patientId || patient.id || "REJ-8042"}
               </span>
             </div>
 
@@ -2211,31 +2211,103 @@ const VitalSignsTable = ({ vitalsData }) => {
 // Hardware Diagnostics & Sensor Telemetry Bar (Enterprise Clinical Grade)
 
 const HardwareDiagnosticsBar = ({
-  devices = [
-    {
-      model: "Omron HEM-7156T",
-      type: "BP Monitor",
-      status: "Connected",
-      battery: 92,
-      protocol: "BLE 5.2",
-    },
-    {
-      model: "TempTraq Continuous",
-      type: "Temp Sensor",
-      status: "Connected",
-      battery: 84,
-      protocol: "Patch Sensor",
-    },
-    {
-      model: "SanketLife 12-Lead",
-      type: "Clinical ECG",
-      status: "Connected",
-      battery: 78,
-      protocol: "CDSCO Cleared",
-    },
-  ],
+  devices: propDevices,
   reliabilityScore = 98,
+  currentUser,
+  activePatient,
 }) => {
+  const getHardwareForUser = (user, patient) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        hubText: "Cellular Gateway #AP-4109 (Hut Bay, Little Andaman)",
+        devices: [
+          {
+            model: "FreeStyle Libre 3",
+            type: "Continuous Glucose Monitor",
+            status: "Connected",
+            battery: 99,
+            protocol: "NFC/BLE Stream",
+          },
+          {
+            model: "Accu-Chek Instant",
+            type: "Capillary Glucometer",
+            status: "Synchronized",
+            battery: 88,
+            protocol: "BLE 5.0",
+          },
+          {
+            model: "Beurer BM 57",
+            type: "Upper Arm BP & Arrhythmia",
+            status: "Connected",
+            battery: 91,
+            protocol: "BLE Mesh",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        hubText: "Hospital Ward A Central Gateway #GW-8042 (Port Blair)",
+        devices: [
+          {
+            model: "GB Pant Ward Hub",
+            type: "Multi-Bed Gateway Array",
+            status: "Connected",
+            battery: 100,
+            protocol: "PoE Ethernet",
+          },
+          {
+            model: "Philips IntelliVue MP50",
+            type: "Bedside Telemetry Hub",
+            status: "Connected",
+            battery: 96,
+            protocol: "Hospital WLAN",
+          },
+          {
+            model: "Masimo Rad-97",
+            type: "Pulse CO-Oximeter",
+            status: "Connected",
+            battery: 94,
+            protocol: "Continuous BLE",
+          },
+        ],
+      };
+    }
+
+    return {
+      hubText: "BLE Mesh Hub Active (Port Blair Gateway)",
+      devices: [
+        {
+          model: "Omron HEM-7156T",
+          type: "BP Monitor",
+          status: "Connected",
+          battery: 92,
+          protocol: "BLE 5.2",
+        },
+        {
+          model: "TempTraq Continuous",
+          type: "Temp Sensor",
+          status: "Connected",
+          battery: 84,
+          protocol: "Patch Sensor",
+        },
+        {
+          model: "SanketLife 12-Lead",
+          type: "Clinical ECG",
+          status: "Connected",
+          battery: 78,
+          protocol: "CDSCO Cleared",
+        },
+      ],
+    };
+  };
+
+  const hardwareInfo = getHardwareForUser(currentUser, activePatient);
+  const devices = propDevices || hardwareInfo.devices;
+
   return (
     <div className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs">
       {/* Header */}
@@ -2250,7 +2322,7 @@ const HardwareDiagnosticsBar = ({
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>BLE Mesh Hub Active (Port Blair Gateway)</span>
+          <span>{hardwareInfo.hubText}</span>
         </div>
       </div>
 
@@ -2321,39 +2393,109 @@ const HardwareDiagnosticsBar = ({
 
 // --- START: prototype\public\src\components\RecentAlerts.jsx ---
 // prototype/public/src/components/RecentAlerts.jsx
-// Recent Alerts Card (Enterprise Clinical Grade)
+// Recent Alerts Card (Enterprise Clinical Grade - Account Aware)
 
-const RecentAlerts = ({ alerts = [], onAcknowledge }) => {
-  const defaultAlerts = [
-    {
-      id: "alt-1",
-      title: "Blood Pressure Elevated",
-      reading: "149/97 mmHg",
-      time: "8m ago",
-      severity: "caution",
-      message: "Systolic threshold >140 exceeded. Auto-recheck scheduled in 15m.",
-      source: "Omron HEM-7156T",
-    },
-    {
-      id: "alt-2",
-      title: "Automated Temp Telemetry",
-      reading: "37.0 °C",
-      time: "21m ago",
-      severity: "info",
-      message: "Hourly baseline verified. Normal core temperature maintained.",
-      source: "TempTraq Patch",
-    },
-    {
-      id: "alt-3",
-      title: "Fall Prevention Radar Check",
-      reading: "Room Clear",
-      time: "42m ago",
-      severity: "info",
-      message: "Living Room Zone 1: Patient safely seated in armchair.",
-      source: "Overhead Edge Camera",
-    },
-  ];
+const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
+  const getDefaultAlertsForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
 
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return [
+        {
+          id: "alt-rp-1",
+          title: "Postprandial Blood Glucose Elevation",
+          reading: "168 mg/dL",
+          time: "14m ago",
+          severity: "caution",
+          message: "FreeStyle Libre 3 CGM trend rising post-meal. Scheduled 1h trajectory review.",
+          source: "FreeStyle Libre 3 CGM",
+        },
+        {
+          id: "alt-rp-2",
+          title: "Cellular Telemetry Gateway Uplink Nominal",
+          reading: "4G LTE Active (-68 dBm)",
+          time: "38m ago",
+          severity: "info",
+          message: "Little Andaman autonomous link stable. Zero packet drop across Hut Bay.",
+          source: "Gateway #AP-4109",
+        },
+        {
+          id: "alt-rp-3",
+          title: "Nighttime Immobility Sentinel Clear",
+          reading: "Nominal Sleep Pattern",
+          time: "1h ago",
+          severity: "info",
+          message: "Bedroom Optical Sensor: Resident resting safely in bed. Zero out-of-bed falls.",
+          source: "Optical Edge Sentinel",
+        },
+      ];
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return [
+        {
+          id: "alt-wn-1",
+          title: "Bed 101 (Anita Sharma): Elevated Systolic BP",
+          reading: "154/97 mmHg",
+          time: "6m ago",
+          severity: "caution",
+          message: "Systolic threshold >140 exceeded. Automated re-check scheduled in 15m.",
+          source: "Bedside NIBP Monitor",
+        },
+        {
+          id: "alt-wn-2",
+          title: "Bed 104 (Kavitha Raman): Sinus Tachycardia",
+          reading: "94 bpm",
+          time: "19m ago",
+          severity: "caution",
+          message: "Mild pulse elevation under Holter telemetry observation. Shift B notified.",
+          source: "Holter Telemetry CW-9012",
+        },
+        {
+          id: "alt-wn-3",
+          title: "Bed 103 (Meera Nair): Post-Op Day 2 Nominal",
+          reading: "SpO2 99% • Temp 36.9°C",
+          time: "35m ago",
+          severity: "info",
+          message: "Post-cholecystectomy telemetry nominal. Surgical recovery protocol active.",
+          source: "Philips IntelliVue MP50",
+        },
+      ];
+    }
+
+    // Default: Anita Sharma
+    return [
+      {
+        id: "alt-1",
+        title: "Blood Pressure Elevated",
+        reading: "149/97 mmHg",
+        time: "8m ago",
+        severity: "caution",
+        message: "Systolic threshold >140 exceeded. Auto-recheck scheduled in 15m.",
+        source: "Omron HEM-7156T",
+      },
+      {
+        id: "alt-2",
+        title: "Automated Temp Telemetry",
+        reading: "37.0 °C",
+        time: "21m ago",
+        severity: "info",
+        message: "Hourly baseline verified. Normal core temperature maintained.",
+        source: "TempTraq Patch",
+      },
+      {
+        id: "alt-3",
+        title: "Fall Prevention Radar Check",
+        reading: "Room Clear",
+        time: "42m ago",
+        severity: "info",
+        message: "Living Room Zone 1: Patient safely seated in armchair.",
+        source: "Overhead Edge Camera",
+      },
+    ];
+  };
+
+  const defaultAlerts = React.useMemo(() => getDefaultAlertsForUser(currentUser), [currentUser?.email]);
   const displayAlerts = alerts.length > 0 ? alerts : defaultAlerts;
 
   return (
@@ -2440,61 +2582,191 @@ const RecentAlerts = ({ alerts = [], onAcknowledge }) => {
 
 // --- START: prototype\public\src\components\MedicationScheduleCard.jsx ---
 // prototype/public/src/components/MedicationScheduleCard.jsx
-// Medication Schedule Card (Enterprise Clinical Grade)
+// Medication Schedule Card (Enterprise Clinical Grade - Account Aware)
 
-const MedicationScheduleCard = ({ onOpenAddModal }) => {
-  const [schedule, setSchedule] = React.useState([
-    {
-      slot: "Morning (08:00 AM)",
-      timeCode: "08:00",
-      drugs: [
+const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
+  const getSchedulesForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return [
         {
-          id: "med-1",
-          name: "Telmisartan",
-          dose: "40 mg",
-          purpose: "Hypertension",
-          status: "Taken",
-          takenAt: "08:05 AM",
+          slot: "Morning (08:00 AM)",
+          timeCode: "08:00",
+          drugs: [
+            {
+              id: "med-rp-1",
+              name: "Metformin HCl",
+              dose: "500 mg",
+              purpose: "Type-2 Diabetes / Glycemic Control",
+              status: "Taken",
+              takenAt: "08:10 AM",
+            },
+            {
+              id: "med-rp-2",
+              name: "Glimepiride",
+              dose: "1 mg",
+              purpose: "Insulin Secretagogue (Pancreatic Beta Cells)",
+              status: "Taken",
+              takenAt: "08:10 AM",
+            },
+          ],
         },
         {
-          id: "med-2",
-          name: "Metformin",
-          dose: "500 mg",
-          purpose: "Glycemic Control",
-          status: "Taken",
-          takenAt: "08:12 AM",
+          slot: "Afternoon (01:00 PM)",
+          timeCode: "13:00",
+          drugs: [
+            {
+              id: "med-rp-3",
+              name: "Alpha Lipoic Acid",
+              dose: "300 mg",
+              purpose: "Diabetic Peripheral Neuropathy Support",
+              status: "Taken",
+              takenAt: "01:20 PM",
+            },
+          ],
         },
-      ],
-    },
-    {
-      slot: "Afternoon (01:00 PM)",
-      timeCode: "13:00",
-      drugs: [
         {
-          id: "med-3",
-          name: "Calcium + Vit D3",
-          dose: "500mg / 250IU",
-          purpose: "Bone Density",
-          status: "Taken",
-          takenAt: "01:15 PM",
+          slot: "Evening (08:00 PM)",
+          timeCode: "20:00",
+          drugs: [
+            {
+              id: "med-rp-4",
+              name: "Atorvastatin",
+              dose: "20 mg",
+              purpose: "Cardiovascular Risk Reduction",
+              status: "Upcoming",
+              takenAt: null,
+            },
+          ],
         },
-      ],
-    },
-    {
-      slot: "Evening (08:00 PM)",
-      timeCode: "20:00",
-      drugs: [
+      ];
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return [
         {
-          id: "med-4",
-          name: "Atorvastatin",
-          dose: "10 mg",
-          purpose: "Lipid Management",
-          status: "Upcoming",
-          takenAt: null,
+          slot: "Morning Inpatient Round (08:00 AM)",
+          timeCode: "08:00",
+          drugs: [
+            {
+              id: "med-wn-1",
+              name: "Bed 101: Telmisartan",
+              dose: "40 mg",
+              purpose: "Anita Sharma • Essential Hypertension",
+              status: "Taken",
+              takenAt: "08:05 AM",
+            },
+            {
+              id: "med-wn-2",
+              name: "Bed 102: Metformin",
+              dose: "500 mg",
+              purpose: "Ram Prakash • Type-2 Diabetes",
+              status: "Taken",
+              takenAt: "08:12 AM",
+            },
+          ],
         },
-      ],
-    },
-  ]);
+        {
+          slot: "Mid-Morning Inpatient Round (09:00 AM)",
+          timeCode: "09:00",
+          drugs: [
+            {
+              id: "med-wn-3",
+              name: "Bed 103: Cefuroxime (IV)",
+              dose: "500 mg",
+              purpose: "Meera Nair • Post-Op Surgical Prophylaxis",
+              status: "Taken",
+              takenAt: "09:05 AM",
+            },
+            {
+              id: "med-wn-4",
+              name: "Bed 104: Metoprolol",
+              dose: "25 mg",
+              purpose: "Kavitha Raman • Sinus Tachycardia / AFib",
+              status: "Taken",
+              takenAt: "09:15 AM",
+            },
+          ],
+        },
+        {
+          slot: "Evening Inpatient Round (08:00 PM)",
+          timeCode: "20:00",
+          drugs: [
+            {
+              id: "med-wn-5",
+              name: "Bed 101: Atorvastatin",
+              dose: "10 mg",
+              purpose: "Anita Sharma • Hyperlipidemia Watch",
+              status: "Upcoming",
+              takenAt: null,
+            },
+          ],
+        },
+      ];
+    }
+
+    // Default: Anita Sharma
+    return [
+      {
+        slot: "Morning (08:00 AM)",
+        timeCode: "08:00",
+        drugs: [
+          {
+            id: "med-1",
+            name: "Telmisartan",
+            dose: "40 mg",
+            purpose: "Essential Hypertension",
+            status: "Taken",
+            takenAt: "08:05 AM",
+          },
+          {
+            id: "med-2",
+            name: "Metformin HCl",
+            dose: "500 mg",
+            purpose: "Glycemic Management",
+            status: "Taken",
+            takenAt: "08:12 AM",
+          },
+        ],
+      },
+      {
+        slot: "Afternoon (01:00 PM)",
+        timeCode: "13:00",
+        drugs: [
+          {
+            id: "med-3",
+            name: "Calcium + Vit D3",
+            dose: "500mg / 250IU",
+            purpose: "Osteopenia / Bone Density",
+            status: "Taken",
+            takenAt: "01:15 PM",
+          },
+        ],
+      },
+      {
+        slot: "Evening (08:00 PM)",
+        timeCode: "20:00",
+        drugs: [
+          {
+            id: "med-4",
+            name: "Atorvastatin",
+            dose: "10 mg",
+            purpose: "Lipid Management / Stroke Watch",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ];
+  };
+
+  const [schedule, setSchedule] = React.useState(() => getSchedulesForUser(currentUser));
+
+  // Sync schedule whenever user changes
+  React.useEffect(() => {
+    setSchedule(getSchedulesForUser(currentUser));
+  }, [currentUser?.email]);
 
   const toggleDrugTaken = (drugId) => {
     setSchedule((prev) =>
@@ -2621,47 +2893,137 @@ const MedicationScheduleCard = ({ onOpenAddModal }) => {
 
 // --- START: prototype\public\src\components\PatientTimeline.jsx ---
 // prototype/public/src/components/PatientTimeline.jsx
-// Patient Timeline Feed (Enterprise Clinical Grade Micro-Audit Trail)
+// Patient Timeline Feed (Enterprise Clinical Grade Micro-Audit Trail - Account Aware)
 
-const PatientTimeline = () => {
-  const events = [
-    {
-      id: "ev-1",
-      time: "11:15 AM",
-      title: "Continuous Vitals Sync",
-      desc: "Telemetry sync completed via BLE Gateway. Confidence: 98% (0 dropped packets).",
-      type: "telemetry",
-      icon: RefreshCw,
-      iconColor: "text-blue-600 bg-blue-50",
-    },
-    {
-      id: "ev-2",
-      time: "10:48 AM",
-      title: "Camera Zone Motion Detection",
-      desc: "Living Room Zone 1: Patient detected moving to armchair. Posture: Normal seated.",
-      type: "camera",
-      icon: Video,
-      iconColor: "text-indigo-600 bg-indigo-50",
-    },
-    {
-      id: "ev-3",
-      time: "09:30 AM",
-      title: "Tele-Checkup Clinical Note",
-      desc: "Dr. Sen (GB Pant Hospital) reviewed BP trend: 'Continue current dose, recheck post-lunch'.",
-      type: "clinical",
-      icon: FileText,
-      iconColor: "text-emerald-600 bg-emerald-50",
-    },
-    {
-      id: "ev-4",
-      time: "08:12 AM",
-      title: "Medication Adherence Verified",
-      desc: "Morning dosage confirmed: Telmisartan 40mg and Metformin 500mg taken.",
-      type: "medication",
-      icon: CheckCircle2,
-      iconColor: "text-emerald-600 bg-emerald-50",
-    },
-  ];
+const PatientTimeline = ({ events = [], currentUser }) => {
+  const getDefaultEventsForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return [
+        {
+          id: "ev-rp-1",
+          time: "11:15 AM",
+          title: "Continuous CGM Telemetry Sync",
+          desc: "FreeStyle Libre 3 packet ingested (142 mg/dL). Baseline glycemic stability confirmed via Satellite Hub.",
+          type: "telemetry",
+          icon: RefreshCw,
+          iconColor: "text-blue-600 bg-blue-50",
+        },
+        {
+          id: "ev-rp-2",
+          time: "10:30 AM",
+          title: "Optical Gait Assessment Nominal",
+          desc: "Hut Bay Verandah optical sensor detected normal walking speed (0.84 m/s). Zero kinematic trip events.",
+          type: "camera",
+          icon: Video,
+          iconColor: "text-indigo-600 bg-indigo-50",
+        },
+        {
+          id: "ev-rp-3",
+          time: "09:15 AM",
+          title: "Endocrinologist Tele-Review",
+          desc: "Dr. K. Nair reviewed weekly CGM trend: 'HbA1c trajectory improving, continue morning Metformin schedule'.",
+          type: "clinical",
+          icon: FileText,
+          iconColor: "text-emerald-600 bg-emerald-50",
+        },
+        {
+          id: "ev-rp-4",
+          time: "08:10 AM",
+          title: "Medication Adherence Verified",
+          desc: "Morning doses confirmed: Metformin HCl 500mg and Glimepiride 1mg taken on schedule.",
+          type: "medication",
+          icon: CheckCircle2,
+          iconColor: "text-emerald-600 bg-emerald-50",
+        },
+      ];
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return [
+        {
+          id: "ev-wn-1",
+          time: "11:00 AM",
+          title: "Multi-Bed Telemetry Synchronization",
+          desc: "All 4 inpatient beds streaming with 0 packet loss across GB Pant Ward A BLE Mesh network.",
+          type: "telemetry",
+          icon: RefreshCw,
+          iconColor: "text-blue-600 bg-blue-50",
+        },
+        {
+          id: "ev-wn-2",
+          time: "10:15 AM",
+          title: "Bedside Intercom Handover Check",
+          desc: "Shift A nurse check-in completed with Bed 101 and Bed 103. Two-way audio channels verified clear.",
+          type: "camera",
+          icon: Video,
+          iconColor: "text-indigo-600 bg-indigo-50",
+        },
+        {
+          id: "ev-wn-3",
+          time: "09:00 AM",
+          title: "Consultant Physician Ward Rounds",
+          desc: "Dr. A. Sen and Dr. V. Rao completed bed-to-bed clinical assessment and approved telemetry protocols.",
+          type: "clinical",
+          icon: FileText,
+          iconColor: "text-emerald-600 bg-emerald-50",
+        },
+        {
+          id: "ev-wn-4",
+          time: "08:00 AM",
+          title: "Morning Inpatient MAR Administered",
+          desc: "100% morning inpatient doses administered and digitally signed off by Shift A nursing staff.",
+          type: "medication",
+          icon: CheckCircle2,
+          iconColor: "text-emerald-600 bg-emerald-50",
+        },
+      ];
+    }
+
+    // Default: Anita Sharma
+    return [
+      {
+        id: "ev-1",
+        time: "11:15 AM",
+        title: "Continuous Vitals Sync",
+        desc: "Telemetry sync completed via BLE Gateway. Confidence: 98% (0 dropped packets).",
+        type: "telemetry",
+        icon: RefreshCw,
+        iconColor: "text-blue-600 bg-blue-50",
+      },
+      {
+        id: "ev-2",
+        time: "10:48 AM",
+        title: "Camera Zone Motion Detection",
+        desc: "Living Room Zone 1: Patient detected moving to armchair. Posture: Normal seated.",
+        type: "camera",
+        icon: Video,
+        iconColor: "text-indigo-600 bg-indigo-50",
+      },
+      {
+        id: "ev-3",
+        time: "09:30 AM",
+        title: "Tele-Checkup Clinical Note",
+        desc: "Dr. Sen (GB Pant Hospital) reviewed BP trend: 'Continue current dose, recheck post-lunch'.",
+        type: "clinical",
+        icon: FileText,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+      {
+        id: "ev-4",
+        time: "08:12 AM",
+        title: "Medication Adherence Verified",
+        desc: "Morning dosage confirmed: Telmisartan 40mg and Metformin 500mg taken.",
+        type: "medication",
+        icon: CheckCircle2,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+    ];
+  };
+
+  const defaultEvents = React.useMemo(() => getDefaultEventsForUser(currentUser), [currentUser?.email]);
+  const displayEvents = events.length > 0 ? events : defaultEvents;
 
   return (
     <div className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-xs">
@@ -2682,7 +3044,7 @@ const PatientTimeline = () => {
 
       {/* Timeline Items */}
       <div className="mt-3.5 relative pl-4 border-l border-slate-200 space-y-4">
-        {events.map((ev) => {
+        {displayEvents.map((ev) => {
           const Icon = ev.icon;
           return (
             <div key={ev.id} className="relative group">
@@ -3258,7 +3620,7 @@ const IncidentReconstructionPanel = ({ onTriggerVerification, currentVitals }) =
 // prototype/public/src/components/ResidentCheckinModal.jsx
 // Multimodal Resident Verification Dialog with 30-Second Countdown, 4 Proportional Responses & Postural Auto-Cancellation
 
-const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse }) => {
+const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed, onVerificationResponse, activePatient }) => {
   const [timeLeft, setTimeLeft] = React.useState(30);
   const [resolvedStatus, setResolvedStatus] = React.useState(null); // 'safe' | 'minor_fall' | 'emergency' | 'device_drop' | 'picked_up' | 'timeout_emergency'
 
@@ -3517,9 +3879,9 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed,
                 Automatic Emergency Protocol Activated: Calling Family &rarr; Backup &rarr; 108 Ambulance with live GPS & vital telemetry.
               </p>
               <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 text-left">
-                <div>&bull; Calling: Rajesh Sharma (Son) · +91 94342 88100... [DIALING]</div>
-                <div>&bull; Dispatched: GB Pant Hospital Ambulance Station (108)</div>
-                <div>&bull; Location: Junglighat, Port Blair (11.6643° N, 92.7303° E)</div>
+                <div>&bull; Calling: {activePatient?.primaryContact || "Rajesh Sharma (Son) · +91 94342 88100"}... [DIALING]</div>
+                <div>&bull; Dispatched: {activePatient?.id === "REJ-9120" ? "Little Andaman Marine Ambulance & 108 PHC Station" : activePatient?.id === "WARD-STA-01" ? "GB Pant Hospital Crash Team & Code Blue" : "GB Pant Hospital Ambulance Station (108)"}</div>
+                <div>&bull; Location: {activePatient?.location || "Junglighat, Port Blair (11.6643° N, 92.7303° E)"}</div>
               </div>
               <button
                 onClick={onClose}
@@ -3543,7 +3905,7 @@ const ResidentCheckinModal = ({ isOpen, onClose, scenario, onEmergencyConfirmed,
 // Treats prerecorded hospital video as an authentic virtual camera source alongside Live Webcam and RTSP CCTV.
 // Real-Time YOLO11-Pose 17-Keypoint Inference & Client Optical Consensus with Zero Hardcoded Time Gates.
 
-const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
+const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, activePatient }) => {
   // 1. Unified Camera Source Abstraction ('LIVE_WEBCAM' | 'PRERECORDED_VIDEO' | 'RTSP_CAMERA')
   // Default to LIVE_WEBCAM so user can immediately verify YOLO and motion monitoring
   const [cameraSource, setCameraSource] = React.useState("LIVE_WEBCAM");
@@ -5031,7 +5393,9 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification }) => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02) · Kinematic Tripwire Active
+                {activePatient
+                  ? `${activePatient.location.split("→")[1]?.trim() || activePatient.location} · Patient: ${activePatient.name} · Kinematic Sentinel Active`
+                  : "GB Pant Hospital, Port Blair · Room 302 · Patient: Anita Sharma (Bed 02) · Kinematic Tripwire Active"}
               </p>
             </div>
           </div>
@@ -6051,6 +6415,7 @@ const VirtualWardView = ({
   secondsAgo = 0,
   onPageDoctor,
   onExportTelemetry,
+  currentUser,
 }) => {
   const [filter, setFilter] = React.useState("all");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -6563,11 +6928,23 @@ const VirtualWardView = ({
         <div className="flex items-center gap-2 text-slate-700">
           <Activity className="w-4 h-4 text-blue-600 shrink-0" />
           <span>
-            <strong>Central Telemetry Feed Active:</strong> Bed 101 (Anita Sharma) is synchronized in real time with central dashboard telemetry (
-            <span className="font-semibold text-blue-700 font-mono">
-              {simMode === "baseline" ? "Baseline" : simMode === "bp_crisis" ? "BP Crisis Mode" : simMode === "hypoxemia" ? "Hypoxemia Mode" : "Bradycardia Mode"}
-            </span>
-            ). Secondary island beds experience natural physiological drift.
+            {currentUser?.role === "nurse" ? (
+              <>
+                <strong>Staff Nurse Command Active:</strong> GB Pant Ward A station console. All 4 inpatient beds streaming continuously with autonomous early-warning triage (NEWS2).
+              </>
+            ) : currentUser?.email === "rprakash@demo.in" ? (
+              <>
+                <strong>Patient Telemetry Active:</strong> Bed 102 (Ram Prakash) streaming via Hut Bay Satellite/Cellular Gateway. Integrated with GB Pant Hospital Virtual Ward.
+              </>
+            ) : (
+              <>
+                <strong>Central Telemetry Feed Active:</strong> Bed 101 (Anita Sharma) is synchronized in real time with central dashboard telemetry (
+                <span className="font-semibold text-blue-700 font-mono">
+                  {simMode === "baseline" ? "Baseline" : simMode === "bp_crisis" ? "BP Crisis Mode" : simMode === "hypoxemia" ? "Hypoxemia Mode" : "Bradycardia Mode"}
+                </span>
+                ). Secondary island beds experience natural physiological drift.
+              </>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0 font-mono text-[11px] text-slate-500">
@@ -6622,7 +6999,12 @@ const VirtualWardView = ({
                       </span>
                       {isLiveSynced && (
                         <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 font-mono">
-                          CENTRAL SYNC
+                          {currentUser?.email === "asharma@demo.in" ? "YOUR BED (ACTIVE)" : "CENTRAL SYNC"}
+                        </span>
+                      )}
+                      {bed.bed === "Bed 102" && currentUser?.email === "rprakash@demo.in" && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 font-mono">
+                          YOUR BED (ACTIVE)
                         </span>
                       )}
                     </div>
@@ -7460,59 +7842,204 @@ const VirtualWardView = ({
 
 // --- START: prototype\public\src\components\MedicinesView.jsx ---
 // prototype/public/src/components/MedicinesView.jsx
-// Medication Administration Record (Enterprise Clinical Grade)
+// Medication Administration Record (Enterprise Clinical Grade - Account Aware)
 
-const MedicinesView = ({ onOpenAddModal }) => {
-  const [meds, setMeds] = React.useState([
-    {
-      id: "med-1",
-      name: "Telmisartan",
-      dosage: "40 mg",
-      frequency: "Once daily (Morning)",
-      time: "08:00 AM",
-      prescribedFor: "Anita Sharma",
-      indication: "Essential Hypertension",
-      doctor: "Dr. A. Sen (Cardiology, GB Pant Hospital)",
-      status: "Taken",
-      adherence: "98%",
-    },
-    {
-      id: "med-2",
-      name: "Metformin Hydrochloride",
-      dosage: "500 mg",
-      frequency: "Twice daily (Post-meal)",
-      time: "08:00 AM, 08:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Type 2 Diabetes Mellitus",
-      doctor: "Dr. K. Roy (Internal Medicine)",
-      status: "Taken",
-      adherence: "95%",
-    },
-    {
-      id: "med-3",
-      name: "Calcium Carbonate + Vit D3",
-      dosage: "500 mg / 250 IU",
-      frequency: "Once daily (Afternoon)",
-      time: "01:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Osteopenia / Bone Health",
-      doctor: "Dr. A. Sen",
-      status: "Taken",
-      adherence: "100%",
-    },
-    {
-      id: "med-4",
-      name: "Atorvastatin",
-      dosage: "10 mg",
-      frequency: "Once daily (Bedtime)",
-      time: "08:00 PM",
-      prescribedFor: "Anita Sharma",
-      indication: "Hyperlipidemia / Stroke Prevention",
-      doctor: "Dr. A. Sen",
-      status: "Upcoming",
-      adherence: "96%",
-    },
-  ]);
+const MedicinesView = ({ onOpenAddModal, currentUser }) => {
+  const getMedicationsForUser = (user) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        patientName: "Ram Prakash",
+        patientTag: "Remote Island Telemetry • Hut Bay, Little Andaman",
+        weeklyAdherence: "97.8%",
+        meds: [
+          {
+            id: "med-rp-1",
+            name: "Metformin Hydrochloride",
+            dosage: "500 mg",
+            frequency: "Twice daily (Post-meal)",
+            time: "08:00 AM, 08:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Type 2 Diabetes Mellitus / Glycemic Control",
+            doctor: "Dr. K. Nair (Endocrinology)",
+            status: "Taken",
+            adherence: "99%",
+          },
+          {
+            id: "med-rp-2",
+            name: "Glimepiride",
+            dosage: "1 mg",
+            frequency: "Once daily (Morning with breakfast)",
+            time: "08:00 AM",
+            prescribedFor: "Ram Prakash",
+            indication: "Insulin Secretagogue (Second Generation Sulfonylurea)",
+            doctor: "Dr. K. Nair",
+            status: "Taken",
+            adherence: "97%",
+          },
+          {
+            id: "med-rp-3",
+            name: "Alpha Lipoic Acid",
+            dosage: "300 mg",
+            frequency: "Once daily (Afternoon)",
+            time: "01:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Diabetic Peripheral Neuropathy & Antioxidant Support",
+            doctor: "Dr. K. Nair",
+            status: "Taken",
+            adherence: "94%",
+          },
+          {
+            id: "med-rp-4",
+            name: "Atorvastatin Calcium",
+            dosage: "20 mg",
+            frequency: "Once daily (Bedtime)",
+            time: "08:00 PM",
+            prescribedFor: "Ram Prakash",
+            indication: "Cardiovascular Risk Reduction in Type-2 Diabetes",
+            doctor: "Dr. K. Nair",
+            status: "Upcoming",
+            adherence: "98%",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        patientName: "GB Pant Hospital Virtual Ward",
+        patientTag: "Inpatient Clinical Ward A • Multi-Bed Medication Administration (Shift A)",
+        weeklyAdherence: "98.4%",
+        meds: [
+          {
+            id: "med-wn-1",
+            name: "Telmisartan (Bed 101)",
+            dosage: "40 mg",
+            frequency: "Once daily (Morning Round)",
+            time: "08:00 AM",
+            prescribedFor: "Bed 101: Anita Sharma",
+            indication: "Essential Hypertension / Post-Stroke Watch",
+            doctor: "Dr. A. Sen (Cardiology)",
+            status: "Taken",
+            adherence: "98%",
+          },
+          {
+            id: "med-wn-2",
+            name: "Metformin + Glimepiride (Bed 102)",
+            dosage: "500 mg / 1 mg",
+            frequency: "Morning Post-Breakfast",
+            time: "08:00 AM",
+            prescribedFor: "Bed 102: Ram Prakash",
+            indication: "Type 2 Diabetes / Glycemic Target",
+            doctor: "Dr. K. Nair (Endocrinology)",
+            status: "Taken",
+            adherence: "99%",
+          },
+          {
+            id: "med-wn-3",
+            name: "Cefuroxime IV (Bed 103)",
+            dosage: "500 mg",
+            frequency: "Q8H IV Infusion",
+            time: "09:00 AM, 05:00 PM, 01:00 AM",
+            prescribedFor: "Bed 103: Meera Nair",
+            indication: "Post-Operative Laparoscopic Cholecystectomy Prophylaxis",
+            doctor: "Dr. V. Rao (General Surgery)",
+            status: "Taken",
+            adherence: "100%",
+          },
+          {
+            id: "med-wn-4",
+            name: "Metoprolol Succinate (Bed 104)",
+            dosage: "25 mg",
+            frequency: "Once daily (Morning)",
+            time: "08:00 AM",
+            prescribedFor: "Bed 104: Kavitha Raman",
+            indication: "Paroxysmal Atrial Fibrillation Rate Control",
+            doctor: "Dr. A. Sen (Cardiology)",
+            status: "Taken",
+            adherence: "96%",
+          },
+          {
+            id: "med-wn-5",
+            name: "Atorvastatin (Bed 101)",
+            dosage: "10 mg",
+            frequency: "Once daily (Night Round)",
+            time: "08:00 PM",
+            prescribedFor: "Bed 101: Anita Sharma",
+            indication: "Hyperlipidemia & Secondary Stroke Prevention",
+            doctor: "Dr. A. Sen",
+            status: "Upcoming",
+            adherence: "97%",
+          },
+        ],
+      };
+    }
+
+    // Default: Anita Sharma
+    return {
+      patientName: "Anita Sharma",
+      patientTag: "Living Room, Junglighat, Port Blair • Telemetry Linked",
+      weeklyAdherence: "97.2%",
+      meds: [
+        {
+          id: "med-1",
+          name: "Telmisartan",
+          dosage: "40 mg",
+          frequency: "Once daily (Morning)",
+          time: "08:00 AM",
+          prescribedFor: "Anita Sharma",
+          indication: "Essential Hypertension",
+          doctor: "Dr. A. Sen (Cardiology, GB Pant Hospital)",
+          status: "Taken",
+          adherence: "98%",
+        },
+        {
+          id: "med-2",
+          name: "Metformin Hydrochloride",
+          dosage: "500 mg",
+          frequency: "Twice daily (Post-meal)",
+          time: "08:00 AM, 08:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Type 2 Diabetes Mellitus",
+          doctor: "Dr. K. Roy (Internal Medicine)",
+          status: "Taken",
+          adherence: "95%",
+        },
+        {
+          id: "med-3",
+          name: "Calcium Carbonate + Vit D3",
+          dosage: "500 mg / 250 IU",
+          frequency: "Once daily (Afternoon)",
+          time: "01:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Osteopenia / Bone Health",
+          doctor: "Dr. A. Sen",
+          status: "Taken",
+          adherence: "100%",
+        },
+        {
+          id: "med-4",
+          name: "Atorvastatin",
+          dosage: "10 mg",
+          frequency: "Once daily (Bedtime)",
+          time: "08:00 PM",
+          prescribedFor: "Anita Sharma",
+          indication: "Hyperlipidemia / Stroke Prevention",
+          doctor: "Dr. A. Sen",
+          status: "Upcoming",
+          adherence: "96%",
+        },
+      ],
+    };
+  };
+
+  const accountData = React.useMemo(() => getMedicationsForUser(currentUser), [currentUser?.email]);
+  const [meds, setMeds] = React.useState(accountData.meds);
+
+  React.useEffect(() => {
+    setMeds(accountData.meds);
+  }, [accountData]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -7523,11 +8050,16 @@ const MedicinesView = ({ onOpenAddModal }) => {
             <Pill className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Medication Administration Record (MAR)
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Medication Administration Record (MAR)
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 font-mono">
+                {accountData.patientName}
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Automated Schedule &amp; Caregiver Adherence Verification
+              {accountData.patientTag}
             </p>
           </div>
         </div>
@@ -7535,7 +8067,7 @@ const MedicinesView = ({ onOpenAddModal }) => {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <div className="text-xs text-slate-500">Weekly Adherence</div>
-            <div className="text-base font-bold font-mono text-emerald-700">97.2%</div>
+            <div className="text-base font-bold font-mono text-emerald-700">{accountData.weeklyAdherence}</div>
           </div>
           <button
             onClick={onOpenAddModal}
@@ -7569,6 +8101,7 @@ const MedicinesView = ({ onOpenAddModal }) => {
                     <td className="py-3.5 px-5">
                       <div className="font-bold text-slate-900 text-sm">{m.name}</div>
                       <div className="text-xs font-mono font-medium text-blue-600">{m.dosage}</div>
+                      <div className="text-[11px] text-slate-400 font-mono mt-0.5">For: {m.prescribedFor}</div>
                     </td>
                     <td className="py-3.5 px-5">
                       <div className="text-xs font-medium text-slate-700">{m.frequency}</div>
@@ -7611,38 +8144,121 @@ const MedicinesView = ({ onOpenAddModal }) => {
 
 // --- START: prototype\public\src\components\AlertsView.jsx ---
 // prototype/public/src/components/AlertsView.jsx
-// Clinical Alerts & Automated Emergency Call Chain Escalation (Enterprise Clinical Grade)
+// Clinical Alerts & Automated Emergency Call Chain Escalation (Enterprise Clinical Grade - Account Aware)
 
-const AlertsView = () => {
-  const callLadder = [
-    {
-      tier: "Tier 1: Family Caregiver",
-      contact: "Priya Sharma (Daughter)",
-      phone: "+91 94342 81101",
-      status: "Answered",
-      statusColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
-      time: "11:02:14 AM (Call duration: 1m 24s)",
-      note: "Caregiver confirmed patient is responsive, sitting in living room. Rechecking BP in 15m.",
-    },
-    {
-      tier: "Tier 2: Backup Emergency Contact",
-      contact: "Rajesh Sharma (Son)",
-      phone: "+91 94342 81102",
-      status: "Standby",
-      statusColor: "text-slate-600 bg-slate-50 border-slate-200",
-      time: "Armed (Triggers if Tier 1 unanswered for 45s)",
-      note: "Standby escalation route.",
-    },
-    {
-      tier: "Tier 3: Emergency Dispatch (108 / 112)",
-      contact: "Andaman & Nicobar Emergency Response Service",
-      phone: "108 / 112 (Direct Dispatch)",
-      status: "Standby",
-      statusColor: "text-slate-600 bg-slate-50 border-slate-200",
-      time: "Armed (Auto-dispatches with GPS & Live Vitals Packet)",
-      note: "GB Pant Hospital Ambulance Hub, Port Blair.",
-    },
-  ];
+const AlertsView = ({ currentUser, activePatient }) => {
+  const getCallLadderForUser = (user, patient) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        patientTitle: "Ram Prakash (Little Andaman)",
+        locationText: "Hut Bay, Little Andaman • Autonomous Satellite/Cellular Call Relay",
+        ladder: [
+          {
+            tier: "Tier 1: Primary Family Caregiver",
+            contact: "Rajesh Prakash (Son)",
+            phone: "+91 94742 19203",
+            status: "Answered",
+            statusColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
+            time: "10:14:08 AM (Call duration: 48s)",
+            note: "Caregiver confirmed father checked blood glucose (142 mg/dL) after breakfast. Resident upright on verandah.",
+          },
+          {
+            tier: "Tier 2: Backup Emergency Contact",
+            contact: "Sunita Prakash (Daughter-in-law)",
+            phone: "+91 94742 19204",
+            status: "Standby",
+            statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+            time: "Armed (Triggers if Tier 1 unanswered for 45s)",
+            note: "Stationed near Hut Bay Primary Health Centre (PHC).",
+          },
+          {
+            tier: "Tier 3: Island Emergency & Marine Ambulance (108)",
+            contact: "Little Andaman Marine Ambulance & 108 Hub",
+            phone: "108 / 112 (Hut Bay Wharf Jetty)",
+            status: "Standby",
+            statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+            time: "Armed (Auto-dispatches with GPS & Live CGM Packet)",
+            note: "Direct coordination with Hut Bay PHC & Marine Evacuation.",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        patientTitle: "GB Pant Hospital Virtual Ward",
+        locationText: "Inpatient Clinical Telemetry Center • Rapid Response System (RRS)",
+        ladder: [
+          {
+            tier: "Tier 1: On-Duty Inpatient Nurse Intercom",
+            contact: "Nurse Priya / Nurse Anjali (Shift Handover Desk)",
+            phone: "Ext. 402 (Ward A Central Console)",
+            status: "Answered",
+            statusColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
+            time: "Continuous Active Audio Link (Latency: 0.02ms)",
+            note: "Station nurse acknowledging real-time telemetry threshold events for Beds 101–104.",
+          },
+          {
+            tier: "Tier 2: Attending Medical Emergency Team (MET)",
+            contact: "Dr. A. Sen, MD (Cardiology On-Call)",
+            phone: "Ext. 104 / Speed Dial 94342 81100",
+            status: "Standby",
+            statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+            time: "Armed (Automatic escalation if NEWS2 Score >= 5)",
+            note: "On-call physician mobile paging with encrypted vital packet.",
+          },
+          {
+            tier: "Tier 3: Code Blue / ICU Outreach Resuscitation Team",
+            contact: "GB Pant Critical Care Emergency Outreach",
+            phone: "Code Blue Speed Dial (Ext. 222)",
+            status: "Standby",
+            statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+            time: "Armed (Immediate mobilization on Cardiac Arrest / NEWS2 >= 7)",
+            note: "Crash cart and ICU crash team dispatched to bedside.",
+          },
+        ],
+      };
+    }
+
+    // Default: Anita Sharma
+    return {
+      patientTitle: "Anita Sharma (Junglighat)",
+      locationText: "Living Room, Junglighat, Port Blair • Deterministic Autonomous Emergency Call Chain",
+      ladder: [
+        {
+          tier: "Tier 1: Family Caregiver",
+          contact: "Priya Sharma (Daughter)",
+          phone: "+91 94342 81101",
+          status: "Answered",
+          statusColor: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          time: "11:02:14 AM (Call duration: 1m 24s)",
+          note: "Caregiver confirmed patient is responsive, sitting in living room. Rechecking BP in 15m.",
+        },
+        {
+          tier: "Tier 2: Backup Emergency Contact",
+          contact: "Rajesh Sharma (Son)",
+          phone: "+91 94342 81102",
+          status: "Standby",
+          statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+          time: "Armed (Triggers if Tier 1 unanswered for 45s)",
+          note: "Standby escalation route • Aberdeen Bazar, Port Blair.",
+        },
+        {
+          tier: "Tier 3: Emergency Dispatch (108 / 112)",
+          contact: "Andaman & Nicobar Emergency Response Service",
+          phone: "108 / 112 (Direct Dispatch)",
+          status: "Standby",
+          statusColor: "text-slate-600 bg-slate-50 border-slate-200",
+          time: "Armed (Auto-dispatches with GPS & Live Vitals Packet)",
+          note: "GB Pant Hospital Ambulance Hub, Port Blair.",
+        },
+      ],
+    };
+  };
+
+  const accountLadder = React.useMemo(() => getCallLadderForUser(currentUser, activePatient), [currentUser?.email]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -7653,11 +8269,16 @@ const AlertsView = () => {
             <Bell className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Clinical Alerts &amp; 3-Tier Emergency Escalation
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Clinical Alerts &amp; 3-Tier Emergency Escalation
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 font-mono">
+                {accountLadder.patientTitle}
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Deterministic Autonomous Emergency Call Chain • Zero Human Intermediary Latency
+              {accountLadder.locationText}
             </p>
           </div>
         </div>
@@ -7676,7 +8297,7 @@ const AlertsView = () => {
         </h3>
 
         <div className="space-y-4">
-          {callLadder.map((step, idx) => (
+          {accountLadder.ladder.map((step, idx) => (
             <div
               key={idx}
               className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
@@ -7720,51 +8341,160 @@ const AlertsView = () => {
 
 // --- START: prototype\public\src\components\MedicalDevicesView.jsx ---
 // prototype/public/src/components/MedicalDevicesView.jsx
-// Paired Medical Devices Fleet & Approved Catalogue (Enterprise Clinical Grade)
+// Paired Medical Devices Fleet & Approved Catalogue (Enterprise Clinical Grade - Account Aware)
 
-const MedicalDevicesView = () => {
-  const catalogue = [
-    {
-      name: "Omron HEM-7156T",
-      type: "Automated Upper Arm Blood Pressure Monitor",
-      regulatory: "US FDA Cleared • CDSCO Class B",
-      accuracy: "Pressure: ±3 mmHg • Pulse: ±5%",
-      connection: "Bluetooth Low Energy 5.2",
-      price: "₹3,450",
-      battery: "92%",
-      status: "Paired & Streaming",
-    },
-    {
-      name: "TempTraq Continuous",
-      type: "Wireless Wearable Temperature Axillary Patch",
-      regulatory: "US FDA Cleared • CE Class IIa",
-      accuracy: "±0.1°C (Continuous 24/7 Monitoring)",
-      connection: "BLE Direct-to-Gateway",
-      price: "₹1,800",
-      battery: "84%",
-      status: "Paired & Streaming",
-    },
-    {
-      name: "SanketLife 12-Lead ECG",
-      type: "Medical Pocket ECG with Lead-II Telemetry",
-      regulatory: "CDSCO Approved (Made in India)",
-      accuracy: "98.2% Arrhythmia Detection Accuracy",
-      connection: "BLE High-Throughput",
-      price: "₹6,999",
-      battery: "78%",
-      status: "Paired & Streaming",
-    },
-    {
-      name: "FreeStyle Libre 3 CGM",
-      type: "Continuous Glucose Monitor Sensor",
-      regulatory: "US FDA Cleared • CDSCO Cleared",
-      accuracy: "MARD 7.9% (Industry Leading)",
-      connection: "NFC / BLE Real-time Streaming",
-      price: "₹4,200",
-      battery: "99%",
-      status: "Paired & Streaming",
-    },
-  ];
+const MedicalDevicesView = ({ currentUser, activePatient }) => {
+  const getDevicesForUser = (user, patient) => {
+    const email = user?.email || "asharma@demo.in";
+
+    if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
+      return {
+        fleetTitle: "Prakash Family Medical Fleet",
+        locationBadge: "Remote Island Hub • Hut Bay, Little Andaman",
+        devices: [
+          {
+            name: "FreeStyle Libre 3 CGM",
+            type: "Continuous Glucose Monitor Sensor (Live Glycemic Telemetry)",
+            regulatory: "US FDA Cleared • CDSCO Class B",
+            accuracy: "MARD 7.9% (Continuous 1-Min Glycemic Readings)",
+            connection: "NFC / BLE Real-time Streaming",
+            price: "₹4,200",
+            battery: "99% (12 Days Sensor Remaining)",
+            status: "Paired & Streaming",
+          },
+          {
+            name: "Accu-Chek Instant",
+            type: "Capillary Blood Glucose Fingerstick Meter",
+            regulatory: "ISO 15197:2013 • CDSCO Approved",
+            accuracy: "±10 mg/dL within YSI Reference",
+            connection: "Bluetooth Low Energy 5.0",
+            price: "₹1,450",
+            battery: "88%",
+            status: "Synchronized",
+          },
+          {
+            name: "Beurer BM 57",
+            type: "Upper Arm Blood Pressure & Arrhythmia Monitor",
+            regulatory: "CE Class IIa • ESH Clinical Validation",
+            accuracy: "Pressure: ±3 mmHg • Pulse: ±5%",
+            connection: "Bluetooth Low Energy",
+            price: "₹2,890",
+            battery: "91%",
+            status: "Paired & Streaming",
+          },
+          {
+            name: "Cellular RPM Gateway #AP-4109",
+            type: "Satellite / 4G LTE-M Autonomous Telemetry Hub",
+            regulatory: "CDSCO Class B • Made in India",
+            accuracy: "99.98% Transmission Packet Integrity",
+            connection: "4G LTE-M with Satellite SMS Fallback",
+            price: "₹4,999",
+            battery: "100% (AC Main + 24h UPS Backup)",
+            status: "Online (Hut Bay Uplink)",
+          },
+        ],
+      };
+    }
+
+    if (email === "wardnurse@demo.in" || user?.role === "nurse") {
+      return {
+        fleetTitle: "GB Pant Hospital Virtual Ward Fleet",
+        locationBadge: "Central Hospital Hub • Port Blair",
+        devices: [
+          {
+            name: "GB Pant Ward BLE Gateway #GW-8042",
+            type: "Multi-Bed Clinical Telemetry Ingestion Hub",
+            regulatory: "CDSCO Class B • Ayushman ABDM Ready",
+            accuracy: "16-Bed Simultaneous Micro-packet Ingestion",
+            connection: "Ethernet / IEEE 802.11ax WiFi 6",
+            price: "₹18,500",
+            battery: "100% (Hospital Clean UPS)",
+            status: "Online & Ingesting",
+          },
+          {
+            name: "Philips IntelliVue MP50 Array",
+            type: "Bedside Multi-Parameter Telemetry Monitor",
+            regulatory: "US FDA Cleared • CE Mark Class IIb",
+            accuracy: "ECG / NIBP / SpO2 Hospital Grade",
+            connection: "HL7 / FHIR Medical Stream",
+            price: "₹2,40,000",
+            battery: "AC Powered (100%)",
+            status: "Streaming (Beds 101–104)",
+          },
+          {
+            name: "Omron Pro Clinical Sphygmomanometer",
+            type: "Hospital-Grade Automated NIBP System",
+            regulatory: "US FDA Cleared • AAMI / ESH Validated",
+            accuracy: "Pressure: ±2 mmHg • Pulse: ±2%",
+            connection: "Bluetooth Low Energy Mesh",
+            price: "₹12,200",
+            battery: "96%",
+            status: "Calibrated & Active",
+          },
+          {
+            name: "Masimo Rad-97 Pulse CO-Oximeter",
+            type: "Continuous Rainbow SET SpO2 & Respiration Monitor",
+            regulatory: "US FDA Cleared • CDSCO Approved",
+            accuracy: "±1.5% in Challenging Perfusion & Motion",
+            connection: "BLE Direct to Ward Console",
+            price: "₹48,000",
+            battery: "94%",
+            status: "Calibrated & Online",
+          },
+        ],
+      };
+    }
+
+    // Default: Anita Sharma
+    return {
+      fleetTitle: "Sharma Family Paired Medical Devices",
+      locationBadge: "Home Telemetry Hub • Junglighat, Port Blair",
+      devices: [
+        {
+          name: "Omron HEM-7156T",
+          type: "Automated Upper Arm Blood Pressure Monitor",
+          regulatory: "US FDA Cleared • CDSCO Class B",
+          accuracy: "Pressure: ±3 mmHg • Pulse: ±5%",
+          connection: "Bluetooth Low Energy 5.2",
+          price: "₹3,450",
+          battery: "92%",
+          status: "Paired & Streaming",
+        },
+        {
+          name: "TempTraq Continuous",
+          type: "Wireless Wearable Temperature Axillary Patch",
+          regulatory: "US FDA Cleared • CE Class IIa",
+          accuracy: "±0.1°C (Continuous 24/7 Monitoring)",
+          connection: "BLE Direct-to-Gateway",
+          price: "₹1,800",
+          battery: "84%",
+          status: "Paired & Streaming",
+        },
+        {
+          name: "SanketLife 12-Lead ECG",
+          type: "Medical Pocket ECG with Lead-II Telemetry",
+          regulatory: "CDSCO Approved (Made in India)",
+          accuracy: "98.2% Arrhythmia Detection Accuracy",
+          connection: "BLE High-Throughput",
+          price: "₹6,999",
+          battery: "78%",
+          status: "Paired & Streaming",
+        },
+        {
+          name: "Accu-Chek Instant",
+          type: "Capillary Blood Glucose Meter",
+          regulatory: "ISO 15197:2013 • CDSCO Approved",
+          accuracy: "±10 mg/dL within YSI Reference",
+          connection: "BLE Low Energy",
+          price: "₹1,450",
+          battery: "95%",
+          status: "Paired & Synchronized",
+        },
+      ],
+    };
+  };
+
+  const accountFleet = React.useMemo(() => getDevicesForUser(currentUser, activePatient), [currentUser?.email]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -7775,11 +8505,16 @@ const MedicalDevicesView = () => {
             <Smartphone className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Paired Medical Devices &amp; Hardware Fleet
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Paired Medical Devices &amp; Hardware Fleet
+              </h2>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/60 font-mono">
+                {accountFleet.fleetTitle}
+              </span>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              CDSCO &amp; US FDA Approved Sensor Integrations • BLE 5.2 Mesh Hub
+              {accountFleet.locationBadge} • BLE 5.2 Mesh Hub Integration
             </p>
           </div>
         </div>
@@ -7787,17 +8522,17 @@ const MedicalDevicesView = () => {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
             <Wifi className="w-3.5 h-3.5" />
-            <span>4 Devices Synchronized</span>
+            <span>{accountFleet.devices.length} Devices Synchronized</span>
           </span>
         </div>
       </div>
 
       {/* Device Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {catalogue.map((dev, idx) => (
+        {accountFleet.devices.map((dev, idx) => (
           <div
             key={idx}
-            className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs"
+            className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-xs hover:border-blue-200 transition-all"
           >
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
@@ -7839,9 +8574,9 @@ const MedicalDevicesView = () => {
 
 // --- START: prototype\public\src\components\Modals.jsx ---
 // prototype/public/src/components/Modals.jsx
-// Enterprise Clinical Modals (Call Caregiver, Clinical Export, Add Medication)
+// Enterprise Clinical Modals (Call Caregiver, Clinical Export, Add Medication - Account Aware)
 
-const CallCaregiverModal = ({ isOpen, onClose }) => {
+const CallCaregiverModal = ({ isOpen, onClose, currentUser, activePatient }) => {
   const [callingState, setCallingState] = React.useState(null);
 
   if (!isOpen) return null;
@@ -7849,9 +8584,14 @@ const CallCaregiverModal = ({ isOpen, onClose }) => {
   const handleDial = (target) => {
     setCallingState(`Dialing ${target}... Voice telemetry link established.`);
     setTimeout(() => {
-      setCallingState(`Connected to ${target}. Intercom channel open.`);
+      setCallingState(`Connected to ${target}. Two-way intercom channel open.`);
     }, 1800);
   };
+
+  const patientName = activePatient?.name || "Anita Sharma";
+  const patientLocation = activePatient?.location || "Junglighat, Port Blair";
+  const isNurse = currentUser?.role === "nurse" || currentUser?.email === "wardnurse@demo.in";
+  const isRam = currentUser?.email === "rprakash@demo.in" || currentUser?.name?.includes("Prakash");
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -7866,7 +8606,7 @@ const CallCaregiverModal = ({ isOpen, onClose }) => {
                 Care Team &amp; Emergency Dispatch
               </h3>
               <p className="text-[11px] text-slate-400">
-                Patient: Anita Sharma • Junglighat, Port Blair
+                Patient: {patientName} • {patientLocation.split("→")[1]?.trim() || patientLocation}
               </p>
             </div>
           </div>
@@ -7889,50 +8629,148 @@ const CallCaregiverModal = ({ isOpen, onClose }) => {
         )}
 
         <div className="my-4 space-y-2.5">
-          <button
-            onClick={() => handleDial("Dr. A. Sen (GB Pant Hospital)")}
-            className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
-          >
-            <div>
-              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
-                Dr. A. Sen (GB Pant Hospital)
-              </div>
-              <div className="text-[11px] text-slate-500">
-                Primary Physician • Cardiology Referral
-              </div>
-            </div>
-            <Phone className="w-4 h-4 text-blue-600 shrink-0" />
-          </button>
+          {isNurse ? (
+            <>
+              <button
+                onClick={() => handleDial("Dr. A. Sen, MD (Cardiology Consultant)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Dr. A. Sen, MD (Cardiology)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Attending Physician • On-Call Ext. 104
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
 
-          <button
-            onClick={() => handleDial("Priya Sharma (Daughter)")}
-            className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
-          >
-            <div>
-              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
-                Priya Sharma (Daughter)
-              </div>
-              <div className="text-[11px] text-slate-500">
-                Primary Family Caregiver • +91 94342 81101
-              </div>
-            </div>
-            <Phone className="w-4 h-4 text-blue-600 shrink-0" />
-          </button>
+              <button
+                onClick={() => handleDial("Nurse Anjali (Shift B Handover Desk)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Nurse Anjali (Shift B Desk)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Ward A Station Intercom • Ext. 402
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
 
-          <button
-            onClick={() => handleDial("108 / 112 Emergency Ambulance Dispatch")}
-            className="w-full text-left p-3 rounded-xl border border-rose-200/80 bg-rose-50/40 hover:bg-rose-50 transition-colors flex items-center justify-between group"
-          >
-            <div>
-              <div className="text-xs font-bold text-rose-900">
-                108 / 112 Emergency Dispatch
-              </div>
-              <div className="text-[11px] text-rose-700">
-                Direct Ambulance with GPS &amp; Vitals Packet
-              </div>
-            </div>
-            <Activity className="w-4 h-4 text-rose-600 shrink-0" />
-          </button>
+              <button
+                onClick={() => handleDial("Code Blue / ICU Outreach Team (Ext. 222)")}
+                className="w-full text-left p-3 rounded-xl border border-rose-200/80 bg-rose-50/40 hover:bg-rose-50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-rose-900">
+                    Code Blue / ICU Resuscitation
+                  </div>
+                  <div className="text-[11px] text-rose-700">
+                    Hospital Crash Team Speed Dial • Ext. 222
+                  </div>
+                </div>
+                <Activity className="w-4 h-4 text-rose-600 shrink-0" />
+              </button>
+            </>
+          ) : isRam ? (
+            <>
+              <button
+                onClick={() => handleDial("Dr. K. Nair, MD (Endocrinology)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Dr. K. Nair, MD (Endocrinology)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Consulting Diabetologist • Telehealth Link
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
+
+              <button
+                onClick={() => handleDial("Rajesh Prakash (Son)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Rajesh Prakash (Son)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Primary Family Caregiver • +91 94742 19203 (Hut Bay)
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
+
+              <button
+                onClick={() => handleDial("Little Andaman PHC & Marine Ambulance (108)")}
+                className="w-full text-left p-3 rounded-xl border border-rose-200/80 bg-rose-50/40 hover:bg-rose-50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-rose-900">
+                    Little Andaman 108 Marine Ambulance
+                  </div>
+                  <div className="text-[11px] text-rose-700">
+                    Hut Bay Wharf Jetty Emergency Station
+                  </div>
+                </div>
+                <Activity className="w-4 h-4 text-rose-600 shrink-0" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => handleDial("Dr. A. Sen (GB Pant Hospital)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Dr. A. Sen (GB Pant Hospital)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Primary Physician • Cardiology Referral
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
+
+              <button
+                onClick={() => handleDial("Priya Sharma (Daughter)")}
+                className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                    Priya Sharma (Daughter)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Primary Family Caregiver • +91 94342 81101
+                  </div>
+                </div>
+                <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+              </button>
+
+              <button
+                onClick={() => handleDial("108 / 112 Emergency Ambulance Dispatch")}
+                className="w-full text-left p-3 rounded-xl border border-rose-200/80 bg-rose-50/40 hover:bg-rose-50 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-rose-900">
+                    108 / 112 Emergency Dispatch
+                  </div>
+                  <div className="text-[11px] text-rose-700">
+                    Direct Ambulance with GPS &amp; Vitals Packet
+                  </div>
+                </div>
+                <Activity className="w-4 h-4 text-rose-600 shrink-0" />
+              </button>
+            </>
+          )}
         </div>
 
         <div className="pt-3 border-t border-slate-100 flex justify-end">
@@ -7951,16 +8789,26 @@ const CallCaregiverModal = ({ isOpen, onClose }) => {
   );
 };
 
-const ClinicalExportModal = ({ isOpen, onClose, vitalsData }) => {
+const ClinicalExportModal = ({ isOpen, onClose, vitalsData, currentUser, activePatient }) => {
   if (!isOpen) return null;
+
+  const patient = activePatient || {
+    id: "REJ-8042",
+    name: "Anita Sharma",
+    age: 67,
+    gender: "Female",
+    location: "Home → Living Room, Junglighat, Port Blair",
+    condition: "Essential Hypertension / Post-Stroke Watch",
+  };
 
   const handleDownload = () => {
     const reportData = {
-      patient: "Anita Sharma",
-      patientId: "REJ-8042",
-      age: 67,
-      gender: "Female",
-      location: "Home → Living Room, Junglighat, Port Blair",
+      patient: patient.name,
+      patientId: patient.id,
+      age: patient.age,
+      gender: patient.gender,
+      location: patient.location,
+      condition: patient.condition,
       exportedAt: new Date().toISOString(),
       vitals: vitalsData || {
         hr: 85,
@@ -7970,11 +8818,12 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData }) => {
         glucose: 112,
       },
       auditTrailConfidence: "98% (High Clinical Confidence)",
-      devices: [
-        "Omron HEM-7156T (BP Monitor)",
-        "TempTraq Continuous (Temp Sensor)",
-        "SanketLife 12-Lead (ECG)",
-      ],
+      devices:
+        patient.id === "REJ-9120"
+          ? ["FreeStyle Libre 3 CGM", "Accu-Chek Instant", "Beurer BM 57 BP", "Cellular Gateway #AP-4109"]
+          : patient.id === "WARD-STA-01"
+          ? ["GB Pant Ward Gateway #GW-8042", "Philips IntelliVue MP50", "Masimo Rad-97"]
+          : ["Omron HEM-7156T (BP Monitor)", "TempTraq Continuous (Temp Sensor)", "SanketLife 12-Lead (ECG)"],
       compliance: "DPDP Act 2023 • Ayushman Bharat Digital Mission (ABDM) Compatible",
     };
 
@@ -7984,7 +8833,7 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData }) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Anita_Sharma_Clinical_Telemetry_${Date.now()}.json`;
+    a.download = `${patient.name.replace(/\s+/g, "_")}_Clinical_Telemetry_${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -8019,12 +8868,12 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData }) => {
 
         <div className="my-4 space-y-3 text-xs text-slate-600">
           <p>
-            Exporting a verifiable cryptographic summary of Anita Sharma's continuous telemetry, vital signs, medication adherence logs, and sensor diagnostics.
+            Exporting a verifiable cryptographic summary of {patient.name}'s continuous telemetry, vital signs, medication adherence logs, and sensor diagnostics.
           </p>
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-[11px] text-slate-700 space-y-1">
-            <div>• Patient: Anita Sharma (ID: REJ-8042)</div>
-            <div>• Vitals: HR 85 bpm | SpO2 97.7% | BP 149/97 mmHg</div>
-            <div>• Devices: Omron HEM-7156T, TempTraq, SanketLife</div>
+            <div>• Patient: {patient.name} (ID: {patient.id})</div>
+            <div>• Location: {patient.location}</div>
+            <div>• Vitals: HR {vitalsData?.hr || 85} bpm | SpO2 {vitalsData?.spo2 || 97.7}% | BP {vitalsData?.bpSys || 149}/{vitalsData?.bpDia || 97} mmHg</div>
             <div>• Compliance: DPDP Act 2023 • ABDM HL7/FHIR Ready</div>
           </div>
         </div>
@@ -8049,13 +8898,15 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData }) => {
   );
 };
 
-const AddMedicationModal = ({ isOpen, onClose }) => {
+const AddMedicationModal = ({ isOpen, onClose, activePatient }) => {
   const [drugName, setDrugName] = React.useState("");
   const [dosage, setDosage] = React.useState("");
   const [times, setTimes] = React.useState("08:00 AM");
   const [success, setSuccess] = React.useState(false);
 
   if (!isOpen) return null;
+
+  const patientName = activePatient?.name || "Anita Sharma";
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -8079,7 +8930,7 @@ const AddMedicationModal = ({ isOpen, onClose }) => {
                 Add Prescribed Medication
               </h3>
               <p className="text-[11px] text-slate-400">
-                Patient: Anita Sharma
+                Patient: {patientName}
               </p>
             </div>
           </div>
@@ -8093,7 +8944,7 @@ const AddMedicationModal = ({ isOpen, onClose }) => {
 
         {success ? (
           <div className="my-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-semibold text-emerald-800">
-            Medication added successfully to active schedule.
+            Medication added successfully to active schedule for {patientName}.
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="my-4 space-y-3">
@@ -8104,7 +8955,7 @@ const AddMedicationModal = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 required
-                placeholder="e.g. Amlodipine"
+                placeholder="e.g. Metformin / Telmisartan"
                 value={drugName}
                 onChange={(e) => setDrugName(e.target.value)}
                 className="w-full h-9 px-3 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -8117,7 +8968,7 @@ const AddMedicationModal = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 required
-                placeholder="e.g. 5 mg"
+                placeholder="e.g. 500 mg"
                 value={dosage}
                 onChange={(e) => setDosage(e.target.value)}
                 className="w-full h-9 px-3 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -8320,16 +9171,102 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
 // prototype/public/src/App.jsx
 // Enterprise Clinical Telemetry Dashboard (Epic / Teladoc Grade)
 
+const ACCOUNT_PROFILES = {
+  "asharma@demo.in": {
+    name: "Anita Sharma",
+    role: "caregiver",
+    email: "asharma@demo.in",
+    patientId: "REJ-8042",
+    age: 67,
+    gender: "Female",
+    location: "Home → Living Room, Junglighat, Port Blair",
+    condition: "Essential Hypertension / Post-Stroke Watch",
+    attendingDoc: "Dr. A. Sen, MD (Cardiology, GB Pant Hospital)",
+    primaryContact: "Priya Sharma (Daughter, +91 94342 81101)",
+    caregiverPhone: "+91 94342 81101",
+    backupPhone: "+91 94342 81102",
+    emergencyHub: "GB Pant Hospital Ambulance Station (108)",
+    hardwareSource: "BLE Telemetry Gateway (Tier 1 Certified)",
+    defaultVitals: {
+      hr: 85,
+      spo2: 97.7,
+      bpSys: 149,
+      bpDia: 97,
+      temp: 37.0,
+      glucose: 112,
+      sparkHr: [82, 84, 83, 85, 84, 86, 85, 84, 85],
+      sparkSpo2: [97.8, 97.6, 97.9, 97.7, 97.8, 97.6, 97.7, 97.8, 97.7],
+      sparkBp: [142, 144, 146, 145, 148, 147, 150, 148, 149],
+      sparkTemp: [36.9, 37.0, 37.1, 37.0, 36.9, 37.0, 37.0, 37.1, 37.0],
+      sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
+    },
+  },
+  "rprakash@demo.in": {
+    name: "Ram Prakash",
+    role: "caregiver",
+    email: "rprakash@demo.in",
+    patientId: "REJ-9120",
+    age: 72,
+    gender: "Male",
+    location: "Remote Cottage → Hut Bay, Little Andaman",
+    condition: "Type-2 Diabetes Mellitus / Neuropathy Watch",
+    attendingDoc: "Dr. K. Nair, MD (Endocrinology)",
+    primaryContact: "Rajesh Prakash (Son, +91 94742 19203)",
+    caregiverPhone: "+91 94742 19203",
+    backupPhone: "+91 94742 19204",
+    emergencyHub: "Little Andaman Marine Ambulance & 108 PHC Station",
+    hardwareSource: "Cellular RPM Gateway #AP-4109 (Little Andaman)",
+    defaultVitals: {
+      hr: 74,
+      spo2: 98.2,
+      bpSys: 122,
+      bpDia: 80,
+      temp: 36.8,
+      glucose: 142,
+      sparkHr: [73, 75, 74, 76, 74, 75, 74, 73, 74],
+      sparkSpo2: [98.1, 98.3, 98.2, 98.0, 98.2, 98.3, 98.2, 98.1, 98.2],
+      sparkBp: [120, 122, 124, 121, 123, 122, 125, 122, 122],
+      sparkTemp: [36.8, 36.9, 36.8, 36.7, 36.8, 36.9, 36.8, 36.8, 36.8],
+      sparkGlucose: [138, 142, 145, 140, 144, 142, 146, 142, 142],
+    },
+  },
+  "wardnurse@demo.in": {
+    name: "GB Pant Ward Nurse",
+    role: "nurse",
+    email: "wardnurse@demo.in",
+    patientId: "WARD-STA-01",
+    age: "Shift A Lead",
+    gender: "Staff",
+    location: "GB Pant Hospital, Male/Female Ward A, Port Blair",
+    condition: "Multi-Bed Inpatient Clinical Ward Watch (4 Active Beds)",
+    attendingDoc: "Dr. A. Sen, MD & Dr. V. Rao, MS",
+    primaryContact: "Ward Nurse Station (Ext. 402)",
+    caregiverPhone: "Ext. 402 (Station Desk)",
+    backupPhone: "Ext. 104 (Duty Doctor)",
+    emergencyHub: "GB Pant Hospital Crash Team & Code Blue",
+    hardwareSource: "GB Pant Hospital Central Gateway #GW-8042",
+    defaultVitals: {
+      hr: 82,
+      spo2: 98.0,
+      bpSys: 128,
+      bpDia: 84,
+      temp: 36.9,
+      glucose: 115,
+      sparkHr: [80, 82, 81, 83, 82, 84, 82, 81, 82],
+      sparkSpo2: [98.0, 98.2, 98.1, 97.9, 98.0, 98.1, 98.0, 98.2, 98.0],
+      sparkBp: [125, 128, 130, 126, 129, 127, 130, 128, 128],
+      sparkTemp: [36.9, 37.0, 36.9, 36.8, 36.9, 37.0, 36.9, 36.9, 36.9],
+      sparkGlucose: [112, 115, 118, 114, 116, 115, 117, 115, 115],
+    },
+  },
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = React.useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [curLang, setCurLang] = React.useState("en");
-  const [user, setUser] = React.useState({
-    name: "Anita Sharma",
-    role: "caregiver",
-    email: "asharma@demo.in",
-  });
+  const [user, setUser] = React.useState(ACCOUNT_PROFILES["asharma@demo.in"]);
   const [token, setToken] = React.useState(localStorage.getItem("rejivan_token") || "");
 
   // Modal States
@@ -8369,6 +9306,10 @@ const App = () => {
     sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
   });
 
+  const activePatient = React.useMemo(() => {
+    return ACCOUNT_PROFILES[user?.email] || ACCOUNT_PROFILES["asharma@demo.in"];
+  }, [user?.email]);
+
   // Live seconds ticker
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -8383,12 +9324,13 @@ const App = () => {
 
     const streamInterval = setInterval(() => {
       setVitals((prev) => {
-        let targetHr = 85;
-        let targetSpo2 = 97.7;
-        let targetBpSys = 149;
-        let targetBpDia = 97;
-        let targetTemp = 37.0;
-        let targetGlucose = 112;
+        const baseVitals = activePatient?.defaultVitals || ACCOUNT_PROFILES["asharma@demo.in"].defaultVitals;
+        let targetHr = baseVitals.hr;
+        let targetSpo2 = baseVitals.spo2;
+        let targetBpSys = baseVitals.bpSys;
+        let targetBpDia = baseVitals.bpDia;
+        let targetTemp = baseVitals.temp;
+        let targetGlucose = baseVitals.glucose;
 
         if (simMode === "bp_crisis") {
           targetHr = 95;
@@ -8456,10 +9398,20 @@ const App = () => {
     }, 1500);
 
     return () => clearInterval(streamInterval);
-  }, [isStreaming, simMode]);
+  }, [isStreaming, simMode, activePatient]);
 
   // Dynamic Triage Metrics Calculator
   const getTriageMetrics = () => {
+    if (user?.role === "nurse" || user?.email === "wardnurse@demo.in") {
+      return {
+        patientsCount: 4,
+        normalCount: 2,
+        cautionCount: 1,
+        dangerCount: 1,
+        cautionText: "Bed 103 (Meera Nair): Pyrexia 38.6°C",
+        dangerText: "Bed 104 (Kavitha Raman): Bradycardia 48 bpm",
+      };
+    }
     if (vitals.bpSys >= 160 || vitals.spo2 < 92 || vitals.hr < 60 || vitals.hr > 100) {
       let dangerText = "Stage 2 Crisis Escalation";
       if (vitals.spo2 < 92) dangerText = `Acute Hypoxemia: SpO2 ${vitals.spo2}%`;
@@ -8475,13 +9427,16 @@ const App = () => {
         dangerText,
       };
     }
-    if (vitals.bpSys >= 140 || vitals.bpDia >= 90 || vitals.spo2 < 95) {
+    if (vitals.bpSys >= 140 || vitals.bpDia >= 90 || vitals.spo2 < 95 || vitals.glucose > 160) {
+      const reason = vitals.glucose > 160
+        ? `Elevated Glucose: ${vitals.glucose} mg/dL`
+        : `Elevated BP: ${vitals.bpSys}/${vitals.bpDia} mmHg`;
       return {
         patientsCount: 1,
         normalCount: 0,
         cautionCount: 1,
         dangerCount: 0,
-        cautionText: `Elevated BP: ${vitals.bpSys}/${vitals.bpDia} mmHg`,
+        cautionText: reason,
         dangerText: "Zero active emergencies",
       };
     }
@@ -8538,6 +9493,7 @@ const App = () => {
 
   // Auth Handlers
   const handleLogin = async (email, password) => {
+    const profile = ACCOUNT_PROFILES[email] || ACCOUNT_PROFILES["asharma@demo.in"];
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -8547,8 +9503,19 @@ const App = () => {
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
-        setUser(data.user);
+        setUser({ ...profile, ...(data.user || {}) });
         localStorage.setItem("rejivan_token", data.token);
+        setVitals({
+          ...profile.defaultVitals,
+          lastSync: "Just now",
+          hardwareSource: profile.hardwareSource,
+        });
+        setSimMode("baseline");
+        if (profile.role === "nurse") {
+          setActiveTab("ward");
+        } else {
+          setActiveTab("dashboard");
+        }
         return;
       }
     } catch (e) {
@@ -8556,13 +9523,18 @@ const App = () => {
     }
 
     // Client-side fallback
-    const role = email.includes("nurse") ? "nurse" : "caregiver";
-    const name = email.includes("nurse")
-      ? "GB Pant Ward Nurse"
-      : email.includes("prakash")
-      ? "Ram Prakash"
-      : "Anita Sharma";
-    setUser({ name, role, email });
+    setUser(profile);
+    setVitals({
+      ...profile.defaultVitals,
+      lastSync: "Just now",
+      hardwareSource: profile.hardwareSource,
+    });
+    setSimMode("baseline");
+    if (profile.role === "nurse") {
+      setActiveTab("ward");
+    } else {
+      setActiveTab("dashboard");
+    }
   };
 
   const handleLogout = () => {
@@ -8699,10 +9671,11 @@ const App = () => {
                   {/* Patient Overview Card */}
                   <PatientOverviewCard
                     patient={{
-                      name: "Anita Sharma",
-                      age: 67,
-                      gender: "Female",
-                      location: "Home → Living Room, Junglighat, Port Blair",
+                      name: activePatient.name,
+                      age: activePatient.age,
+                      gender: activePatient.gender,
+                      location: activePatient.location,
+                      patientId: activePatient.patientId,
                       status: triage.dangerCount > 0 ? "Critical Alert" : triage.cautionCount > 0 ? "Caution / Review" : "Monitoring Nominal",
                       lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
                     }}
@@ -8714,21 +9687,26 @@ const App = () => {
                   <VitalSignsTable vitalsData={vitals} />
 
                   {/* Hardware Diagnostics & Sensor Telemetry Bar (Pinned at bottom of left area) */}
-                  <HardwareDiagnosticsBar reliabilityScore={98} />
+                  <HardwareDiagnosticsBar
+                    reliabilityScore={98}
+                    currentUser={user}
+                    activePatient={activePatient}
+                  />
                 </div>
 
                 {/* Right Column (Alerts & Care Coordination Panel - 30%) */}
                 <div className="xl:col-span-4 space-y-6">
                   {/* Recent Alerts Card */}
-                  <RecentAlerts />
+                  <RecentAlerts currentUser={user} />
 
                   {/* Medication Schedule Card */}
                   <MedicationScheduleCard
                     onOpenAddModal={() => setAddMedModalOpen(true)}
+                    currentUser={user}
                   />
 
                   {/* Patient Timeline Feed */}
-                  <PatientTimeline />
+                  <PatientTimeline currentUser={user} />
                 </div>
               </div>
 
@@ -8753,6 +9731,8 @@ const App = () => {
                 }
               }}
               onTriggerVerification={handleOpenCheckin}
+              currentUser={user}
+              activePatient={activePatient}
             />
           )}
 
@@ -8765,34 +9745,49 @@ const App = () => {
               secondsAgo={secondsAgo}
               onPageDoctor={() => setCallModalOpen(true)}
               onExportTelemetry={() => setExportModalOpen(true)}
+              currentUser={user}
+              activePatient={activePatient}
             />
           )}
 
           {/* Medicines MAR Route */}
           {activeTab === "medicines" && (
-            <MedicinesView onOpenAddModal={() => setAddMedModalOpen(true)} />
+            <MedicinesView
+              onOpenAddModal={() => setAddMedModalOpen(true)}
+              currentUser={user}
+            />
           )}
 
           {/* Alerts Escalation Route */}
-          {activeTab === "alerts" && <AlertsView />}
+          {activeTab === "alerts" && (
+            <AlertsView currentUser={user} activePatient={activePatient} />
+          )}
 
           {/* Medical Devices Fleet Route */}
-          {activeTab === "devices" && <MedicalDevicesView />}
+          {activeTab === "devices" && (
+            <MedicalDevicesView currentUser={user} activePatient={activePatient} />
+          )}
         </main>
 
         {/* Global Clinical Modals */}
         <CallCaregiverModal
           isOpen={callModalOpen}
           onClose={() => setCallModalOpen(false)}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <ClinicalExportModal
           isOpen={exportModalOpen}
           onClose={() => setExportModalOpen(false)}
           vitalsData={vitals}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <AddMedicationModal
           isOpen={addMedModalOpen}
           onClose={() => setAddMedModalOpen(false)}
+          currentUser={user}
+          activePatient={activePatient}
         />
         <LoginModal
           isOpen={loginModalOpen}
@@ -8803,6 +9798,7 @@ const App = () => {
           isOpen={checkinModalOpen}
           onClose={() => setCheckinModalOpen(false)}
           scenario={checkinScenario}
+          activePatient={activePatient}
           onEmergencyConfirmed={() => {
             setVitals((prev) => ({ ...prev, bpSys: 178, hr: 124 }));
           }}
