@@ -2139,3 +2139,33 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - **Routing Guard in `App.jsx`:** If a family caregiver user is currently on `activeTab === "ward"` or switches from a nurse account to a family account while on `ward`, automatically redirect `activeTab` to `"dashboard"`. Also, ensure the `activeTab === "ward"` view only renders if `user?.role === "nurse"`.
    - **TopBar Breadcrumbs (`TopBar.jsx`):** Ensure top breadcrumb doesn't reference ward for family logins.
    - **Android App (`app-android` & `Sync.kt` / `MainActivity.kt`):** Check if the native Android app has a Ward tab in the navigation bar and make sure it is role-restricted as well.
+
+### What was done (verified)
+1. **Sidebar Navigation Filtering (`prototype/public/src/components/Sidebar.jsx`):**
+   - Updated component to receive `user` prop.
+   - Filtered `navItems` so `{ id: "ward", label: "Virtual Ward", icon: Building2, badge: "Hospital" }` is included ONLY when `user?.role === "nurse" || user?.email === "wardnurse@demo.in"`.
+   - Family caregivers (`asharma@demo.in` / `rprakash@demo.in`) now see only home-relevant tabs: Dashboard, Medicines, Camera Zones, Alerts, and Medical Devices.
+
+2. **Route Guard & Component Rendering Protection (`prototype/public/src/App.jsx`):**
+   - Passed `user={user}` to `<Sidebar ... />`.
+   - Added active `useEffect` guard: `if (!isNurse && activeTab === "ward") { setActiveTab("dashboard"); }`.
+   - Guarded component render: `{activeTab === "ward" && (user?.role === "nurse" || user?.email === "wardnurse@demo.in") && (<VirtualWardView ... />)}`.
+
+3. **Dynamic Camera Stream Context (`prototype/public/src/components/CameraZonesView.jsx`):**
+   - Dynamically labels the third camera source button as `"Ward CCTV"` for hospital nurses and `"Room CCTV"` for family monitors.
+   - Updates stream header title to `"RTSP Hospital Ward CCTV · Bed 01"` vs `"RTSP Home CCTV · Main Zone"`.
+
+4. **Native Android App Parity (`app-android/app/src/main/java/com/rejivan/app/ui/App.kt`):**
+   - Evaluated `isNurse = state.user?.role == "ward" || state.user?.role == "nurse" || state.user?.email?.contains("nurse") == true`.
+   - Dynamically omitted `"Ward"` from the bottom `NavigationBar` for non-nurse logins.
+   - Guarded view router: `"Ward" -> if (isNurse) Ward(state) else Dashboard(state)`.
+
+5. **Build & Automated Verification:**
+   - Recompiled web bundle via `node tools/build_web.js`: `bundle.jsx` (419,882 bytes).
+   - Validated Babel compilation in Node VM: 455,543 bytes output with 0 syntax errors.
+   - Verified local prototype server at `http://localhost:8080` (`/api/health` 200 OK).
+   - Verified 100% pass across all 4 automated test suites:
+     - `tools/test_camera_architecture.py`: 12/12 passed (100%).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
