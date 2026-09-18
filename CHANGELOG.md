@@ -401,11 +401,21 @@
   - **Account-Aware Camera Zones (`CameraZonesView.jsx`):** Dynamically updates stream location, patient name, and room tags across Hut Bay, Port Blair home, and GB Pant Ward.
   - **Account-Aware Virtual Ward (`VirtualWardView.jsx`):** Badges Bed 101 as `YOUR BED (ACTIVE)` for Anita Sharma and Bed 102 as `YOUR BED (ACTIVE)` for Ram Prakash, while providing full multi-bed triage console for Ward Nurse.
   - **Account-Aware Global Clinical Modals (`Modals.jsx` & `ResidentCheckinModal.jsx`):** `CallCaregiverModal`, `ClinicalExportModal` (exports customized JSON report with patient ID, address, and device fleet), `AddMedicationModal`, and `ResidentCheckinModal` dynamically reflect active patient credentials and emergency contacts.
-- **2026-09-18 11:15 | Strict Role Restriction: Virtual Ward Exclusively for Hospital / Nurse Logins:**
-  - **Context & Clinical Compliance:** Multi-bed hospital inpatient telemetry (GB Pant Hospital Ward A) represents clinical wards where nurses manage multiple patients concurrently. In accordance with patient privacy (DPDP Act 2023) and clinical workflow, family monitors at home (`asharma@demo.in` / `rprakash@demo.in`) must never see or navigate to the hospital Virtual Ward.
-  - **Navigation Sidebar Gating (`Sidebar.jsx`):** Conditionally filters the navigation items array so that the "Virtual Ward" tab (with "Hospital" badge) is rendered strictly when `user?.role === "nurse"` or `user?.email === "wardnurse@demo.in"`, completely removing it from the sidebar and mobile drawer for family monitors.
-  - **Automatic Routing Redirect Guard (`App.jsx`):** Implemented an active redirect guard in `App.jsx` that automatically redirects any non-nurse user to `"dashboard"` if `activeTab` is set to `"ward"`.
-  - **Component Level Rendering Guard (`App.jsx`):** Gated `<VirtualWardView />` render block with strict nurse role verification.
-  - **Dynamic CCTV Labeling (`CameraZonesView.jsx`):** Relabeled the third camera source button and header stream title to dynamically reflect "Ward CCTV" for hospital nurses and "Room CCTV" for family caregivers at home.
-  - **Native Android App Parity (`app-android/app/src/main/java/com/rejivan/app/ui/App.kt`):** Mirrored role restriction into the native Jetpack Compose Android app, dynamically omitting "Ward" from the bottom `NavigationBar` and guarding the route for family logins.
-  - **Automated Verification:** Web bundle re-compiled (`bundle.jsx` 419,882 bytes), verified clean Babel transform in Node VM (455,543 bytes, 0 errors), local server running on port 8080 (`/api/health` 200 OK), and all 4 test suites passed 100% (Camera Architecture 12/12, Prerecorded Monitoring 13/13, Fall Kinematics 7/7, False Positive Lab 23/23).
+- **2026-09-18 13:10 | Hospital Login Dashboard: Inpatient Bed Selection & Multi-Patient Toggle:**
+  - **Clinical Problem & Clarity:** In the hospital nurse login, the dashboard previously presented generic telemetry under the placeholder label "GB Pant Ward Nurse (WARD-STA-01)", which was ambiguous because a nurse monitors patients, not herself. The user requested specifying whose data is displayed and enabling seamless toggling between individual patients or viewing all patients.
+  - **Hospital Inpatient Beds Registry (`HOSPITAL_INPATIENT_BEDS`):** Established comprehensive registry covering all 4 GB Pant Hospital Ward A inpatient beds:
+    - `Bed 101`: Anita Sharma (67F, Essential Hypertension / Post-Stroke Watch, Dr. A. Sen, MD)
+    - `Bed 102`: Ram Prakash (72M, Type-2 Diabetes Mellitus / Neuropathy Watch, Dr. K. Nair, MD)
+    - `Bed 103`: Meera Nair (58F, Post-Op Day 2 Cholecystectomy, Dr. V. Rao, MS)
+    - `Bed 104`: Kavitha Raman (64F, Sinus Tachycardia / Arrhythmia Holter Watch, Dr. A. Sen, MD)
+  - **Inpatient Bed Selector Console:** Built an interactive command bar at the top of the Hospital Dashboard with glowing segmented pills (`All Beds (Ward Grid)`, `Bed 101: Anita`, `Bed 102: Ram`, `Bed 103: Meera`, `Bed 104: Kavitha`), displaying real-time patient bed tags, clinical status beacon (normal/caution/danger), and attending physician context.
+  - **Ward Inpatient Matrix (All 4 Beds Mode):** When "All Beds" is selected, the dashboard renders a 4-card bedside telemetry matrix with live vitals chips (HR, SpO2, BP, Temp, Glucose), status badges, diagnosis, attending physician, and one-click "Focus Bed Telemetry" actions.
+  - **Focused Inpatient Deep Dive:** When any individual bed is selected, the entire dashboard updates dynamically:
+    - `PatientOverviewCard`: displays patient name, `🛏️ Bed 10X` badge, age, gender, ward location, clinical diagnosis, and attending doctor.
+    - `VitalSignsTable`: streams live physiological drift and sparklines calibrated to that patient's physiological baseline.
+    - `HardwareDiagnosticsBar`: renders bed-specific devices (Philips IntelliVue, Masimo Rad-97, Mindray BeneView, Holter CW-9012, etc.).
+    - `MedicationScheduleCard`: renders bed-specific inpatient MAR schedules.
+    - `RecentAlerts` & `PatientTimeline`: display bed-specific clinical alerts and nursing audit logs.
+    - `CallCaregiverModal` & `ClinicalExportModal`: dial the specific bed's attending doctor / family contact and export customized medical summaries.
+  - **Native Android App Parity (`App.kt` & `DemoData.kt`):** Added horizontal bed selection filter chip row to Android `Dashboard(state)` and aligned `DemoData.kt` patients list, allowing the nurse to filter between individual beds or all beds on native Android.
+  - **Build & Verification:** Web bundle recompiled (`bundle.jsx` 454,876 bytes), verified Babel transform in Node VM (489,282 bytes output, 0 syntax errors), and verified 100% pass across all 4 test suites.

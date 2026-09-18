@@ -2200,3 +2200,38 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
        - Recent alerts and clinical events specific to that bed
    - In the native Android app, provide the equivalent bed toggle on the hospital dashboard screen.
 
+### What was done (verified)
+1. **Hospital Inpatient Beds Registry (`HOSPITAL_INPATIENT_BEDS`):**
+   - Established comprehensive registry in `prototype/public/src/App.jsx` detailing all 4 inpatient beds:
+     - `Bed 101`: Anita Sharma (67F, Essential Hypertension, Dr. A. Sen, MD)
+     - `Bed 102`: Ram Prakash (72M, Type-2 Diabetes Mellitus, Dr. K. Nair, MD)
+     - `Bed 103`: Meera Nair (58F, Post-Op Day 2 Cholecystectomy, Dr. V. Rao, MS)
+     - `Bed 104`: Kavitha Raman (64F, Sinus Tachycardia Watch, Dr. A. Sen, MD)
+   - Each bed record specifies bed-tailored baseline vitals, sparklines, connected medical devices, scheduled medications, clinical alerts, and nursing timeline audit trails.
+
+2. **Inpatient Bed Selector Console (`App.jsx`):**
+   - Created an interactive command bar at the top of the Hospital Dashboard with glowing segmented buttons: `All Beds (Ward Grid)`, `Bed 101: Anita`, `Bed 102: Ram`, `Bed 103: Meera`, `Bed 104: Kavitha`.
+   - Displays dynamic context: active bed tag, clinical condition, attending doctor, and severity beacon (normal/caution/danger).
+
+3. **Ward Inpatient Matrix (All 4 Beds Mode):**
+   - When "All Beds" is selected, renders a 4-card bedside telemetry matrix with live vitals chips (HR, SpO2, BP, Temp, Glucose), status badges, and one-click "Focus Bed Telemetry" actions.
+
+4. **Focused Inpatient Deep-Dive Synchronization:**
+   - Selecting any bed updates all dashboard subcomponents dynamically:
+     - `PatientOverviewCard`: displays patient name, `🛏️ Bed 10X` badge, age, gender, ward location, clinical condition, and attending doctor.
+     - `VitalSignsTable`: streams live physiological drift calibrated to that patient's physiological baseline.
+     - `HardwareDiagnosticsBar`: renders bed-specific devices (Philips IntelliVue, Masimo Rad-97, Mindray BeneView, Holter CW-9012, etc.).
+     - `MedicationScheduleCard`: renders bed-specific inpatient MAR schedules.
+     - `RecentAlerts` & `PatientTimeline`: display bed-specific clinical alerts and nursing audit logs.
+     - `CallCaregiverModal` & `ClinicalExportModal`: dial the specific bed's attending doctor / family contact and export customized medical summaries.
+
+5. **Native Android App Parity (`App.kt` & `DemoData.kt`):**
+   - Added horizontal bed selection filter chip row to Android `Dashboard(state)` and updated `DemoData.kt` patients list with ward bed tags, allowing the nurse to filter between individual beds or all beds on native Android.
+
+6. **Build & Automated Verification:**
+   - Web bundle recompiled (`bundle.jsx` 454,876 bytes).
+   - Validated Babel transform in Node VM: 489,282 bytes output, 0 syntax errors.
+   - Tested local server running at `http://localhost:8080` (`/api/health` 200 OK).
+   - Verified 100% pass across all 4 automated test suites (Camera Architecture 12/12, Prerecorded Monitoring 13/13, Fall Kinematics 7/7, False Positive Lab 23/23).
+
+
