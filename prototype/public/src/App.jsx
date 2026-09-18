@@ -978,8 +978,21 @@ const App = () => {
         });
         setSimMode("baseline");
         if (profile.role === "nurse") {
+          setSelectedWardBed("bed-101");
+          const targetBed = HOSPITAL_INPATIENT_BEDS["bed-101"];
+          setVitals({
+            ...targetBed.defaultVitals,
+            lastSync: "Just now",
+            hardwareSource: targetBed.hardwareSource,
+          });
           setActiveTab("ward");
         } else {
+          setSelectedWardBed("bed-101");
+          setVitals({
+            ...profile.defaultVitals,
+            lastSync: "Just now",
+            hardwareSource: profile.hardwareSource,
+          });
           setActiveTab("dashboard");
         }
         return;
@@ -990,15 +1003,23 @@ const App = () => {
 
     // Client-side fallback
     setUser(profile);
-    setVitals({
-      ...profile.defaultVitals,
-      lastSync: "Just now",
-      hardwareSource: profile.hardwareSource,
-    });
     setSimMode("baseline");
     if (profile.role === "nurse") {
+      setSelectedWardBed("bed-101");
+      const targetBed = HOSPITAL_INPATIENT_BEDS["bed-101"];
+      setVitals({
+        ...targetBed.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: targetBed.hardwareSource,
+      });
       setActiveTab("ward");
     } else {
+      setSelectedWardBed("bed-101");
+      setVitals({
+        ...profile.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: profile.hardwareSource,
+      });
       setActiveTab("dashboard");
     }
   };
@@ -1053,6 +1074,88 @@ const App = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
           {activeTab === "dashboard" && (
             <div className="animate-in fade-in duration-150">
+              {/* Hospital Inpatient Bed Selector Bar (Active Census & Bed Toggle) */}
+              {isNurse && (
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs mb-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-2xs border border-blue-100">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900">
+                            GB Pant Hospital · Inpatient Ward A Telemetry
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            4 Active Inpatient Beds
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Toggle between specific inpatient beds below to inspect live vitals, MAR, and telemetry, or choose <strong>All Beds (Ward Grid)</strong> to see all patients.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bed Switching Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        onClick={() => handleSelectWardBed("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedWardBed === "all"
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>All Beds (Ward Grid)</span>
+                      </button>
+                      <span className="text-slate-300 hidden sm:inline">|</span>
+                      {Object.values(HOSPITAL_INPATIENT_BEDS).map((bed) => {
+                        const isSelected = selectedWardBed === bed.id;
+                        return (
+                          <button
+                            key={bed.id}
+                            onClick={() => handleSelectWardBed(bed.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-xs font-bold"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium"
+                            }`}
+                          >
+                            <span>🛏️ {bed.bedNumber}: {bed.name.split(" ")[0]}</span>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                bed.status === "danger"
+                                  ? "bg-rose-500"
+                                  : bed.status === "caution"
+                                  ? isSelected ? "bg-amber-300" : "bg-amber-500"
+                                  : isSelected ? "bg-emerald-300" : "bg-emerald-500"
+                              }`}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dynamic subtext banner */}
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-600 bg-slate-50/90 px-3.5 py-2 rounded-xl border border-slate-200/60">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="font-semibold text-slate-800">
+                        {selectedWardBed === "all"
+                          ? "Showing Combined Ward Census (All 4 Inpatients)"
+                          : `Active Bed: ${activePatient.bedNumber} · ${activePatient.name} (${activePatient.age} ${activePatient.gender}) — ${activePatient.condition}`}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-indigo-700 font-medium">
+                      Attending: {activePatient.attendingDoc || "Dr. A. Sen, MD & Dr. V. Rao, MS"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* 3. Global Triage Metric Strip (Top of Dashboard) */}
               <TriageMetricStrip
                 patientsCount={triage.patientsCount}
@@ -1143,20 +1246,143 @@ const App = () => {
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 {/* Left Column (Primary Telemetry & Patient Detail - 70%) */}
                 <div className="xl:col-span-8 space-y-6">
-                  {/* Patient Overview Card */}
-                  <PatientOverviewCard
-                    patient={{
-                      name: activePatient.name,
-                      age: activePatient.age,
-                      gender: activePatient.gender,
-                      location: activePatient.location,
-                      patientId: activePatient.patientId,
-                      status: triage.dangerCount > 0 ? "Critical Alert" : triage.cautionCount > 0 ? "Caution / Review" : "Monitoring Nominal",
-                      lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
-                    }}
-                    onCallCaregiver={() => setCallModalOpen(true)}
-                    onClinicalExport={() => setExportModalOpen(true)}
-                  />
+                  {/* Either All Beds Grid OR Focused Patient Overview Card */}
+                  {selectedWardBed === "all" && isNurse ? (
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs mb-6">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          <h3 className="text-sm font-bold text-slate-900">
+                            Ward A Inpatient Telemetry Matrix (4 Active Beds)
+                          </h3>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono">
+                          Click any bed to focus full telemetry
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.values(HOSPITAL_INPATIENT_BEDS).map((bed) => {
+                          const isCaution = bed.status === "caution";
+                          const isDanger = bed.status === "danger";
+                          return (
+                            <div
+                              key={bed.id}
+                              className={`p-4 rounded-xl border transition-all ${
+                                isDanger
+                                  ? "border-rose-300 bg-rose-50/20"
+                                  : isCaution
+                                  ? "border-amber-300 bg-amber-50/20"
+                                  : "border-slate-200/80 bg-slate-50/40 hover:border-blue-300"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                                      🛏️ {bed.bedNumber}
+                                    </span>
+                                    <h4 className="text-sm font-bold text-slate-900">
+                                      {bed.name}
+                                    </h4>
+                                    <span className="text-xs text-slate-500">
+                                      ({bed.age}{bed.gender === "Female" ? "F" : "M"})
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 font-medium mt-1 truncate">
+                                    {bed.condition}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    {bed.attendingDoc}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                    isDanger
+                                      ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                      : isCaution
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      isDanger
+                                        ? "bg-rose-500 animate-ping"
+                                        : isCaution
+                                        ? "bg-amber-500 animate-pulse"
+                                        : "bg-emerald-500"
+                                    }`}
+                                  />
+                                  <span>{isDanger ? "Critical" : isCaution ? "Caution" : "Stable"}</span>
+                                </span>
+                              </div>
+
+                              {/* Vitals Strip */}
+                              <div className="grid grid-cols-5 gap-1.5 mt-3 p-2 bg-white rounded-lg border border-slate-200/60 text-center">
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">HR</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.hr}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">SpO2</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.spo2}%</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">BP</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.bpSys}/{bed.defaultVitals.bpDia}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">Temp</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.temp}°C</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">Glu</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.glucose}</div>
+                                </div>
+                              </div>
+
+                              {/* Action */}
+                              <div className="mt-3 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ID: {bed.patientId}
+                                </span>
+                                <button
+                                  onClick={() => handleSelectWardBed(bed.id)}
+                                  className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>Focus Bed Telemetry</span>
+                                  <span>→</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <PatientOverviewCard
+                      patient={{
+                        name: activePatient.name,
+                        bedNumber: activePatient.bedNumber,
+                        age: activePatient.age,
+                        gender: activePatient.gender,
+                        location: activePatient.location,
+                        patientId: activePatient.patientId,
+                        condition: activePatient.condition,
+                        attendingDoc: activePatient.attendingDoc,
+                        status:
+                          triage.dangerCount > 0
+                            ? "Critical Alert"
+                            : triage.cautionCount > 0
+                            ? "Caution / Review"
+                            : "Monitoring Nominal",
+                        lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
+                      }}
+                      onCallCaregiver={() => setCallModalOpen(true)}
+                      onClinicalExport={() => setExportModalOpen(true)}
+                    />
+                  )}
 
                   {/* Comprehensive Vital Signs Table */}
                   <VitalSignsTable vitalsData={vitals} />
@@ -1172,16 +1398,17 @@ const App = () => {
                 {/* Right Column (Alerts & Care Coordination Panel - 30%) */}
                 <div className="xl:col-span-4 space-y-6">
                   {/* Recent Alerts Card */}
-                  <RecentAlerts currentUser={user} />
+                  <RecentAlerts currentUser={user} activePatient={activePatient} />
 
                   {/* Medication Schedule Card */}
                   <MedicationScheduleCard
                     onOpenAddModal={() => setAddMedModalOpen(true)}
                     currentUser={user}
+                    activePatient={activePatient}
                   />
 
                   {/* Patient Timeline Feed */}
-                  <PatientTimeline currentUser={user} />
+                  <PatientTimeline currentUser={user} activePatient={activePatient} />
                 </div>
               </div>
 

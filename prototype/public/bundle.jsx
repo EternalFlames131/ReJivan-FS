@@ -1878,6 +1878,11 @@ const PatientOverviewCard = ({
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 {patient.name}
               </h2>
+              {patient.bedNumber && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs">
+                  🛏️ {patient.bedNumber}
+                </span>
+              )}
               {/* Monitoring Status Badge with Live Pulse */}
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1890,13 +1895,25 @@ const PatientOverviewCard = ({
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
               <span className="font-medium text-slate-700">
-                {patient.age} years | {patient.gender}
+                {patient.age} {typeof patient.age === "number" ? "years" : ""} | {patient.gender}
               </span>
               <span className="text-slate-300">•</span>
               <div className="flex items-center gap-1 text-slate-600">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span className="truncate">{patient.location}</span>
               </div>
+              {patient.condition && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-slate-700 font-semibold truncate max-w-xs">{patient.condition}</span>
+                </>
+              )}
+              {patient.attendingDoc && (
+                <>
+                  <span className="text-slate-300 hidden sm:inline">•</span>
+                  <span className="text-indigo-700 font-medium hidden sm:inline truncate max-w-xs">{patient.attendingDoc}</span>
+                </>
+              )}
               <span className="text-slate-300 hidden md:inline">•</span>
               <span className="text-slate-400 hidden md:inline">
                 Last updated: <span className="font-mono text-slate-600">{patient.lastUpdated}</span>
@@ -2220,6 +2237,13 @@ const HardwareDiagnosticsBar = ({
   activePatient,
 }) => {
   const getHardwareForUser = (user, patient) => {
+    if (patient?.hardwareDevices && patient.hardwareDevices.length > 0) {
+      return {
+        hubText: patient.hardwareSource || "Clinical Bedside Telemetry Gateway",
+        devices: patient.hardwareDevices,
+      };
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -2398,8 +2422,12 @@ const HardwareDiagnosticsBar = ({
 // prototype/public/src/components/RecentAlerts.jsx
 // Recent Alerts Card (Enterprise Clinical Grade - Account Aware)
 
-const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
-  const getDefaultAlertsForUser = (user) => {
+const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser, activePatient }) => {
+  const getDefaultAlertsForUser = (user, patient) => {
+    if (patient?.alerts && patient.alerts.length > 0) {
+      return patient.alerts;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -2498,7 +2526,10 @@ const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
     ];
   };
 
-  const defaultAlerts = React.useMemo(() => getDefaultAlertsForUser(currentUser), [currentUser?.email]);
+  const defaultAlerts = React.useMemo(
+    () => getDefaultAlertsForUser(currentUser, activePatient),
+    [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]
+  );
   const displayAlerts = alerts.length > 0 ? alerts : defaultAlerts;
 
   return (
@@ -2587,8 +2618,12 @@ const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
 // prototype/public/src/components/MedicationScheduleCard.jsx
 // Medication Schedule Card (Enterprise Clinical Grade - Account Aware)
 
-const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
-  const getSchedulesForUser = (user) => {
+const MedicationScheduleCard = ({ onOpenAddModal, currentUser, activePatient }) => {
+  const getSchedulesForUser = (user, patient) => {
+    if (patient?.medications && patient.medications.length > 0) {
+      return patient.medications;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -2764,12 +2799,14 @@ const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
     ];
   };
 
-  const [schedule, setSchedule] = React.useState(() => getSchedulesForUser(currentUser));
+  const [schedule, setSchedule] = React.useState(() =>
+    getSchedulesForUser(currentUser, activePatient)
+  );
 
-  // Sync schedule whenever user changes
+  // Sync schedule whenever user or activePatient changes
   React.useEffect(() => {
-    setSchedule(getSchedulesForUser(currentUser));
-  }, [currentUser?.email]);
+    setSchedule(getSchedulesForUser(currentUser, activePatient));
+  }, [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]);
 
   const toggleDrugTaken = (drugId) => {
     setSchedule((prev) =>
@@ -2898,8 +2935,12 @@ const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
 // prototype/public/src/components/PatientTimeline.jsx
 // Patient Timeline Feed (Enterprise Clinical Grade Micro-Audit Trail - Account Aware)
 
-const PatientTimeline = ({ events = [], currentUser }) => {
-  const getDefaultEventsForUser = (user) => {
+const PatientTimeline = ({ events = [], currentUser, activePatient }) => {
+  const getDefaultEventsForUser = (user, patient) => {
+    if (patient?.timeline && patient.timeline.length > 0) {
+      return patient.timeline;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -3025,7 +3066,10 @@ const PatientTimeline = ({ events = [], currentUser }) => {
     ];
   };
 
-  const defaultEvents = React.useMemo(() => getDefaultEventsForUser(currentUser), [currentUser?.email]);
+  const defaultEvents = React.useMemo(
+    () => getDefaultEventsForUser(currentUser, activePatient),
+    [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]
+  );
   const displayEvents = events.length > 0 ? events : defaultEvents;
 
   return (
@@ -8635,19 +8679,36 @@ const CallCaregiverModal = ({ isOpen, onClose, currentUser, activePatient }) => 
           {isNurse ? (
             <>
               <button
-                onClick={() => handleDial("Dr. A. Sen, MD (Cardiology Consultant)")}
+                onClick={() => handleDial(activePatient?.attendingDoc || "Attending Physician")}
                 className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
               >
                 <div>
                   <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
-                    Dr. A. Sen, MD (Cardiology)
+                    {activePatient?.attendingDoc || "Dr. A. Sen, MD (Cardiology)"}
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Attending Physician • On-Call Ext. 104
+                    Assigned Attending Physician • On-Call Ext. 104
                   </div>
                 </div>
                 <Phone className="w-4 h-4 text-blue-600 shrink-0" />
               </button>
+
+              {activePatient?.primaryContact && (
+                <button
+                  onClick={() => handleDial(activePatient.primaryContact)}
+                  className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                      {activePatient.primaryContact}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Primary Family Contact • Bedside Emergency Authorized
+                    </div>
+                  </div>
+                  <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+                </button>
+              )}
 
               <button
                 onClick={() => handleDial("Nurse Anjali (Shift B Handover Desk)")}
@@ -8822,11 +8883,12 @@ const ClinicalExportModal = ({ isOpen, onClose, vitalsData, currentUser, activeP
       },
       auditTrailConfidence: "98% (High Clinical Confidence)",
       devices:
-        patient.id === "REJ-9120"
+        patient.hardwareDevices?.map((d) => `${d.model} (${d.type})`) ||
+        (patient.id === "REJ-9120" || patient.patientId === "REJ-9120"
           ? ["FreeStyle Libre 3 CGM", "Accu-Chek Instant", "Beurer BM 57 BP", "Cellular Gateway #AP-4109"]
-          : patient.id === "WARD-STA-01"
+          : patient.id === "WARD-STA-01" || patient.patientId === "WARD-STA-01"
           ? ["GB Pant Ward Gateway #GW-8042", "Philips IntelliVue MP50", "Masimo Rad-97"]
-          : ["Omron HEM-7156T (BP Monitor)", "TempTraq Continuous (Temp Sensor)", "SanketLife 12-Lead (ECG)"],
+          : ["Omron HEM-7156T (BP Monitor)", "TempTraq Continuous (Temp Sensor)", "SanketLife 12-Lead (ECG)"]),
       compliance: "DPDP Act 2023 • Ayushman Bharat Digital Mission (ABDM) Compatible",
     };
 
@@ -9264,6 +9326,613 @@ const ACCOUNT_PROFILES = {
   },
 };
 
+const HOSPITAL_INPATIENT_BEDS = {
+  "bed-101": {
+    id: "bed-101",
+    bedNumber: "Bed 101",
+    name: "Anita Sharma",
+    patientId: "REJ-8042",
+    age: 67,
+    gender: "Female",
+    location: "GB Pant Hospital → Ward A, Bed 101 (Port Blair)",
+    condition: "Essential Hypertension / Post-Stroke Watch",
+    attendingDoc: "Dr. A. Sen, MD (Cardiology, GB Pant Hospital)",
+    primaryContact: "Priya Sharma (Daughter, +91 94342 81101)",
+    caregiverPhone: "+91 94342 81101",
+    backupPhone: "+91 94342 81102",
+    emergencyHub: "GB Pant Hospital Crash Team & Code Blue (108)",
+    hardwareSource: "Philips IntelliVue MP50 & Central BLE Gateway",
+    admissionDate: "2026-09-14 (Cardiovascular Observation)",
+    status: "caution",
+    statusLabel: "Caution (Hypertensive Review)",
+    news2Score: 3,
+    defaultVitals: {
+      hr: 85,
+      spo2: 97.7,
+      bpSys: 149,
+      bpDia: 97,
+      temp: 37.0,
+      glucose: 112,
+      sparkHr: [82, 84, 83, 85, 84, 86, 85, 84, 85],
+      sparkSpo2: [97.8, 97.6, 97.9, 97.7, 97.8, 97.6, 97.7, 97.8, 97.7],
+      sparkBp: [142, 144, 146, 145, 148, 147, 150, 148, 149],
+      sparkTemp: [36.9, 37.0, 37.1, 37.0, 36.9, 37.0, 37.0, 37.1, 37.0],
+      sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
+    },
+    hardwareDevices: [
+      {
+        model: "Philips IntelliVue MP50",
+        type: "Bedside Telemetry Hub",
+        status: "Connected",
+        battery: 100,
+        protocol: "Hospital WLAN",
+      },
+      {
+        model: "Omron HEM-7156T",
+        type: "Continuous NIBP Monitor",
+        status: "Connected",
+        battery: 92,
+        protocol: "BLE 5.2",
+      },
+      {
+        model: "TempTraq Continuous",
+        type: "Axillary Temp Sensor",
+        status: "Connected",
+        battery: 84,
+        protocol: "Patch Sensor",
+      },
+    ],
+    medications: [
+      {
+        slot: "Morning (08:00 AM)",
+        timeCode: "08:00",
+        drugs: [
+          {
+            id: "m-101-1",
+            name: "Amlodipine Besylate",
+            dose: "5 mg",
+            purpose: "Antihypertensive (Calcium Channel Blocker)",
+            status: "Taken",
+            takenAt: "08:05 AM",
+          },
+        ],
+      },
+      {
+        slot: "Afternoon (01:00 PM)",
+        timeCode: "13:00",
+        drugs: [
+          {
+            id: "m-101-2",
+            name: "Aspirin (Ecosprin)",
+            dose: "75 mg",
+            purpose: "Antiplatelet / Stroke Prophylaxis",
+            status: "Taken",
+            takenAt: "01:15 PM",
+          },
+        ],
+      },
+      {
+        slot: "Evening (08:00 PM)",
+        timeCode: "20:00",
+        drugs: [
+          {
+            id: "m-101-3",
+            name: "Atorvastatin",
+            dose: "20 mg",
+            purpose: "Statin / Lipid Reduction",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ],
+    alerts: [
+      {
+        id: "alt-101-1",
+        title: "Bed 101 (Anita Sharma): Elevated Systolic BP",
+        reading: "154/97 mmHg",
+        time: "6m ago",
+        severity: "caution",
+        message: "Systolic threshold >140 exceeded. Automated re-check scheduled in 15m.",
+        source: "Bedside NIBP Monitor",
+      },
+      {
+        id: "alt-101-2",
+        title: "Bed 101: Optical Sentinel Active",
+        reading: "In Bed (Stable)",
+        time: "25m ago",
+        severity: "info",
+        message: "Zero fall events detected. Patient resting comfortably.",
+        source: "Room Camera Zone",
+      },
+    ],
+    timeline: [
+      {
+        id: "tl-101-1",
+        time: "11:30 AM",
+        title: "Automated NIBP Cycle",
+        desc: "BP recorded at 149/97 mmHg. Mean arterial pressure within target.",
+        type: "telemetry",
+        icon: RefreshCw,
+        iconColor: "text-blue-600 bg-blue-50",
+      },
+      {
+        id: "tl-101-2",
+        time: "10:15 AM",
+        title: "Cardiology Ward Round",
+        desc: "Dr. A. Sen reviewed ECG trace. Amlodipine regimen maintained.",
+        type: "clinical",
+        icon: FileText,
+        iconColor: "text-purple-600 bg-purple-50",
+      },
+      {
+        id: "tl-101-3",
+        time: "08:05 AM",
+        title: "Morning Medication Administered",
+        desc: "Amlodipine 5mg verified and signed off by Shift A Nurse.",
+        type: "medication",
+        icon: CheckCircle2,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+    ],
+  },
+  "bed-102": {
+    id: "bed-102",
+    bedNumber: "Bed 102",
+    name: "Ram Prakash",
+    patientId: "REJ-9120",
+    age: 72,
+    gender: "Male",
+    location: "GB Pant Hospital → Ward A, Bed 102 (Little Andaman Link)",
+    condition: "Type-2 Diabetes Mellitus / Diabetic Neuropathy",
+    attendingDoc: "Dr. K. Nair, MD (Endocrinology)",
+    primaryContact: "Rajesh Prakash (Son, +91 94742 19203)",
+    caregiverPhone: "+91 94742 19203",
+    backupPhone: "+91 94742 19204",
+    emergencyHub: "GB Pant Hospital Emergency & Crash Team (108)",
+    hardwareSource: "Cellular RPM Gateway #AP-4109 & FreeStyle Libre 3",
+    admissionDate: "2026-09-12 (Glycemic Control & Foot Care)",
+    status: "normal",
+    statusLabel: "Stable (Glycemic Watch)",
+    news2Score: 0,
+    defaultVitals: {
+      hr: 74,
+      spo2: 98.2,
+      bpSys: 122,
+      bpDia: 80,
+      temp: 36.8,
+      glucose: 142,
+      sparkHr: [73, 75, 74, 76, 74, 75, 74, 73, 74],
+      sparkSpo2: [98.1, 98.3, 98.2, 98.0, 98.2, 98.3, 98.2, 98.1, 98.2],
+      sparkBp: [120, 122, 124, 121, 123, 122, 125, 122, 122],
+      sparkTemp: [36.8, 36.9, 36.8, 36.7, 36.8, 36.9, 36.8, 36.8, 36.8],
+      sparkGlucose: [138, 142, 145, 140, 144, 142, 146, 142, 142],
+    },
+    hardwareDevices: [
+      {
+        model: "FreeStyle Libre 3",
+        type: "Continuous Glucose Monitor",
+        status: "Connected",
+        battery: 99,
+        protocol: "NFC/BLE Stream",
+      },
+      {
+        model: "Accu-Chek Instant",
+        type: "Capillary Glucometer",
+        status: "Synchronized",
+        battery: 88,
+        protocol: "BLE 5.0",
+      },
+      {
+        model: "Beurer BM 57",
+        type: "Upper Arm NIBP",
+        status: "Connected",
+        battery: 91,
+        protocol: "BLE Mesh",
+      },
+    ],
+    medications: [
+      {
+        slot: "Morning (08:00 AM)",
+        timeCode: "08:00",
+        drugs: [
+          {
+            id: "m-102-1",
+            name: "Metformin HCl",
+            dose: "500 mg",
+            purpose: "Type-2 Diabetes / Glycemic Control",
+            status: "Taken",
+            takenAt: "08:12 AM",
+          },
+          {
+            id: "m-102-2",
+            name: "Glimepiride",
+            dose: "1 mg",
+            purpose: "Beta-Cell Secretagogue",
+            status: "Taken",
+            takenAt: "08:12 AM",
+          },
+        ],
+      },
+      {
+        slot: "Noon (12:00 PM)",
+        timeCode: "12:00",
+        drugs: [
+          {
+            id: "m-102-3",
+            name: "Alpha Lipoic Acid",
+            dose: "300 mg",
+            purpose: "Diabetic Neuropathy Support",
+            status: "Taken",
+            takenAt: "12:30 PM",
+          },
+        ],
+      },
+      {
+        slot: "Night (08:00 PM)",
+        timeCode: "20:00",
+        drugs: [
+          {
+            id: "m-102-4",
+            name: "Atorvastatin",
+            dose: "20 mg",
+            purpose: "Cardiovascular Risk Reduction",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ],
+    alerts: [
+      {
+        id: "alt-102-1",
+        title: "Bed 102 (Ram Prakash): CGM Telemetry Synced",
+        reading: "142 mg/dL",
+        time: "12m ago",
+        severity: "info",
+        message: "Glucose levels steady in target range (110-160 mg/dL).",
+        source: "FreeStyle Libre 3 CGM",
+      },
+      {
+        id: "alt-102-2",
+        title: "Bed 102: Little Andaman Telemetry Uplink Nominal",
+        reading: "4G LTE Active (-68 dBm)",
+        time: "38m ago",
+        severity: "info",
+        message: "Satellite relay stable across Hut Bay link.",
+        source: "Gateway #AP-4109",
+      },
+    ],
+    timeline: [
+      {
+        id: "tl-102-1",
+        time: "11:45 AM",
+        title: "CGM Telemetry Packet Upload",
+        desc: "Automated packet upload via Hut Bay gateway. Glucose 142 mg/dL.",
+        type: "telemetry",
+        icon: RefreshCw,
+        iconColor: "text-blue-600 bg-blue-50",
+      },
+      {
+        id: "tl-102-2",
+        time: "09:30 AM",
+        title: "Endocrinology Assessment",
+        desc: "Dr. K. Nair noted stable glycemic trend. HbA1c trajectory on track.",
+        type: "clinical",
+        icon: FileText,
+        iconColor: "text-purple-600 bg-purple-50",
+      },
+      {
+        id: "tl-102-3",
+        time: "08:12 AM",
+        title: "Morning Medication Administered",
+        desc: "Metformin 500mg and Glimepiride 1mg taken post-breakfast.",
+        type: "medication",
+        icon: CheckCircle2,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+    ],
+  },
+  "bed-103": {
+    id: "bed-103",
+    bedNumber: "Bed 103",
+    name: "Meera Nair",
+    patientId: "REJ-6319",
+    age: 58,
+    gender: "Female",
+    location: "GB Pant Hospital → Ward A, Bed 103 (Surgical Recovery B)",
+    condition: "Post-Op Day 2 (Laparoscopic Cholecystectomy)",
+    attendingDoc: "Dr. V. Rao, MS (General Surgery)",
+    primaryContact: "Suresh Nair (Husband, +91 94342 55210)",
+    caregiverPhone: "+91 94342 55210",
+    backupPhone: "+91 94342 55211",
+    emergencyHub: "GB Pant Hospital Surgical ICU Crash Team",
+    hardwareSource: "Bedside Monitor #BM-2041 & Mindray Gateway",
+    admissionDate: "2026-09-16 (Post-Surgical Inpatient)",
+    status: "normal",
+    statusLabel: "Stable (Post-Surgical Recovery)",
+    news2Score: 0,
+    defaultVitals: {
+      hr: 78,
+      spo2: 99.0,
+      bpSys: 118,
+      bpDia: 76,
+      temp: 36.9,
+      glucose: 104,
+      sparkHr: [76, 78, 77, 79, 78, 77, 78, 79, 78],
+      sparkSpo2: [99.0, 99.1, 98.9, 99.0, 99.2, 99.0, 98.9, 99.1, 99.0],
+      sparkBp: [116, 118, 117, 119, 118, 116, 120, 118, 118],
+      sparkTemp: [36.9, 37.0, 36.9, 36.8, 36.9, 37.0, 36.9, 36.9, 36.9],
+      sparkGlucose: [102, 105, 104, 106, 103, 104, 105, 104, 104],
+    },
+    hardwareDevices: [
+      {
+        model: "Mindray BeneView T8",
+        type: "Bedside Multi-Parameter",
+        status: "Connected",
+        battery: 100,
+        protocol: "Hospital LAN",
+      },
+      {
+        model: "Welch Allyn Connex",
+        type: "Spot Vitals Monitor",
+        status: "Connected",
+        battery: 94,
+        protocol: "Hospital WLAN",
+      },
+      {
+        model: "Alaris Infusion Pump",
+        type: "IV Fluid Controller",
+        status: "Infusing",
+        battery: 100,
+        protocol: "SmartPump Link",
+      },
+    ],
+    medications: [
+      {
+        slot: "Morning (09:00 AM)",
+        timeCode: "09:00",
+        drugs: [
+          {
+            id: "m-103-1",
+            name: "Cefuroxime (IV)",
+            dose: "500 mg",
+            purpose: "Post-Op Surgical Prophylaxis",
+            status: "Taken",
+            takenAt: "09:05 AM",
+          },
+        ],
+      },
+      {
+        slot: "SOS (As Needed)",
+        timeCode: "12:00",
+        drugs: [
+          {
+            id: "m-103-2",
+            name: "Paracetamol (IV)",
+            dose: "650 mg",
+            purpose: "Analgesic / Fever Management",
+            status: "Taken",
+            takenAt: "12:10 PM",
+          },
+        ],
+      },
+      {
+        slot: "Evening (07:00 PM)",
+        timeCode: "19:00",
+        drugs: [
+          {
+            id: "m-103-3",
+            name: "Pantoprazole",
+            dose: "40 mg",
+            purpose: "Gastroprotection (PPI)",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ],
+    alerts: [
+      {
+        id: "alt-103-1",
+        title: "Bed 103 (Meera Nair): Surgical Site Inspection Normal",
+        reading: "Clean Dressing",
+        time: "1h ago",
+        severity: "info",
+        message: "Laparoscopic port sites dry and intact. No erythema.",
+        source: "Surgical Round",
+      },
+      {
+        id: "alt-103-2",
+        title: "Bed 103: Post-Op Ambulation Successful",
+        reading: "Assisted Walk 15m",
+        time: "2h ago",
+        severity: "info",
+        message: "Patient tolerated bedside ambulation with nursing staff.",
+        source: "Mobility Log",
+      },
+    ],
+    timeline: [
+      {
+        id: "tl-103-1",
+        time: "11:15 AM",
+        title: "Surgical Dressing Check",
+        desc: "Dr. V. Rao inspected laparoscopic incisions. Healing normally.",
+        type: "clinical",
+        icon: FileText,
+        iconColor: "text-purple-600 bg-purple-50",
+      },
+      {
+        id: "tl-103-2",
+        time: "09:05 AM",
+        title: "IV Antibiotic Administered",
+        desc: "Cefuroxime 500mg IV piggyback infused over 30 minutes.",
+        type: "medication",
+        icon: CheckCircle2,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+      {
+        id: "tl-103-3",
+        time: "07:30 AM",
+        title: "Morning Vitals Check",
+        desc: "SpO2 99%, HR 78 bpm, Temp 36.9°C. NEWS2 score: 0 (Normal).",
+        type: "telemetry",
+        icon: RefreshCw,
+        iconColor: "text-blue-600 bg-blue-50",
+      },
+    ],
+  },
+  "bed-104": {
+    id: "bed-104",
+    bedNumber: "Bed 104",
+    name: "Kavitha Raman",
+    patientId: "REJ-4981",
+    age: 64,
+    gender: "Female",
+    location: "GB Pant Hospital → Ward A, Bed 104 (Cardiology Unit)",
+    condition: "Sinus Tachycardia / Arrhythmia Holter Watch",
+    attendingDoc: "Dr. A. Sen, MD (Cardiology)",
+    primaryContact: "Ramesh Raman (Son, +91 94742 77190)",
+    caregiverPhone: "+91 94742 77190",
+    backupPhone: "+91 94742 77191",
+    emergencyHub: "GB Pant Hospital Code Blue & MET Team",
+    hardwareSource: "Holter Wireless Telemetry #CW-9012 & Masimo Rad-97",
+    admissionDate: "2026-09-15 (Telemetry Arrhythmia Evaluation)",
+    status: "caution",
+    statusLabel: "Caution (Sinus Tachycardia Watch)",
+    news2Score: 2,
+    defaultVitals: {
+      hr: 94,
+      spo2: 96.5,
+      bpSys: 138,
+      bpDia: 88,
+      temp: 37.1,
+      glucose: 110,
+      sparkHr: [92, 95, 93, 96, 94, 93, 97, 94, 94],
+      sparkSpo2: [96.4, 96.6, 96.5, 96.3, 96.5, 96.7, 96.5, 96.4, 96.5],
+      sparkBp: [136, 139, 138, 137, 140, 138, 136, 139, 138],
+      sparkTemp: [37.1, 37.2, 37.0, 37.1, 37.2, 37.1, 37.0, 37.1, 37.1],
+      sparkGlucose: [108, 111, 110, 112, 109, 110, 111, 110, 110],
+    },
+    hardwareDevices: [
+      {
+        model: "Holter Wireless Telemetry #CW-9012",
+        type: "3-Lead Continuous ECG",
+        status: "Connected",
+        battery: 89,
+        protocol: "Continuous RF",
+      },
+      {
+        model: "Masimo Rad-97",
+        type: "Pulse CO-Oximeter",
+        status: "Connected",
+        battery: 94,
+        protocol: "Continuous BLE",
+      },
+      {
+        model: "SanketLife 12-Lead",
+        type: "Spot Diagnostic ECG",
+        status: "Standby",
+        battery: 82,
+        protocol: "CDSCO Cleared",
+      },
+    ],
+    medications: [
+      {
+        slot: "Morning (08:00 AM)",
+        timeCode: "08:00",
+        drugs: [
+          {
+            id: "m-104-1",
+            name: "Metoprolol Succinate",
+            dose: "25 mg",
+            purpose: "Beta-1 Selective Adrenoceptor Blocker",
+            status: "Taken",
+            takenAt: "08:15 AM",
+          },
+        ],
+      },
+      {
+        slot: "Afternoon (01:00 PM)",
+        timeCode: "13:00",
+        drugs: [
+          {
+            id: "m-104-2",
+            name: "Ecosprin (Aspirin)",
+            dose: "75 mg",
+            purpose: "Antiplatelet / Thromboembolism Prophylaxis",
+            status: "Taken",
+            takenAt: "01:20 PM",
+          },
+        ],
+      },
+      {
+        slot: "Evening (08:00 PM)",
+        timeCode: "20:00",
+        drugs: [
+          {
+            id: "m-104-3",
+            name: "Atorvastatin",
+            dose: "10 mg",
+            purpose: "Cardiovascular Risk Reduction",
+            status: "Upcoming",
+            takenAt: null,
+          },
+        ],
+      },
+    ],
+    alerts: [
+      {
+        id: "alt-104-1",
+        title: "Bed 104 (Kavitha Raman): Sinus Tachycardia Observation",
+        reading: "94 bpm (Transient peak 97)",
+        time: "18m ago",
+        severity: "caution",
+        message: "Mild pulse elevation noted. Shift B nursing lead alerted for telemetry check.",
+        source: "Holter Telemetry CW-9012",
+      },
+      {
+        id: "alt-104-2",
+        title: "Bed 104: Continuous Pulse Oximetry Nominal",
+        reading: "96.5% SpO2",
+        time: "32m ago",
+        severity: "info",
+        message: "Oxygen saturation steady on room air.",
+        source: "Masimo Rad-97",
+      },
+    ],
+    timeline: [
+      {
+        id: "tl-104-1",
+        time: "11:50 AM",
+        title: "Rhythm Strip Captured",
+        desc: "Sinus tachycardia at 94 bpm with normal QRS morphology. No ectopics.",
+        type: "telemetry",
+        icon: RefreshCw,
+        iconColor: "text-blue-600 bg-blue-50",
+      },
+      {
+        id: "tl-104-2",
+        time: "10:00 AM",
+        title: "Cardiology Review",
+        desc: "Dr. A. Sen ordered Metoprolol continuation; scheduled repeat 12-lead.",
+        type: "clinical",
+        icon: FileText,
+        iconColor: "text-purple-600 bg-purple-50",
+      },
+      {
+        id: "tl-104-3",
+        time: "08:15 AM",
+        title: "Morning Medication Administered",
+        desc: "Metoprolol Succinate 25mg taken with water.",
+        type: "medication",
+        icon: CheckCircle2,
+        iconColor: "text-emerald-600 bg-emerald-50",
+      },
+    ],
+  },
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = React.useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
@@ -9309,9 +9978,38 @@ const App = () => {
     sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
   });
 
+  // Inpatient Bed Selector State (for Hospital Nurse logins)
+  const [selectedWardBed, setSelectedWardBed] = React.useState("bed-101"); // "bed-101" | "bed-102" | "bed-103" | "bed-104" | "all"
+
+  const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+
   const activePatient = React.useMemo(() => {
+    if (isNurse) {
+      if (selectedWardBed && selectedWardBed !== "all" && HOSPITAL_INPATIENT_BEDS[selectedWardBed]) {
+        return HOSPITAL_INPATIENT_BEDS[selectedWardBed];
+      }
+      return {
+        ...ACCOUNT_PROFILES["wardnurse@demo.in"],
+        name: "GB Pant Hospital · Ward A (All Beds)",
+        patientId: "WARD-A-ALL",
+        condition: "Inpatient Ward Overview (4 Monitored Beds)",
+      };
+    }
     return ACCOUNT_PROFILES[user?.email] || ACCOUNT_PROFILES["asharma@demo.in"];
-  }, [user?.email]);
+  }, [user?.email, isNurse, selectedWardBed]);
+
+  const handleSelectWardBed = (bedId) => {
+    setSelectedWardBed(bedId);
+    if (bedId !== "all" && HOSPITAL_INPATIENT_BEDS[bedId]) {
+      const targetBed = HOSPITAL_INPATIENT_BEDS[bedId];
+      setVitals({
+        ...targetBed.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: targetBed.hardwareSource,
+      });
+      setSimMode("baseline");
+    }
+  };
 
   // Live seconds ticker
   React.useEffect(() => {
@@ -9405,14 +10103,14 @@ const App = () => {
 
   // Dynamic Triage Metrics Calculator
   const getTriageMetrics = () => {
-    if (user?.role === "nurse" || user?.email === "wardnurse@demo.in") {
+    if (isNurse && selectedWardBed === "all") {
       return {
         patientsCount: 4,
         normalCount: 2,
-        cautionCount: 1,
-        dangerCount: 1,
-        cautionText: "Bed 103 (Meera Nair): Pyrexia 38.6°C",
-        dangerText: "Bed 104 (Kavitha Raman): Bradycardia 48 bpm",
+        cautionCount: 2,
+        dangerCount: 0,
+        cautionText: "Bed 101 (Elevated BP) • Bed 104 (Tachycardia)",
+        dangerText: "Zero active emergency alerts",
       };
     }
     if (vitals.bpSys >= 160 || vitals.spo2 < 92 || vitals.hr < 60 || vitals.hr > 100) {
@@ -9515,8 +10213,21 @@ const App = () => {
         });
         setSimMode("baseline");
         if (profile.role === "nurse") {
+          setSelectedWardBed("bed-101");
+          const targetBed = HOSPITAL_INPATIENT_BEDS["bed-101"];
+          setVitals({
+            ...targetBed.defaultVitals,
+            lastSync: "Just now",
+            hardwareSource: targetBed.hardwareSource,
+          });
           setActiveTab("ward");
         } else {
+          setSelectedWardBed("bed-101");
+          setVitals({
+            ...profile.defaultVitals,
+            lastSync: "Just now",
+            hardwareSource: profile.hardwareSource,
+          });
           setActiveTab("dashboard");
         }
         return;
@@ -9527,15 +10238,23 @@ const App = () => {
 
     // Client-side fallback
     setUser(profile);
-    setVitals({
-      ...profile.defaultVitals,
-      lastSync: "Just now",
-      hardwareSource: profile.hardwareSource,
-    });
     setSimMode("baseline");
     if (profile.role === "nurse") {
+      setSelectedWardBed("bed-101");
+      const targetBed = HOSPITAL_INPATIENT_BEDS["bed-101"];
+      setVitals({
+        ...targetBed.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: targetBed.hardwareSource,
+      });
       setActiveTab("ward");
     } else {
+      setSelectedWardBed("bed-101");
+      setVitals({
+        ...profile.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: profile.hardwareSource,
+      });
       setActiveTab("dashboard");
     }
   };
@@ -9590,6 +10309,88 @@ const App = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
           {activeTab === "dashboard" && (
             <div className="animate-in fade-in duration-150">
+              {/* Hospital Inpatient Bed Selector Bar (Active Census & Bed Toggle) */}
+              {isNurse && (
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs mb-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-2xs border border-blue-100">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900">
+                            GB Pant Hospital · Inpatient Ward A Telemetry
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            4 Active Inpatient Beds
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Toggle between specific inpatient beds below to inspect live vitals, MAR, and telemetry, or choose <strong>All Beds (Ward Grid)</strong> to see all patients.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bed Switching Pills */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        onClick={() => handleSelectWardBed("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          selectedWardBed === "all"
+                            ? "bg-slate-900 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>All Beds (Ward Grid)</span>
+                      </button>
+                      <span className="text-slate-300 hidden sm:inline">|</span>
+                      {Object.values(HOSPITAL_INPATIENT_BEDS).map((bed) => {
+                        const isSelected = selectedWardBed === bed.id;
+                        return (
+                          <button
+                            key={bed.id}
+                            onClick={() => handleSelectWardBed(bed.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-xs font-bold"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200 font-medium"
+                            }`}
+                          >
+                            <span>🛏️ {bed.bedNumber}: {bed.name.split(" ")[0]}</span>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                bed.status === "danger"
+                                  ? "bg-rose-500"
+                                  : bed.status === "caution"
+                                  ? isSelected ? "bg-amber-300" : "bg-amber-500"
+                                  : isSelected ? "bg-emerald-300" : "bg-emerald-500"
+                              }`}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Dynamic subtext banner */}
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-600 bg-slate-50/90 px-3.5 py-2 rounded-xl border border-slate-200/60">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      <span className="font-semibold text-slate-800">
+                        {selectedWardBed === "all"
+                          ? "Showing Combined Ward Census (All 4 Inpatients)"
+                          : `Active Bed: ${activePatient.bedNumber} · ${activePatient.name} (${activePatient.age} ${activePatient.gender}) — ${activePatient.condition}`}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-indigo-700 font-medium">
+                      Attending: {activePatient.attendingDoc || "Dr. A. Sen, MD & Dr. V. Rao, MS"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* 3. Global Triage Metric Strip (Top of Dashboard) */}
               <TriageMetricStrip
                 patientsCount={triage.patientsCount}
@@ -9680,20 +10481,143 @@ const App = () => {
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 {/* Left Column (Primary Telemetry & Patient Detail - 70%) */}
                 <div className="xl:col-span-8 space-y-6">
-                  {/* Patient Overview Card */}
-                  <PatientOverviewCard
-                    patient={{
-                      name: activePatient.name,
-                      age: activePatient.age,
-                      gender: activePatient.gender,
-                      location: activePatient.location,
-                      patientId: activePatient.patientId,
-                      status: triage.dangerCount > 0 ? "Critical Alert" : triage.cautionCount > 0 ? "Caution / Review" : "Monitoring Nominal",
-                      lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
-                    }}
-                    onCallCaregiver={() => setCallModalOpen(true)}
-                    onClinicalExport={() => setExportModalOpen(true)}
-                  />
+                  {/* Either All Beds Grid OR Focused Patient Overview Card */}
+                  {selectedWardBed === "all" && isNurse ? (
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs mb-6">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-blue-600" />
+                          <h3 className="text-sm font-bold text-slate-900">
+                            Ward A Inpatient Telemetry Matrix (4 Active Beds)
+                          </h3>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono">
+                          Click any bed to focus full telemetry
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.values(HOSPITAL_INPATIENT_BEDS).map((bed) => {
+                          const isCaution = bed.status === "caution";
+                          const isDanger = bed.status === "danger";
+                          return (
+                            <div
+                              key={bed.id}
+                              className={`p-4 rounded-xl border transition-all ${
+                                isDanger
+                                  ? "border-rose-300 bg-rose-50/20"
+                                  : isCaution
+                                  ? "border-amber-300 bg-amber-50/20"
+                                  : "border-slate-200/80 bg-slate-50/40 hover:border-blue-300"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                                      🛏️ {bed.bedNumber}
+                                    </span>
+                                    <h4 className="text-sm font-bold text-slate-900">
+                                      {bed.name}
+                                    </h4>
+                                    <span className="text-xs text-slate-500">
+                                      ({bed.age}{bed.gender === "Female" ? "F" : "M"})
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 font-medium mt-1 truncate">
+                                    {bed.condition}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    {bed.attendingDoc}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                    isDanger
+                                      ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                      : isCaution
+                                      ? "bg-amber-100 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${
+                                      isDanger
+                                        ? "bg-rose-500 animate-ping"
+                                        : isCaution
+                                        ? "bg-amber-500 animate-pulse"
+                                        : "bg-emerald-500"
+                                    }`}
+                                  />
+                                  <span>{isDanger ? "Critical" : isCaution ? "Caution" : "Stable"}</span>
+                                </span>
+                              </div>
+
+                              {/* Vitals Strip */}
+                              <div className="grid grid-cols-5 gap-1.5 mt-3 p-2 bg-white rounded-lg border border-slate-200/60 text-center">
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">HR</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.hr}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">SpO2</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.spo2}%</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">BP</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.bpSys}/{bed.defaultVitals.bpDia}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">Temp</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.temp}°C</div>
+                                </div>
+                                <div>
+                                  <div className="text-[9px] uppercase font-bold text-slate-400">Glu</div>
+                                  <div className="text-xs font-bold font-mono text-slate-800">{bed.defaultVitals.glucose}</div>
+                                </div>
+                              </div>
+
+                              {/* Action */}
+                              <div className="mt-3 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ID: {bed.patientId}
+                                </span>
+                                <button
+                                  onClick={() => handleSelectWardBed(bed.id)}
+                                  className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>Focus Bed Telemetry</span>
+                                  <span>→</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <PatientOverviewCard
+                      patient={{
+                        name: activePatient.name,
+                        bedNumber: activePatient.bedNumber,
+                        age: activePatient.age,
+                        gender: activePatient.gender,
+                        location: activePatient.location,
+                        patientId: activePatient.patientId,
+                        condition: activePatient.condition,
+                        attendingDoc: activePatient.attendingDoc,
+                        status:
+                          triage.dangerCount > 0
+                            ? "Critical Alert"
+                            : triage.cautionCount > 0
+                            ? "Caution / Review"
+                            : "Monitoring Nominal",
+                        lastUpdated: secondsAgo === 0 ? "Just now (Live BLE)" : `${secondsAgo}s ago`,
+                      }}
+                      onCallCaregiver={() => setCallModalOpen(true)}
+                      onClinicalExport={() => setExportModalOpen(true)}
+                    />
+                  )}
 
                   {/* Comprehensive Vital Signs Table */}
                   <VitalSignsTable vitalsData={vitals} />
@@ -9709,16 +10633,17 @@ const App = () => {
                 {/* Right Column (Alerts & Care Coordination Panel - 30%) */}
                 <div className="xl:col-span-4 space-y-6">
                   {/* Recent Alerts Card */}
-                  <RecentAlerts currentUser={user} />
+                  <RecentAlerts currentUser={user} activePatient={activePatient} />
 
                   {/* Medication Schedule Card */}
                   <MedicationScheduleCard
                     onOpenAddModal={() => setAddMedModalOpen(true)}
                     currentUser={user}
+                    activePatient={activePatient}
                   />
 
                   {/* Patient Timeline Feed */}
-                  <PatientTimeline currentUser={user} />
+                  <PatientTimeline currentUser={user} activePatient={activePatient} />
                 </div>
               </div>
 
