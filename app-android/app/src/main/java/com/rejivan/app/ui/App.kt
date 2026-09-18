@@ -170,15 +170,18 @@ private data class NavItem(val label: String, val icon: ImageVector, val selecte
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainShell(state: AppState) {
-    var tab by remember { mutableStateOf("Dashboard") }
-    val tabs = listOf(
-        NavItem("Dashboard", Icons.Outlined.Home, Icons.Filled.Home),
-        NavItem("Medicines", Icons.Outlined.Medication, Icons.Filled.Medication),
-        NavItem("Alerts", Icons.Outlined.Notifications, Icons.Filled.Notifications),
-        NavItem("Devices", Icons.Outlined.Devices, Icons.Filled.Devices),
-        NavItem("Ward", Icons.Outlined.LocalHospital, Icons.Filled.LocalHospital),
-        NavItem("Camera", Icons.Outlined.Videocam, Icons.Filled.Videocam),
-    )
+    val isNurse = state.user?.role == "ward" || state.user?.role == "nurse" || state.user?.email?.contains("nurse") == true
+    var tab by remember(isNurse) { mutableStateOf(if (isNurse) "Ward" else "Dashboard") }
+    val tabs = buildList {
+        add(NavItem("Dashboard", Icons.Outlined.Home, Icons.Filled.Home))
+        add(NavItem("Medicines", Icons.Outlined.Medication, Icons.Filled.Medication))
+        add(NavItem("Alerts", Icons.Outlined.Notifications, Icons.Filled.Notifications))
+        add(NavItem("Devices", Icons.Outlined.Devices, Icons.Filled.Devices))
+        if (isNurse) {
+            add(NavItem("Ward", Icons.Outlined.LocalHospital, Icons.Filled.LocalHospital))
+        }
+        add(NavItem("Camera", Icons.Outlined.Videocam, Icons.Filled.Videocam))
+    }
     Scaffold(
         containerColor = AppColors.bg,
         topBar = {
@@ -238,7 +241,7 @@ fun MainShell(state: AppState) {
                 "Medicines" -> Medicines(state)
                 "Alerts" -> Alerts(state)
                 "Devices" -> Devices(state)
-                "Ward" -> Ward(state)
+                "Ward" -> if (isNurse) Ward(state) else Dashboard(state)
                 "Camera" -> Camera(state)
             }
         }

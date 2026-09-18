@@ -373,6 +373,14 @@ const App = () => {
     setLoginModalOpen(true);
   };
 
+  // Route Protection: Virtual Ward is strictly restricted to hospital staff / nurse logins
+  React.useEffect(() => {
+    const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+    if (!isNurse && activeTab === "ward") {
+      setActiveTab("dashboard");
+    }
+  }, [user, activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex">
       {/* 1. Left Navigation Sidebar (Collapsible) */}
@@ -384,6 +392,7 @@ const App = () => {
         alertCount={3}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        user={user}
       />
 
       {/* Main Content Area Container */}
@@ -566,8 +575,8 @@ const App = () => {
             />
           )}
 
-          {/* Virtual Ward Route */}
-          {activeTab === "ward" && (
+          {/* Virtual Ward Route (Restricted strictly to Hospital Staff & Nurses) */}
+          {activeTab === "ward" && (user?.role === "nurse" || user?.email === "wardnurse@demo.in") && (
             <VirtualWardView
               currentVitals={vitals}
               simMode={simMode}

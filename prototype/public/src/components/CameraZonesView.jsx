@@ -1235,10 +1235,10 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, a
                   ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200/90"
                   : "text-slate-600 hover:text-slate-900"
               }`}
-              title="Hospital IP CCTV RTSP streaming source"
+              title={currentUser?.role === "nurse" ? "Hospital IP CCTV RTSP streaming source" : "Home Room IP CCTV RTSP streaming source"}
             >
               <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Ward CCTV</span>
+              <span>{currentUser?.role === "nurse" ? "Ward CCTV" : "Room CCTV"}</span>
             </button>
           </div>
 
@@ -1484,7 +1484,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, a
                     ? (localYoloActive ? "Hardware YOLO-Pose Sentinel (NVIDIA GTX 1650 CUDA)" : "Live Device Webcam Sentinel (Real-Time Optical Flow)")
                     : cameraSource === "PRERECORDED_VIDEO"
                     ? (customVideoFileName ? `Demonstration Video Sentinel · ${customVideoFileName}` : "Clinical Demonstration Sentinel · Pre-Recorded Bed-Fall Footage")
-                    : "RTSP Hospital Ward CCTV · Bed 01"}
+                    : (currentUser?.role === "nurse" ? "RTSP Hospital Ward CCTV · Bed 01" : "RTSP Home CCTV · Main Zone")}
                 </h4>
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 uppercase">
                   {cameraSource === "LIVE_WEBCAM" ? "Live Feed" : cameraSource === "PRERECORDED_VIDEO" ? "Demonstration" : "CCTV"}

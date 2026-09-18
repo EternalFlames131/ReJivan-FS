@@ -9,12 +9,15 @@ const Sidebar = ({
   alertCount = 3,
   mobileOpen,
   setMobileOpen,
+  user,
 }) => {
+  const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "medicines", label: "Medicines", icon: Pill },
     { id: "camera", label: "Camera Zones", icon: Video, badge: "Live CCTV" },
-    { id: "ward", label: "Virtual Ward", icon: Building2 },
+    ...(isNurse ? [{ id: "ward", label: "Virtual Ward", icon: Building2, badge: "Hospital" }] : []),
     { id: "alerts", label: "Alerts", icon: Bell, count: alertCount },
     { id: "devices", label: "Medical Devices", icon: Smartphone },
   ];

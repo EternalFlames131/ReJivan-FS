@@ -1314,12 +1314,15 @@ const Sidebar = ({
   alertCount = 3,
   mobileOpen,
   setMobileOpen,
+  user,
 }) => {
+  const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "medicines", label: "Medicines", icon: Pill },
     { id: "camera", label: "Camera Zones", icon: Video, badge: "Live CCTV" },
-    { id: "ward", label: "Virtual Ward", icon: Building2 },
+    ...(isNurse ? [{ id: "ward", label: "Virtual Ward", icon: Building2, badge: "Hospital" }] : []),
     { id: "alerts", label: "Alerts", icon: Bell, count: alertCount },
     { id: "devices", label: "Medical Devices", icon: Smartphone },
   ];
@@ -5137,10 +5140,10 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, a
                   ? "bg-white text-indigo-900 font-bold shadow-xs ring-1 ring-slate-200/90"
                   : "text-slate-600 hover:text-slate-900"
               }`}
-              title="Hospital IP CCTV RTSP streaming source"
+              title={currentUser?.role === "nurse" ? "Hospital IP CCTV RTSP streaming source" : "Home Room IP CCTV RTSP streaming source"}
             >
               <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Ward CCTV</span>
+              <span>{currentUser?.role === "nurse" ? "Ward CCTV" : "Room CCTV"}</span>
             </button>
           </div>
 
@@ -5386,7 +5389,7 @@ const CameraZonesView = ({ onTriggerAlert, onTriggerVerification, currentUser, a
                     ? (localYoloActive ? "Hardware YOLO-Pose Sentinel (NVIDIA GTX 1650 CUDA)" : "Live Device Webcam Sentinel (Real-Time Optical Flow)")
                     : cameraSource === "PRERECORDED_VIDEO"
                     ? (customVideoFileName ? `Demonstration Video Sentinel · ${customVideoFileName}` : "Clinical Demonstration Sentinel · Pre-Recorded Bed-Fall Footage")
-                    : "RTSP Hospital Ward CCTV · Bed 01"}
+                    : (currentUser?.role === "nurse" ? "RTSP Hospital Ward CCTV · Bed 01" : "RTSP Home CCTV · Main Zone")}
                 </h4>
                 <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 uppercase">
                   {cameraSource === "LIVE_WEBCAM" ? "Live Feed" : cameraSource === "PRERECORDED_VIDEO" ? "Demonstration" : "CCTV"}
@@ -9543,6 +9546,14 @@ const App = () => {
     setLoginModalOpen(true);
   };
 
+  // Route Protection: Virtual Ward is strictly restricted to hospital staff / nurse logins
+  React.useEffect(() => {
+    const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+    if (!isNurse && activeTab === "ward") {
+      setActiveTab("dashboard");
+    }
+  }, [user, activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex">
       {/* 1. Left Navigation Sidebar (Collapsible) */}
@@ -9554,6 +9565,7 @@ const App = () => {
         alertCount={3}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        user={user}
       />
 
       {/* Main Content Area Container */}
@@ -9736,8 +9748,8 @@ const App = () => {
             />
           )}
 
-          {/* Virtual Ward Route */}
-          {activeTab === "ward" && (
+          {/* Virtual Ward Route (Restricted strictly to Hospital Staff & Nurses) */}
+          {activeTab === "ward" && (user?.role === "nurse" || user?.email === "wardnurse@demo.in") && (
             <VirtualWardView
               currentVitals={vitals}
               simMode={simMode}
