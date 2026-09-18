@@ -267,6 +267,15 @@ private fun StatusBadge(status: String) {
 @Composable
 fun Dashboard(state: AppState) {
     val tick = state.tick
+    val isNurse = state.currentUser?.role == "ward" || state.currentUser?.role == "nurse" || state.currentUser?.email?.contains("nurse") == true
+    var selectedPatientId by remember { mutableStateOf("ALL") }
+
+    val displayedPatients = if (isNurse && selectedPatientId != "ALL") {
+        state.patients.filter { it.id == selectedPatientId }
+    } else {
+        state.patients
+    }
+
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Text("Live Vitals Dashboard", color = AppColors.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -287,10 +296,53 @@ fun Dashboard(state: AppState) {
                 StatTile("Danger", nDanger, AppColors.danger) { Modifier.weight(1f) }
             }
         }
-        if (state.patients.isEmpty()) {
+        if (isNurse && state.patients.isNotEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.panel2),
+                    shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text("HOSPITAL INPATIENT BED TOGGLE", color = AppColors.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val allActive = selectedPatientId == "ALL"
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (allActive) AppColors.accent else AppColors.panel)
+                                    .clickable { selectedPatientId = "ALL" }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text("All Beds (${state.patients.size})",
+                                    color = if (allActive) AppColors.bg else AppColors.txt,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (allActive) FontWeight.Bold else FontWeight.Normal)
+                            }
+                            state.patients.forEach { p ->
+                                val active = selectedPatientId == p.id
+                                val bedLabel = p.ward?.substringAfterLast("- ")?.trim() ?: p.id
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (active) AppColors.accent2 else AppColors.panel)
+                                        .clickable { selectedPatientId = p.id }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text("🛏️ $bedLabel: ${p.name.split(" ").first()}",
+                                        color = if (active) AppColors.bg else AppColors.txt,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (displayedPatients.isEmpty()) {
             item { Text("No patients registered for this account.", color = AppColors.muted) }
         }
-        items(state.patients) { p ->
+        items(displayedPatients) { p ->
             val r = state.reportOf(p)
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.panel),
                 shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
