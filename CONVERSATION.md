@@ -2169,3 +2169,34 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
      - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
      - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+
+---
+
+## 2026-09-18 (Hospital Login Dashboard: Patient Selection & Inpatient Bed Toggle)
+
+### What the user asked
+- "in the the hospital login dashboard the data shown whose is it? specify one or show all of the patient and the user can toggle between them"
+
+### Diagnosis & Clinical Design Plan
+1. **Diagnosis:**
+   - In the Hospital Nurse login (`wardnurse@demo.in`), the dashboard currently displays `ACCOUNT_PROFILES["wardnurse@demo.in"]` where the patient name is labeled "GB Pant Ward Nurse", Patient ID is "WARD-STA-01", and age is "Shift A Lead".
+   - This causes clinical ambiguity: the dashboard displays single-patient telemetry cards (Heart Rate, SpO2, Blood Pressure, Temp, Blood Glucose), but a nurse is a caregiver, not a patient.
+   - The user rightly identified this: Whose vitals are these? The nurse should be able to either:
+     - Toggle between specific inpatient beds (Bed 101: Anita Sharma, Bed 102: Ram Prakash, Bed 103: Meera Nair, Bed 104: Kavitha Raman) with immediate live updates to vitals, diagnosis, medications, and diagnostics.
+     - OR view a consolidated Ward Triage Overview mode.
+2. **Clinical & Technical Solution:**
+   - Add an active inpatient bed switcher on the Dashboard for hospital nurses:
+     - Prominent bed selector tabs / pills at the top of the dashboard:
+       - `Bed 101 · Anita Sharma (67F - Hypertension)`
+       - `Bed 102 · Ram Prakash (72M - Diabetes)`
+       - `Bed 103 · Meera Nair (64F - Post-Op Rehab)`
+       - `Bed 104 · Kavitha Raman (58F - COPD/Resp)`
+       - `Ward Triage View` (All 4 beds overview)
+     - Selecting any bed updates the entire dashboard view:
+       - Active patient card (Name, Age, Gender, Bed #, Condition, Attending Doctor)
+       - Live physiological telemetry and sparklines dynamically tuned to that patient's clinical state
+       - Medication schedule tailored to that bed
+       - Hardware telemetry source & diagnostic sensors matching that bed's equipment (e.g. Philips IntelliVue, Masimo Rad-97, etc.)
+       - Recent alerts and clinical events specific to that bed
+   - In the native Android app, provide the equivalent bed toggle on the hospital dashboard screen.
+
