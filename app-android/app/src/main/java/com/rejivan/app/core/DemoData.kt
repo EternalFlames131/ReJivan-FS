@@ -56,13 +56,13 @@ object DemoData {
 
     val PATIENTS = listOf(
         Patient("P1", "Anita Sharma", 67, "F", "hypertension",
-            "Home - Living Room", "Junglighat, Port Blair", userId = "Ua7ac85b2"),
+            "Home - Living Room", "Junglighat, Port Blair", ward = "Ward A - Bed 101", userId = "Ua7ac85b2"),
         Patient("P2", "Ram Prakash", 74, "M", "diabetes",
-            "Home - Bedroom", "Hut Bay, Little Andaman (served via PHC)", userId = "U0b480e2b"),
+            "Home - Bedroom", "Hut Bay, Little Andaman (served via PHC)", ward = "Ward A - Bed 102", userId = "U0b480e2b"),
         Patient("P3", "Meera Nair", 58, "F", "post-surgery",
-            "Virtual Ward", "GB Pant Hospital, Port Blair", ward = "Ward A - Bed 1", userId = "U81699d70"),
+            "Virtual Ward", "GB Pant Hospital, Port Blair", ward = "Ward A - Bed 103", userId = "U81699d70"),
         Patient("P4", "Kavitha Rao", 61, "F", "heart-arrhythmia",
-            "Virtual Ward", "GB Pant Hospital, Port Blair", ward = "Ward A - Bed 2", userId = "U81699d70")
+            "Virtual Ward", "GB Pant Hospital, Port Blair", ward = "Ward A - Bed 104", userId = "U81699d70")
     )
 
     val CAMERA_ZONES = listOf(
@@ -89,7 +89,9 @@ object DemoData {
 
     fun findUserByEmail(email: String): User? = USERS.firstOrNull { it.email.equals(email, true) }
 
-    fun patientsForUser(userId: String): List<Patient> = PATIENTS.filter { it.userId == userId }
+    fun patientsForUser(userId: String): List<Patient> =
+        if (userId == "U81699d70") PATIENTS
+        else PATIENTS.filter { it.userId == userId }
 
     fun zonesForUser(userId: String): List<CameraZone> {
         val patientIds = patientsForUser(userId).map { it.id }
