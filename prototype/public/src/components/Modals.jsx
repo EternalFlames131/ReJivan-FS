@@ -57,19 +57,36 @@ const CallCaregiverModal = ({ isOpen, onClose, currentUser, activePatient }) => 
           {isNurse ? (
             <>
               <button
-                onClick={() => handleDial("Dr. A. Sen, MD (Cardiology Consultant)")}
+                onClick={() => handleDial(activePatient?.attendingDoc || "Attending Physician")}
                 className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
               >
                 <div>
                   <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
-                    Dr. A. Sen, MD (Cardiology)
+                    {activePatient?.attendingDoc || "Dr. A. Sen, MD (Cardiology)"}
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Attending Physician • On-Call Ext. 104
+                    Assigned Attending Physician • On-Call Ext. 104
                   </div>
                 </div>
                 <Phone className="w-4 h-4 text-blue-600 shrink-0" />
               </button>
+
+              {activePatient?.primaryContact && (
+                <button
+                  onClick={() => handleDial(activePatient.primaryContact)}
+                  className="w-full text-left p-3 rounded-xl border border-slate-200/80 hover:border-blue-300 hover:bg-blue-50/50 transition-colors flex items-center justify-between group"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700">
+                      {activePatient.primaryContact}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      Primary Family Contact • Bedside Emergency Authorized
+                    </div>
+                  </div>
+                  <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+                </button>
+              )}
 
               <button
                 onClick={() => handleDial("Nurse Anjali (Shift B Handover Desk)")}
