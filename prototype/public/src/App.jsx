@@ -438,7 +438,16 @@ const App = () => {
           )}
 
           {/* Virtual Ward Route */}
-          {activeTab === "ward" && <VirtualWardView />}
+          {activeTab === "ward" && (
+            <VirtualWardView
+              currentVitals={vitals}
+              simMode={simMode}
+              isStreaming={isStreaming}
+              secondsAgo={secondsAgo}
+              onPageDoctor={() => setCallModalOpen(true)}
+              onExportTelemetry={() => setExportModalOpen(true)}
+            />
+          )}
 
           {/* Medicines MAR Route */}
           {activeTab === "medicines" && (
