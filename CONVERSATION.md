@@ -2005,3 +2005,18 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
      - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
      - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
 
+---
+
+## 2026-09-18 (Virtual Ward Live Data Synchronization & View Chart Functionality)
+
+### What the user asked
+- "in the virtual ward section the data is not changing as per the dashboard and also the view chart is not functional fix it as well"
+
+### Initial Analysis & Plan
+1. Inspect `prototype/public/src/components/VirtualWardView.jsx` and `App.jsx` to see how patient vitals are passed, fetched, or stored in the Virtual Ward.
+2. Diagnose why vitals in the Virtual Ward don't change with physiological drift / simulation modes on the dashboard (e.g. Bed 02 Anita Sharma should dynamically reflect live vitals from the central telemetry stream).
+3. Diagnose why "View Chart" is not functional (check onClick handler, modal state, chart rendering).
+4. Implement a comprehensive patient chart modal (`PatientChartModal` or interactive physiological trend visualizer) showing historical trends, sparklines, NEWS2 score breakdown, and vitals history.
+5. Rebuild bundle, verify Babel compilation, and test across all test suites.
+
+
