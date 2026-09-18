@@ -1970,3 +1970,38 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 - Identify visual flaws, clutter, alignment issues, awkward spacing, inconsistent colors/borders, hard-to-read typography, and button overflow.
 - Redesign the card into a sleek, premium, hospital-grade Clinical Sentinel UI with glassmorphism touches, harmonious badges, clean telemetry readouts, intuitive controls, and polished status indicators.
 - Rebuild bundle and verify thoroughly across Babel compilation, React hydration, and regression tests.
+
+### What was done & verified
+1. **Top Command Banner Overhaul:**
+   - Designed a glowing indigo brand identity badge (`ShieldCheck`) with `Clinical Sentinel` title, `Prajñā Vision™ 17-Keypoint` badge, and compact, non-wrapping `DPDP Act 2023 Compliant` and `GTX 1650 CUDA Connected` indicators.
+   - Replaced verbose wrapping source buttons with a crisp, segmented source switcher (`📹 Live Camera`, `🎥 Demo Video`, `🏥 Ward CCTV`) with subtle icons and active elevated pills.
+   - Streamlined `Fleet` and `Privacy Radar` actions into cohesive, tactile buttons.
+
+2. **Unified Three-Pillar Clinical Telemetry Cards:**
+   - Eliminated theme fragmentation (where Pillar 1 was dark mode black while Pillars 2 and 3 were light mode).
+   - Standardized all 3 cards on an elevated clinical design language with gradient top accents (Indigo for Edge Compute Node, Sky for Optical Stream Ingestion, Dynamic Emerald/Amber/Rose for Patient Kinematic Status).
+   - Replaced basic raw text lists with high-visibility 3-column metric chips (Node ID, Acceleration, Latency; Delivery FPS, Jitter Guard, Retention; Spine Angle, Velocity, Confidence).
+
+3. **Master AI Video Viewport & Control Deck:**
+   - Seamlessly integrated live camera mode switching (`🌐 In-Browser` vs `⚡ YOLO CUDA`) and device selection (`📱 Phone` vs `💻 Laptop` / webcam dropdown) directly into the viewport header deck.
+   - Re-engineered the floating CCTV HUD telemetry overlay: relocated from awkward `bottom-14` floating position down to `bottom-3.5` with a responsive 3-column layout, glassmorphic backdrop, dynamic high-risk emergency crimson pulse beacon, posture label, hypothesis tag, and live velocity/spine telemetry chips.
+   - Polished the standby and paused overlays with glowing ambient radial rings and prominent primary call-to-action buttons.
+   - Standardized the playback control bar with consistent padding, clear groupings, and sleek speed selector.
+
+4. **Progressive Demonstration Event Timeline & Confidence Gauges:**
+   - Upgraded the 7 demonstration stages into an interactive progressive pipeline with step numbers, checkmarks for completed stages, and an active pulsing indigo highlight.
+   - Added anchor link (`id="incident-reconstruction-section"`) so the "Incident Timeline ↓" button smoothly scrolls to the evaluation timeline.
+   - Enhanced the 3 confidence gauges (Detection, Mechanism, Severity) with gradient progress meters and clear percentage chips.
+   - Redesigned corroborating evidence and counter-evidence containers with soft clinical tinted cards and rounded pill tags.
+   - Replaced cluttered bottom tiles with a clean, unified Active Camera Telemetry Digest strip.
+
+5. **Build & Automated Test Verification:**
+   - Compiled React bundle via `node tools/build_web.js` (319,025 bytes).
+   - Verified clean Babel transform in Node VM (350,215 bytes output, 0 syntax errors).
+   - Verified local prototype server operational on port 8080 (`/bundle.jsx` returning 200 OK, 319,296 bytes).
+   - Ran all 4 test suites with 100% pass rates:
+     - `tools/test_camera_architecture.py`: 12/12 passed (100% in 0.625s).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+
