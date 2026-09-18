@@ -1,8 +1,12 @@
 // prototype/public/src/components/PatientTimeline.jsx
 // Patient Timeline Feed (Enterprise Clinical Grade Micro-Audit Trail - Account Aware)
 
-const PatientTimeline = ({ events = [], currentUser }) => {
-  const getDefaultEventsForUser = (user) => {
+const PatientTimeline = ({ events = [], currentUser, activePatient }) => {
+  const getDefaultEventsForUser = (user, patient) => {
+    if (patient?.timeline && patient.timeline.length > 0) {
+      return patient.timeline;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -128,7 +132,10 @@ const PatientTimeline = ({ events = [], currentUser }) => {
     ];
   };
 
-  const defaultEvents = React.useMemo(() => getDefaultEventsForUser(currentUser), [currentUser?.email]);
+  const defaultEvents = React.useMemo(
+    () => getDefaultEventsForUser(currentUser, activePatient),
+    [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]
+  );
   const displayEvents = events.length > 0 ? events : defaultEvents;
 
   return (

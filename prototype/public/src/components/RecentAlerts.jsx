@@ -1,8 +1,12 @@
 // prototype/public/src/components/RecentAlerts.jsx
 // Recent Alerts Card (Enterprise Clinical Grade - Account Aware)
 
-const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
-  const getDefaultAlertsForUser = (user) => {
+const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser, activePatient }) => {
+  const getDefaultAlertsForUser = (user, patient) => {
+    if (patient?.alerts && patient.alerts.length > 0) {
+      return patient.alerts;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -101,7 +105,10 @@ const RecentAlerts = ({ alerts = [], onAcknowledge, currentUser }) => {
     ];
   };
 
-  const defaultAlerts = React.useMemo(() => getDefaultAlertsForUser(currentUser), [currentUser?.email]);
+  const defaultAlerts = React.useMemo(
+    () => getDefaultAlertsForUser(currentUser, activePatient),
+    [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]
+  );
   const displayAlerts = alerts.length > 0 ? alerts : defaultAlerts;
 
   return (

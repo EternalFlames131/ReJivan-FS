@@ -1,8 +1,12 @@
 // prototype/public/src/components/MedicationScheduleCard.jsx
 // Medication Schedule Card (Enterprise Clinical Grade - Account Aware)
 
-const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
-  const getSchedulesForUser = (user) => {
+const MedicationScheduleCard = ({ onOpenAddModal, currentUser, activePatient }) => {
+  const getSchedulesForUser = (user, patient) => {
+    if (patient?.medications && patient.medications.length > 0) {
+      return patient.medications;
+    }
+
     const email = user?.email || "asharma@demo.in";
 
     if (email === "rprakash@demo.in" || user?.name?.includes("Prakash")) {
@@ -178,12 +182,14 @@ const MedicationScheduleCard = ({ onOpenAddModal, currentUser }) => {
     ];
   };
 
-  const [schedule, setSchedule] = React.useState(() => getSchedulesForUser(currentUser));
+  const [schedule, setSchedule] = React.useState(() =>
+    getSchedulesForUser(currentUser, activePatient)
+  );
 
-  // Sync schedule whenever user changes
+  // Sync schedule whenever user or activePatient changes
   React.useEffect(() => {
-    setSchedule(getSchedulesForUser(currentUser));
-  }, [currentUser?.email]);
+    setSchedule(getSchedulesForUser(currentUser, activePatient));
+  }, [currentUser?.email, activePatient?.patientId, activePatient?.id, activePatient?.bedNumber]);
 
   const toggleDrugTaken = (drugId) => {
     setSchedule((prev) =>
