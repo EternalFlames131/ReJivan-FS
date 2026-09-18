@@ -2014,9 +2014,42 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
 
 ### Initial Analysis & Plan
 1. Inspect `prototype/public/src/components/VirtualWardView.jsx` and `App.jsx` to see how patient vitals are passed, fetched, or stored in the Virtual Ward.
-2. Diagnose why vitals in the Virtual Ward don't change with physiological drift / simulation modes on the dashboard (e.g. Bed 02 Anita Sharma should dynamically reflect live vitals from the central telemetry stream).
+2. Diagnose why vitals in the Virtual Ward don't change with physiological drift / simulation modes on the dashboard (e.g. Bed 101 Anita Sharma should dynamically reflect live vitals from the central telemetry stream).
 3. Diagnose why "View Chart" is not functional (check onClick handler, modal state, chart rendering).
-4. Implement a comprehensive patient chart modal (`PatientChartModal` or interactive physiological trend visualizer) showing historical trends, sparklines, NEWS2 score breakdown, and vitals history.
+4. Implement a comprehensive patient chart modal (`PatientChartModal`) showing historical trends, sparklines, NEWS2 score breakdown, and vitals history.
 5. Rebuild bundle, verify Babel compilation, and test across all test suites.
+
+### What was done & verified
+1. **Dynamic Central Telemetry Binding in `App.jsx` & `VirtualWardView.jsx`:**
+   - Identified that `<VirtualWardView />` in `App.jsx` was instantiated with zero props and `VirtualWardView.jsx` relied on a static hardcoded array.
+   - Updated `App.jsx` line 441 to pass `currentVitals={vitals}`, `simMode={simMode}`, `isStreaming={isStreaming}`, `secondsAgo={secondsAgo}`, `onPageDoctor={() => setCallModalOpen(true)}`, and `onExportTelemetry={() => setExportModalOpen(true)}`.
+   - Bound Bed 101 (Anita Sharma) directly to `currentVitals`. As simulation modes change on the main dashboard (`baseline`, `bp_crisis`, `hypoxemia`, `bradycardia`), Anita Sharma's bed in the Virtual Ward dynamically mirrors the exact streaming vitals (HR, SpO2, BP, Temp, Glucose) and recomputes severity status (`normal`, `caution`, `danger`).
+
+2. **Secondary Bed Physiological Micro-Drift & Embedded Sparklines:**
+   - Implemented natural physiological micro-drift with 10-point rolling FIFO sparkline buffers for secondary ward beds (Ram Prakash, Meera Nair, Kavitha Raman).
+   - Added live mini SVG sparklines directly into each ward bed's vital cells (HR, SpO2, BP, Temp), making the ward telemetry visually alive.
+
+3. **Medical-Grade Interactive Patient Chart Modal (`PatientChartModal`):**
+   - Activated the "View Chart" button on all beds to open a tabbed modal:
+     - **Tab 1: Physiological Trend Charts:** High-resolution SVG trend sparklines for Heart Rate, Pulse Oximetry (SpO2), Systolic BP, and Body Temperature with normal clinical baseline indicators, min/max values, and a 5-step continuous telemetry log table.
+     - **Tab 2: NEWS2 Clinical Early Warning Score Matrix:** Full Royal College of Physicians / MoHFW standard National Early Warning Score matrix with automated point calculation across SpO2, Systolic BP, Heart Rate, Body Temperature, and AVPU, displaying clinical risk tiers (Low, Medium, High) and clear escalation action guidance.
+     - **Tab 3: Clinical Profile & Orders:** Inpatient admission details, attending consultant, primary nurse, active Medication Administration Record (MAR), allergies, and DPDP Act 2023 / ABDM HL7/FHIR compliance badges.
+   - Wired "Export Chart JSON", "Bedside Intercom", and "Page Doctor" action buttons.
+
+4. **Bedside Two-Way Audio Intercom Toast:**
+   - Connected the "Intercom" button to launch an active bedside intercom notification toast featuring animated sound waveforms, in-room gateway status, and attending nurse mic connection.
+
+5. **Build & Automated Test Verification:**
+   - Compiled React bundle via `node tools/build_web.js` (`bundle.jsx` 379,526 bytes).
+   - Verified clean Babel transform in Node VM (416,374 bytes output, 0 syntax errors).
+   - Verified DOM hydration in headless Edge browser on `http://localhost:8080`.
+   - Verified 100% pass rate across all 4 test suites:
+     - `tools/test_camera_architecture.py`: 12/12 passed (100% in 0.624s).
+     - `tools/test_prerecorded_monitoring.py`: 13/13 passed (100%).
+     - `tools/test_fall_kinematics.py`: 7/7 passed (100%).
+     - `tools/test_false_positive_lab.py`: 23/23 passed (100%).
+
+---
+
 
 
