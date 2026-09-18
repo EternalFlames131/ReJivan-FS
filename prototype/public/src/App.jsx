@@ -136,6 +136,10 @@ const App = () => {
     sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
   });
 
+  const activePatient = React.useMemo(() => {
+    return ACCOUNT_PROFILES[user?.email] || ACCOUNT_PROFILES["asharma@demo.in"];
+  }, [user?.email]);
+
   // Live seconds ticker
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -150,12 +154,13 @@ const App = () => {
 
     const streamInterval = setInterval(() => {
       setVitals((prev) => {
-        let targetHr = 85;
-        let targetSpo2 = 97.7;
-        let targetBpSys = 149;
-        let targetBpDia = 97;
-        let targetTemp = 37.0;
-        let targetGlucose = 112;
+        const baseVitals = activePatient?.defaultVitals || ACCOUNT_PROFILES["asharma@demo.in"].defaultVitals;
+        let targetHr = baseVitals.hr;
+        let targetSpo2 = baseVitals.spo2;
+        let targetBpSys = baseVitals.bpSys;
+        let targetBpDia = baseVitals.bpDia;
+        let targetTemp = baseVitals.temp;
+        let targetGlucose = baseVitals.glucose;
 
         if (simMode === "bp_crisis") {
           targetHr = 95;
@@ -223,10 +228,20 @@ const App = () => {
     }, 1500);
 
     return () => clearInterval(streamInterval);
-  }, [isStreaming, simMode]);
+  }, [isStreaming, simMode, activePatient]);
 
   // Dynamic Triage Metrics Calculator
   const getTriageMetrics = () => {
+    if (user?.role === "nurse" || user?.email === "wardnurse@demo.in") {
+      return {
+        patientsCount: 4,
+        normalCount: 2,
+        cautionCount: 1,
+        dangerCount: 1,
+        cautionText: "Bed 103 (Meera Nair): Pyrexia 38.6°C",
+        dangerText: "Bed 104 (Kavitha Raman): Bradycardia 48 bpm",
+      };
+    }
     if (vitals.bpSys >= 160 || vitals.spo2 < 92 || vitals.hr < 60 || vitals.hr > 100) {
       let dangerText = "Stage 2 Crisis Escalation";
       if (vitals.spo2 < 92) dangerText = `Acute Hypoxemia: SpO2 ${vitals.spo2}%`;
@@ -242,13 +257,16 @@ const App = () => {
         dangerText,
       };
     }
-    if (vitals.bpSys >= 140 || vitals.bpDia >= 90 || vitals.spo2 < 95) {
+    if (vitals.bpSys >= 140 || vitals.bpDia >= 90 || vitals.spo2 < 95 || vitals.glucose > 160) {
+      const reason = vitals.glucose > 160
+        ? `Elevated Glucose: ${vitals.glucose} mg/dL`
+        : `Elevated BP: ${vitals.bpSys}/${vitals.bpDia} mmHg`;
       return {
         patientsCount: 1,
         normalCount: 0,
         cautionCount: 1,
         dangerCount: 0,
-        cautionText: `Elevated BP: ${vitals.bpSys}/${vitals.bpDia} mmHg`,
+        cautionText: reason,
         dangerText: "Zero active emergencies",
       };
     }
