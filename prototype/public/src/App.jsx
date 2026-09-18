@@ -743,9 +743,38 @@ const App = () => {
     sparkGlucose: [115, 112, 114, 110, 113, 111, 114, 112, 112],
   });
 
+  // Inpatient Bed Selector State (for Hospital Nurse logins)
+  const [selectedWardBed, setSelectedWardBed] = React.useState("bed-101"); // "bed-101" | "bed-102" | "bed-103" | "bed-104" | "all"
+
+  const isNurse = user?.role === "nurse" || user?.email === "wardnurse@demo.in";
+
   const activePatient = React.useMemo(() => {
+    if (isNurse) {
+      if (selectedWardBed && selectedWardBed !== "all" && HOSPITAL_INPATIENT_BEDS[selectedWardBed]) {
+        return HOSPITAL_INPATIENT_BEDS[selectedWardBed];
+      }
+      return {
+        ...ACCOUNT_PROFILES["wardnurse@demo.in"],
+        name: "GB Pant Hospital · Ward A (All Beds)",
+        patientId: "WARD-A-ALL",
+        condition: "Inpatient Ward Overview (4 Monitored Beds)",
+      };
+    }
     return ACCOUNT_PROFILES[user?.email] || ACCOUNT_PROFILES["asharma@demo.in"];
-  }, [user?.email]);
+  }, [user?.email, isNurse, selectedWardBed]);
+
+  const handleSelectWardBed = (bedId) => {
+    setSelectedWardBed(bedId);
+    if (bedId !== "all" && HOSPITAL_INPATIENT_BEDS[bedId]) {
+      const targetBed = HOSPITAL_INPATIENT_BEDS[bedId];
+      setVitals({
+        ...targetBed.defaultVitals,
+        lastSync: "Just now",
+        hardwareSource: targetBed.hardwareSource,
+      });
+      setSimMode("baseline");
+    }
+  };
 
   // Live seconds ticker
   React.useEffect(() => {
@@ -839,14 +868,14 @@ const App = () => {
 
   // Dynamic Triage Metrics Calculator
   const getTriageMetrics = () => {
-    if (user?.role === "nurse" || user?.email === "wardnurse@demo.in") {
+    if (isNurse && selectedWardBed === "all") {
       return {
         patientsCount: 4,
         normalCount: 2,
-        cautionCount: 1,
-        dangerCount: 1,
-        cautionText: "Bed 103 (Meera Nair): Pyrexia 38.6°C",
-        dangerText: "Bed 104 (Kavitha Raman): Bradycardia 48 bpm",
+        cautionCount: 2,
+        dangerCount: 0,
+        cautionText: "Bed 101 (Elevated BP) • Bed 104 (Tachycardia)",
+        dangerText: "Zero active emergency alerts",
       };
     }
     if (vitals.bpSys >= 160 || vitals.spo2 < 92 || vitals.hr < 60 || vitals.hr > 100) {
