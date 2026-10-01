@@ -419,3 +419,7 @@
     - `CallCaregiverModal` & `ClinicalExportModal`: dial the specific bed's attending doctor / family contact and export customized medical summaries.
   - **Native Android App Parity (`App.kt` & `DemoData.kt`):** Added horizontal bed selection filter chip row to Android `Dashboard(state)` and aligned `DemoData.kt` patients list, allowing the nurse to filter between individual beds or all beds on native Android.
   - **Build & Verification:** Web bundle recompiled (`bundle.jsx` 454,876 bytes), verified Babel transform in Node VM (489,282 bytes output, 0 syntax errors), and verified 100% pass across all 4 test suites.
+
+- **2026-10-01 22:46 | Project Capabilities & Architectural Overview Review:**
+  - Synthesized comprehensive end-to-end overview of ReJivan for Hack for Social Cause 2027:
+  - Documented dual use-cases (Home Care remote monitoring & Hospital Virtual Ward telemetry), two monitoring layers (vital signs medical devices + privacy-first vision sentinel), Prajñā clinical engine (NEWS2 scoring), 3-tier autonomous emergency call ladder, 7 clinical reliability safeguards, Andaman & Nicobar regional anchoring, and transparent Real vs Simulated audit breakdown.

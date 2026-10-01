@@ -2255,5 +2255,21 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
   5. Bringing full parity to the native Android app (`App.kt` & `DemoData.kt`) with horizontal bed filter chips.
   6. Recompiling the web bundle (`bundle.jsx` 454 KB) and confirming 100% pass on all automated test suites.
 
+---
 
+## 2026-10-01 (Project Overview & System Capabilities Review)
 
+### What the user asked
+- "what the project overall does"
+
+### What was explained (plain, non-technical terms)
+1. **Core Concept:** "A Personal Nurse for Every Family" for Hack for Social Cause 2027 (MoYAS + IIT Bombay). Provides 24/7 autonomous remote health monitoring, medication tracking, and rapid emergency intervention.
+2. **Dual Environments:**
+   - *Home Care:* Remote monitoring of chronic/elderly patients (e.g., Anita Sharma in Port Blair, Ram Prakash in Little Andaman) by working family members anywhere.
+   - *Hospital Virtual Ward:* Centralized nurse-station console at GB Pant Hospital (Port Blair) monitoring multi-bed telemetry (Beds 101–104) where clinical staff cannot always be physically bedside.
+3. **Dual Monitoring Layers:**
+   - *Medical Wearables & Devices:* Continuously streams 5 vitals (HR, SpO2, BP, Temp, Glucose) scored against UK RCP/MoHFW NEWS2 deterioration rules.
+   - *Privacy-First Vision Sentinel:* On-device edge vision (YOLO pose on GTX 1650 + browser WebAssembly fallback) detecting bed-falls, slips, and immobility. DPDP Act compliant: zero raw video is recorded or stored; frames are converted to skeletal wireframes on-device and discarded immediately.
+4. **Autonomous Emergency Call Ladder:** 30s resident verification check-in prompt -> Tier 1 Family -> Tier 2 Backup -> Tier 3 108/112 ambulance dispatch with GPS and vitals.
+5. **7 Reliability Safeguards:** Physiologic data validation, 0–100 confidence scoring, consecutive-reading verification (preventing single glitches from dialing 108), heartbeat disconnect detection, rate limiting, and immutable audit trails.
+6. **Prototype Honesty:** Clear delineation of what is 100% real (dashboards, login isolation, rules engine, call ladder logic, MAR schedule, vision kinematics) vs simulated (raw telemetry values, telco audio line connection, simulated camera feeds).
