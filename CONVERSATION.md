@@ -2234,4 +2234,26 @@ Why: Vercel functions are short-lived — no 24/7 process, no shared memory. The
    - Tested local server running at `http://localhost:8080` (`/api/health` 200 OK).
    - Verified 100% pass across all 4 automated test suites (Camera Architecture 12/12, Prerecorded Monitoring 13/13, Fall Kinematics 7/7, False Positive Lab 23/23).
 
+---
+
+## 2026-10-01 (Session Open & Recent Changes Review)
+
+### What the user asked
+- "what was last change made on the project"
+
+### Memory Loaded & Acknowledged
+- Session-open protocol executed: auto-read `CONVERSATION.md` and `CONTEXT.md`.
+- Marker verified: `tools/.setup-done-THE-ULTIMATE-WE.txt` exists and matches current computer name (`THE-ULTIMATE-WE`).
+- Git working tree verified clean.
+
+### Summary Provided to User
+- Reviewed the last set of commits (`faca626`, `e388061`, `6c57be0`, `5a2f9d2`, `71bf3c5`), detailing the **Hospital Login Dashboard Patient Selection & Inpatient Bed Toggle** implementation:
+  1. Resolving the clinical ambiguity where nurse logins displayed telemetry under "GB Pant Ward Nurse" instead of individual patients.
+  2. Introducing the interactive Inpatient Bed Selector (`All Beds (Ward Grid)`, Bed 101 Anita, Bed 102 Ram, Bed 103 Meera, Bed 104 Kavitha) at the top of the dashboard.
+  3. Adding the 4-bed Ward Inpatient Matrix view for "All Beds".
+  4. Dynamically synchronizing the entire dashboard (vitals, sparklines, medical devices, medication schedule, alerts, and modals) to whichever bed is selected.
+  5. Bringing full parity to the native Android app (`App.kt` & `DemoData.kt`) with horizontal bed filter chips.
+  6. Recompiling the web bundle (`bundle.jsx` 454 KB) and confirming 100% pass on all automated test suites.
+
+
 
